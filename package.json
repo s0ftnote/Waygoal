@@ -1,0 +1,5 @@
+{
+  "name": "beacon-experiment",
+  "private": true,
+  "scripts": { "dev": "npm --prefix prototypes/pi-web run dev:beacon" }
+}

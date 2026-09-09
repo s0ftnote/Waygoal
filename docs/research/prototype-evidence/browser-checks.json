@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "at": "2026-09-08T16:17:29.531Z",
+  "sessionId": "01a081c8-9d38-768e-896d-f9a195f8d66d",
+  "researchSessionId": "01a081c9-4bcf-768e-896d-f9a32950518d",
+  "userMessagesBefore": 1,
+  "userMessagesAfter": 1,
+  "checks": [
+    "four tracker nodes visible",
+    "real Luna conversation rendered",
+    "concurrent clicks reuse session",
+    "no repeated skill prompt",
+    "blocked node rejects new session",
+    "drag position survives reload",
+    "ticket file viewer opens",
+    "no browser page errors"
+  ]
+}

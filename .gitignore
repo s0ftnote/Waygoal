@@ -1,0 +1,18 @@
+# Local dependencies and generated output
+node_modules/
+.next/
+out/
+build/
+coverage/
+test-results/
+*.tsbuildinfo
+.DS_Store
+*.log
+
+# Credentials and machine-specific session bindings
+.env*
+*.pem
+.beacon-prototype/
+
+# Keep the prototype's existing upstream checkout local.
+prototypes/pi-web/.git
