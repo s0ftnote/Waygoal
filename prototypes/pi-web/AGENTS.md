@@ -243,13 +243,13 @@ Files that are not in upstream agegr/pi-web. Keep them narrow; product docs live
 app/beacon/page.tsx              /beacon — Waygoal session canvas (ticket #2)
 app/beacon/waygoal.css           Waygoal light theme; remaps ChatWindow CSS vars inside .waygoal-app
 app/beacon/tickets/page.tsx      /beacon/tickets — earlier Pi × Wayfinder ticket prototype (BeaconCanvas)
-app/api/waygoal/route.ts         GET ?cwd=&force=1 snapshot (sessions + local tickets) | PATCH { cwd, positions?, view?, lastViewed?, lastViewedEntry?, origin? }
+app/api/waygoal/route.ts         GET ?cwd=&force=1 snapshot (sessions + local tickets) | PATCH { cwd, positions?, view?, lastViewed?, lastViewedEntry?, origin?, ticketSession?, ticketExpanded?, ticketLast? }
 app/api/waygoal/session/[id]/route.ts  GET ?entry= — one session's real branch points and active leaf; read-only, never navigates (ticket #3)
 app/api/beacon/route.ts          ticket prototype: tracker snapshot and ticket → session binding
 components/WaygoalCanvas.tsx     pan/zoom canvas, draggable session nodes, right panel hosting ChatWindow
 components/WaygoalPaths.tsx      panel header: fork origin, branch points, 打开这段 (ticket #3)
 components/WaygoalPathView.tsx   read-only history of one path; reuses GET /api/sessions/[id]/context (ticket #3)
-components/WaygoalTicketPanel.tsx  full view of one local ticket or map: the source file itself, blockers, read time (ticket #7)
+components/WaygoalTicketPanel.tsx  full view of one local ticket or map: the source file itself, blockers, read time (ticket #7); the discussions held under it and the closable how-to (ticket #8)
 components/BeaconCanvas.tsx      ticket prototype canvas
 lib/waygoal-store.ts             canvas records in <agentDir>/waygoal/workspaces/<id>/canvas.json; snapshot builder
 lib/waygoal-branches.ts          pure projection of a Pi tree into branch points and paths; no I/O (ticket #3)
@@ -261,6 +261,7 @@ lib/beacon-store.ts              local Markdown tracker reader for the ticket pr
 e2e/waygoal.mjs                  npm run test:waygoal — own server, temp PI_CODING_AGENT_DIR, fake model (e2e/fake-model.mjs)
 e2e/waygoal-branches.mjs         npm run test:waygoal-branches — fork / read-only review / explicit continue (ticket #3)
 e2e/waygoal-tickets.mjs          npm run test:waygoal-tickets — local maps and tickets on the canvas, no model, no Pi session (ticket #7)
+e2e/waygoal-ticket-talks.mjs     npm run test:waygoal-ticket-talks — starting, forking and continuing a discussion under a ticket (ticket #8)
 e2e/beacon.mjs                   ticket prototype browser check against a running 30142
 ```
 

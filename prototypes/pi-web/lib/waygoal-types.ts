@@ -14,6 +14,13 @@ export interface WaygoalCanvasRecord {
   /** The last content each local ticket file was successfully read as, so a
    *  file that stops being readable can be shown as it last was. */
   tickets: WaygoalSavedTickets;
+  /** Which ticket each discussion is held under, keyed by session id. One
+   *  ticket can have several discussions; a discussion belongs to one ticket. */
+  ticketSessions: Record<string, string>;
+  /** Tickets whose discussions the user collapsed. Absent means shown. */
+  ticketExpanded: Record<string, boolean>;
+  /** Per ticket, the discussion last talked in and the path it was left on. */
+  ticketLast: Record<string, WaygoalTicketPlace>;
   view?: WaygoalView;
   lastViewed?: string | null;
   /** Read-only viewing position inside `lastViewed`. */
@@ -73,17 +80,42 @@ export interface WaygoalSnapshot {
   lastViewedMissing: boolean;
 }
 
+export interface WaygoalTicketPlace {
+  sessionId: string;
+  /** The entry it was left on, when that discussion has more than one path. */
+  entryId: string | null;
+}
+
 export interface WaygoalCanvasPatch {
   positions?: Record<string, WaygoalPoint>;
   view?: WaygoalView;
   lastViewed?: string | null;
   lastViewedEntry?: string | null;
   origin?: { sessionId: string; originSessionId: string; originEntryId: string };
+  /** Hold this discussion under that ticket, or take it back out with null. */
+  ticketSession?: { sessionId: string; ticket: string | null };
+  ticketExpanded?: { ticket: string; expanded: boolean };
+  ticketLast?: { ticket: string; sessionId: string; entryId: string | null };
 }
 
 /** Node card size in canvas units; waygoal.css mirrors these for `.waygoal-node`. */
 export const NODE_WIDTH = 250;
 export const NODE_HEIGHT = 140;
+
+/** A ticket card carries the discussions held under it on chips right beneath
+ *  it, so it takes up more of the canvas than a session card. The chips are one
+ *  stack — show/hide, then each discussion, then the one that starts another —
+ *  and every place that lays one out or measures the stack counts it here. */
+export const CHIP_HEIGHT = 30;
+/** Where a ticket card ends and its chip stack begins. */
+export const TICKET_CHIP_TOP = 152;
+/** Top of the chip in slot `index` of that stack, relative to the card. */
+export const ticketChipTop = (index: number): number => TICKET_CHIP_TOP + index * CHIP_HEIGHT;
+/** How tall a ticket showing this many discussions actually is. */
+export const ticketCardHeight = (discussions: number): number => ticketChipTop(discussions + 2);
+/** Room a ticket reserves when the canvas first places it. Past that the chips
+ *  run on, the same as any card the user drags under another. */
+export const TICKET_CARD_HEIGHT = ticketCardHeight(4);
 
 /** One ticket read from a local Markdown tracker file. The file is the record;
  *  Waygoal keeps no second copy of the text. */
@@ -167,7 +199,25 @@ export interface WaygoalTicketMapView extends Omit<WaygoalTicketMap, "tickets"> 
   stale: WaygoalStale | null;
 }
 
-export interface WaygoalTicketCard extends WaygoalTicketView { position: WaygoalPoint }
+/** One discussion held under a ticket: a real Pi session, named as the canvas
+ *  names it. A discussion the record still points at but that no longer exists
+ *  is kept and marked, never swapped for another one. */
+export interface WaygoalTicketDiscussion {
+  sessionId: string;
+  title: string;
+  running: boolean;
+  missing: boolean;
+  /** The discussion this one was forked from, when it was. */
+  originSessionId: string | null;
+}
+
+export interface WaygoalTicketCard extends WaygoalTicketView {
+  position: WaygoalPoint;
+  discussions: WaygoalTicketDiscussion[];
+  /** Whether this ticket's discussions are shown under it on the canvas. */
+  expanded: boolean;
+  lastDiscussion: WaygoalTicketPlace | null;
+}
 export interface WaygoalTicketMapCard extends Omit<WaygoalTicketMapView, "tickets"> {
   tickets: WaygoalTicketCard[];
   position: WaygoalPoint;

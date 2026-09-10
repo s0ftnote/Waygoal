@@ -1,0 +1,135 @@
+{
+  "ranAt": "2026-09-10T18:18:05.704Z",
+  "checks": [
+    {
+      "name": "a ticket with no discussion says so instead of looking finished",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "starting a discussion from a ticket sends nothing and creates no session",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "clicking start again returns to the same draft, not a second discussion",
+      "ok": true,
+      "detail": "先想开场白"
+    },
+    {
+      "name": "the discussion is held under the ticket it was started from",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a blocked ticket can still be discussed, and talking changes no status",
+      "ok": true,
+      "detail": "[true,\"open\"]"
+    },
+    {
+      "name": "the ticket shows the discussion under it on the canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "and draws the relation to it",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a discussion forked out of this ticket stays under it",
+      "ok": true,
+      "detail": "[{\"sessionId\":\"01a08c89-2449-77e8-b699-5587de2ff0e5\",\"title\":\"先想开场白\",\"running\":false,\"missing\":false,\"originSessionId\":null},{\"sessionId\":\"01a08c89-afcb-77e8-b699-55882dde709c\",\"title\":\"先想开场白\",\"running\":false,\"missing\":false,\"originSessionId\":\"01a08c89-2449-77e8-b699-5587de2ff0e5\"}]"
+    },
+    {
+      "name": "the ticket gains no dependency from being discussed",
+      "ok": true,
+      "detail": "[{\"number\":\"01\",\"path\":\".scratch/party/issues/01-feeling.md\",\"status\":\"open\",\"unknown\":null}]"
+    },
+    {
+      "name": "the fork is its own Pi session file",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a second branch off the same discussion is also this ticket's",
+      "ok": true,
+      "detail": "[[\"01a08c89-2449-77e8-b699-5587de2ff0e5\",null],[\"01a08c89-afcb-77e8-b699-55882dde709c\",\"01a08c89-2449-77e8-b699-5587de2ff0e5\"],[\"01a08c8a-2c4a-77e8-b699-558a37cc1cdb\",\"01a08c89-2449-77e8-b699-5587de2ff0e5\"]]"
+    },
+    {
+      "name": "the two branches are two separate Pi session files",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "reading a branch's source history sends nothing and stays read-only",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "and reading does not move which discussion the ticket was last talked in",
+      "ok": true,
+      "detail": "[\"01a08c89-2449-77e8-b699-5587de2ff0e5\",{\"sessionId\":\"01a08c89-2449-77e8-b699-5587de2ff0e5\",\"entryId\":null}]"
+    },
+    {
+      "name": "one ticket carries several discussions",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "the ticket remembers which discussion was last talked in",
+      "ok": true,
+      "detail": "{\"sessionId\":\"01a08c8a-37c6-77e8-b699-558da5c19006\",\"entryId\":null}"
+    },
+    {
+      "name": "collapsing the ticket and closing the panel does not stop a running discussion",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "collapsing a ticket takes its discussions off the canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a collapsed ticket can still be continued from inside itself, without sending anything",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "continuing from inside the ticket lands in that same discussion",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a resolved ticket can still be discussed, and talking leaves it resolved",
+      "ok": true,
+      "detail": "resolved"
+    },
+    {
+      "name": "the short how-to can be closed and opened again",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a host restart keeps the discussions, the collapsed state and where the talking was left off",
+      "ok": true,
+      "detail": "[4,false,{\"sessionId\":\"01a08c89-2449-77e8-b699-5587de2ff0e5\",\"entryId\":null}]"
+    },
+    {
+      "name": "a discussion whose session is gone is reported, not replaced by another",
+      "ok": true,
+      "detail": "[[\"01a08c89-2449-77e8-b699-5587de2ff0e5\",false],[\"01a08c89-afcb-77e8-b699-55882dde709c\",false],[\"01a08c8a-2c4a-77e8-b699-558a37cc1cdb\",false],[\"01a08c8a-37c6-77e8-b699-558da5c19006\",true]]"
+    },
+    {
+      "name": "and it says so where the discussions are listed",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no page or console errors",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

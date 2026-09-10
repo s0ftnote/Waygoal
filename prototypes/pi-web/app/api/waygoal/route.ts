@@ -29,25 +29,26 @@ export async function GET(req: Request) {
     const snapshot = buildSnapshot(cwd, sessions, getRunningRpcSessionIds(), undefined, trees);
     // Tickets come straight from the workspace's files on every read, so a file
     // created or edited outside Waygoal shows up on the next refresh.
-    const response: WaygoalSnapshotResponse = { ...snapshot, tickets: buildTicketSnapshot(cwd) };
+    const response: WaygoalSnapshotResponse = { ...snapshot, tickets: buildTicketSnapshot(cwd, snapshot.nodes) };
     return NextResponse.json(response, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400 });
   }
 }
 
-// PATCH /api/waygoal  body: { cwd, positions?, view?, lastViewed?, lastViewedEntry?, origin? }
-// Stores layout, the last viewed position and where a fork came from.
-// Restoring later reads only.
+// PATCH /api/waygoal
+// body: { cwd, positions?, view?, lastViewed?, lastViewedEntry?, origin?,
+//         ticketSession?, ticketExpanded?, ticketLast? }
+// Stores layout, the last viewed position, where a fork came from, and which
+// ticket a discussion is held under. Restoring later reads only.
 export async function PATCH(req: Request) {
   try {
-    const body = await req.json() as { cwd?: unknown } & WaygoalCanvasPatch;
-    if (typeof body.cwd !== "string" || !body.cwd) throw new Error("cwd is required");
-    const cwd = resolveWorkspaceCwd(body.cwd);
-    const record = applyCanvasPatch(cwd, {
-      positions: body.positions, view: body.view,
-      lastViewed: body.lastViewed, lastViewedEntry: body.lastViewedEntry, origin: body.origin,
-    });
+    const { cwd: given, ...patch } = await req.json() as { cwd?: unknown } & WaygoalCanvasPatch;
+    if (typeof given !== "string" || !given) throw new Error("cwd is required");
+    // The patch goes on whole: applyCanvasPatch checks every field it accepts
+    // and ignores the rest, so re-listing the fields here would only be a
+    // second place to forget when one is added.
+    const record = applyCanvasPatch(resolveWorkspaceCwd(given), patch);
     return NextResponse.json({ ok: true, updatedAt: record.updatedAt });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400 });

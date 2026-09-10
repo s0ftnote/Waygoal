@@ -41,6 +41,7 @@
     "test:waygoal": "node e2e/waygoal.mjs",
     "test:waygoal-branches": "node e2e/waygoal-branches.mjs",
     "test:waygoal-tickets": "node e2e/waygoal-tickets.mjs",
+    "test:waygoal-ticket-talks": "node e2e/waygoal-ticket-talks.mjs",
     "test": "node --experimental-strip-types --test \"app/**/*.test.mjs\" \"components/**/*.test.mjs\" \"hooks/**/*.test.mjs\" \"lib/**/*.test.mjs\" \"public/**/*.test.mjs\"",
     "release": "npm version patch --no-git-tag-version && npm run build && npm publish --access public"
   },

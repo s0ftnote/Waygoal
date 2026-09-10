@@ -112,6 +112,16 @@
 .waygoal-ticket-meta, .waygoal-ticket-source, .waygoal-ticket-blockers { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: var(--wg-muted); }
 .waygoal-ticket-source code { font-size: 11px; background: var(--wg-canvas); border: 1px solid var(--wg-border); border-radius: 6px; padding: 1px 6px; }
 .waygoal-ticket-label { font-size: 11px; color: var(--wg-muted); }
+.waygoal-ticket-talks { padding: 14px 26px 4px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--wg-border); }
+.waygoal-ticket-talks ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.waygoal-ticket-talks li { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.waygoal-talk-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.waygoal-ticket-empty { margin: 0; font-size: 12px; color: var(--wg-muted); }
+.waygoal-ticket-talks .waygoal-button.action { align-self: flex-start; }
+.waygoal-hint { margin: 2px 0 0; padding: 8px 10px; font-size: 12px; line-height: 1.6; color: var(--wg-ink); background: var(--wg-accent-soft); border-radius: 8px; display: flex; gap: 8px; align-items: flex-start; }
+.waygoal-hint button { flex-shrink: 0; color: var(--wg-muted); font-size: 14px; line-height: 1; }
+.waygoal-hint-source { display: block; margin-top: 4px; font-size: 11px; color: var(--wg-muted); }
+.waygoal-hint-open { align-self: flex-start; font-size: 12px; color: var(--wg-muted); text-decoration: underline; }
 .waygoal-ticket-stale { margin: 0; padding: 8px 10px; font-size: 12px; line-height: 1.6; color: var(--wg-ink); background: var(--wg-canvas); border: 1px dotted var(--wg-path); border-radius: 8px; }
 .waygoal-ticket-body { margin: 0; padding: 16px 24px 28px; font: inherit; font-size: 13px; line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
 
@@ -160,6 +170,11 @@
 .waygoal-chip-label { color: var(--wg-muted); flex-shrink: 0; }
 .waygoal-chip-preview { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .waygoal-chip .waygoal-tag { flex-shrink: 0; }
+.waygoal-chip.toggle { border-style: solid; border-color: var(--wg-border); }
+.waygoal-chip.start { border-style: dotted; }
+.waygoal-chip.missing { border-style: dotted; color: var(--wg-muted); cursor: default; }
+/* A ticket's discussions: an association, drawn lighter than a real fork. */
+.waygoal-link.ticket path { stroke-dasharray: 2 5; opacity: .6; }
 
 /* Origin and branch list above the chat: reading and continuing are two rows
    apart, never the same button. */

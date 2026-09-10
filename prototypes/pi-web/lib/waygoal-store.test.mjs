@@ -94,11 +94,15 @@ test("a corrupt record is tolerated instead of breaking the canvas", () => {
   } finally { s.done(); }
 });
 
-test("nextFreePosition avoids occupied slots", () => {
-  const first = store.nextFreePosition([]);
-  const second = store.nextFreePosition([first]);
+test("nextFreePosition avoids occupied slots, counting how tall each card is", () => {
+  const card = position => ({ ...position, height: store.NODE_HEIGHT });
+  const first = store.nextFreePosition([], store.NODE_HEIGHT);
+  const second = store.nextFreePosition([card(first)], store.NODE_HEIGHT);
   assert.notDeepEqual(first, second);
   assert.ok(Math.abs(first.x - second.x) >= store.NODE_WIDTH || Math.abs(first.y - second.y) >= store.NODE_HEIGHT);
+  // The same slot is refused for a card too tall to fit beside a short one.
+  const beside = store.nextFreePosition([{ ...first, height: TICKET_CARD_HEIGHT }], store.NODE_HEIGHT);
+  assert.ok(beside.y >= TICKET_CARD_HEIGHT || beside.x !== first.x, JSON.stringify(beside));
 });
 
 test("extension: unknown /skill: gets feedback and is not sent; known skills pass through", async () => {
@@ -197,13 +201,14 @@ function localMap(cwd, dir, tickets, map = "# 放映会\n\n## Destination\n\n定
   writeFileSync(join(cwd, ".scratch", dir, "map.md"), map);
   for (const [name, body] of Object.entries(tickets)) writeFileSync(join(cwd, ".scratch", dir, "issues", name), body);
 }
+const { TICKET_CARD_HEIGHT } = await jiti.import("./waygoal-types.ts");
 const ticketBody = (title, extra = "") => `# ${title}\n\nType: grilling\nStatus: open\n${extra}\n## Question\n\n${title}的正文。\n`;
 
 test("local tickets become canvas cards whose layout is kept per workspace", () => {
   const s = sandbox();
   try {
     localMap(s.a, "screening", { "01-feeling.md": ticketBody("感受"), "02-film.md": ticketBody("影片") });
-    const first = store.buildTicketSnapshot(s.a, s.agentDir);
+    const first = store.buildTicketSnapshot(s.a, [], s.agentDir);
     assert.deepEqual(first.maps.map(m => m.path), [".scratch/screening/map.md"]);
     const cards = first.maps[0].tickets;
     assert.deepEqual(cards.map(t => t.title), ["感受", "影片"]);
@@ -211,16 +216,16 @@ test("local tickets become canvas cards whose layout is kept per workspace", () 
     assert.notDeepEqual(cards[0].position, cards[1].position, "cards do not stack on one spot");
 
     store.applyCanvasPatch(s.a, { positions: { ".scratch/screening/issues/01-feeling.md": { x: 640, y: 320 } } }, s.agentDir);
-    const again = store.buildTicketSnapshot(s.a, s.agentDir);
+    const again = store.buildTicketSnapshot(s.a, [], s.agentDir);
     assert.deepEqual(again.maps[0].tickets[0].position, { x: 640, y: 320 }, "a moved card stays where it was put");
     assert.equal(again.maps[0].tickets.length, 2, "rescanning adds no card");
     // Another workspace must not see this one's tickets.
-    assert.deepEqual(store.buildTicketSnapshot(s.b, s.agentDir).maps, []);
+    assert.deepEqual(store.buildTicketSnapshot(s.b, [], s.agentDir).maps, []);
 
     // The canvas polls; a read that found nothing new must leave the record alone.
     const record = join(store.workspaceDir(s.a, s.agentDir), "canvas.json");
     const before = readFileSync(record, "utf8");
-    store.buildTicketSnapshot(s.a, s.agentDir);
+    store.buildTicketSnapshot(s.a, [], s.agentDir);
     assert.equal(readFileSync(record, "utf8"), before, "an unchanged read rewrites nothing");
   } finally { s.done(); }
 });
@@ -229,12 +234,12 @@ test("what was read survives a restart, and a file that vanishes is shown stale,
   const s = sandbox();
   try {
     localMap(s.a, "screening", { "01-feeling.md": ticketBody("感受") });
-    const first = store.buildTicketSnapshot(s.a, s.agentDir);
+    const first = store.buildTicketSnapshot(s.a, [], s.agentDir);
     assert.equal(first.maps[0].tickets[0].stale, null);
 
     // A new process reads the same workspace: the record is on disk, not in memory.
     rmSync(join(s.a, ".scratch/screening/issues/01-feeling.md"));
-    const after = store.buildTicketSnapshot(s.a, s.agentDir);
+    const after = store.buildTicketSnapshot(s.a, [], s.agentDir);
     const card = after.maps[0].tickets[0];
     assert.equal(card.id, ".scratch/screening/issues/01-feeling.md");
     assert.match(card.question, /感受的正文/, "the last content read is what it shows");
@@ -243,15 +248,128 @@ test("what was read survives a restart, and a file that vanishes is shown stale,
   } finally { s.done(); }
 });
 
+test("a session card is never placed on top of a ticket's discussions", () => {
+  const s = sandbox();
+  try {
+    localMap(s.a, "screening", { "01-feeling.md": ticketBody("感受"), "02-film.md": ticketBody("影片") });
+    store.buildTicketSnapshot(s.a, [], s.agentDir);
+    const cards = store.buildTicketSnapshot(s.a, [], s.agentDir).maps[0].tickets;
+    const sessions = store.buildSnapshot(s.a, [session("one", s.a), session("two", s.a), session("three", s.a)], [], s.agentDir).nodes;
+    // A ticket keeps its discussions on chips right under the card, so the room
+    // it takes is taller than a session card's.
+    const clash = sessions.find(node => cards.some(card =>
+      Math.abs(card.position.x - node.position.x) < store.NODE_WIDTH
+      && node.position.y < card.position.y + TICKET_CARD_HEIGHT
+      && card.position.y < node.position.y + store.NODE_HEIGHT));
+    assert.equal(clash, undefined, `session ${clash?.id} landed on a ticket's discussions`);
+  } finally { s.done(); }
+});
+
 test("reading local tickets never touches Pi sessions or the session snapshot", () => {
   const s = sandbox();
   try {
     localMap(s.a, "screening", { "01-feeling.md": ticketBody("感受") });
-    store.buildTicketSnapshot(s.a, s.agentDir);
+    store.buildTicketSnapshot(s.a, [], s.agentDir);
     const snap = store.buildSnapshot(s.a, [session("one", s.a)], [], s.agentDir);
     assert.deepEqual(snap.nodes.map(n => n.id), ["one"], "tickets are not sessions and do not appear as nodes");
     const record = store.readCanvasRecord(s.a, s.agentDir);
     assert.ok(record.tickets.tickets[".scratch/screening/issues/01-feeling.md"], "the read is cached in the canvas record");
     assert.equal(record.origins.one, undefined);
+  } finally { s.done(); }
+});
+
+test("a ticket carries the discussions held under it, and keeps them across a restart", () => {
+  const s = sandbox();
+  try {
+    localMap(s.a, "screening", { "01-feeling.md": ticketBody("感受") });
+    const path = ".scratch/screening/issues/01-feeling.md";
+    const sessions = [session("talk-1", s.a), session("talk-2", s.a), session("loose", s.a)];
+
+    store.applyCanvasPatch(s.a, { ticketSession: { sessionId: "talk-1", ticket: path } }, s.agentDir);
+    store.applyCanvasPatch(s.a, { ticketSession: { sessionId: "talk-2", ticket: path } }, s.agentDir);
+    const nodes = store.buildSnapshot(s.a, sessions, [], s.agentDir).nodes;
+    const ticket = store.buildTicketSnapshot(s.a, nodes, s.agentDir).maps[0].tickets[0];
+    assert.deepEqual(ticket.discussions.map(d => d.sessionId), ["talk-1", "talk-2"], "one ticket, several discussions");
+    assert.equal(ticket.discussions.every(d => !d.missing), true);
+
+    // A session that belongs to no ticket stays a plain node on the canvas.
+    assert.equal(store.readCanvasRecord(s.a, s.agentDir).ticketSessions.loose, undefined);
+  } finally { s.done(); }
+});
+
+test("a discussion forked from a ticket's discussion stays under the same ticket", () => {
+  const s = sandbox();
+  try {
+    localMap(s.a, "screening", { "01-feeling.md": ticketBody("感受") });
+    const path = ".scratch/screening/issues/01-feeling.md";
+    store.applyCanvasPatch(s.a, { ticketSession: { sessionId: "talk-1", ticket: path } }, s.agentDir);
+    // The fork records where it came from; the ticket comes with it.
+    store.applyCanvasPatch(s.a, { origin: { sessionId: "fork-1", originSessionId: "talk-1", originEntryId: "e1" } }, s.agentDir);
+
+    const record = store.readCanvasRecord(s.a, s.agentDir);
+    assert.equal(record.ticketSessions["fork-1"], path, "a branch of the discussion is still that ticket's discussion");
+    const nodes = store.buildSnapshot(s.a, [session("talk-1", s.a), session("fork-1", s.a)], [], s.agentDir).nodes;
+    const ticket = store.buildTicketSnapshot(s.a, nodes, s.agentDir).maps[0].tickets[0];
+    assert.deepEqual(ticket.discussions.map(d => [d.sessionId, d.originSessionId]), [["talk-1", null], ["fork-1", "talk-1"]]);
+    assert.equal(ticket.blocked, false, "a discussion adds no dependency to the ticket");
+
+    // Pi cannot always say which message a fork came from. The canvas then says
+    // outright which ticket the new discussion is held under, so a fork it can
+    // only trace back to the session does not fall out of the ticket.
+    store.applyCanvasPatch(s.a, { ticketSession: { sessionId: "fork-2", ticket: path } }, s.agentDir);
+    const after = store.readCanvasRecord(s.a, s.agentDir);
+    assert.equal(after.ticketSessions["fork-2"], path);
+    assert.equal(after.origins["fork-2"], undefined, "and it claims no message position it does not have");
+  } finally { s.done(); }
+});
+
+test("a discussion whose session is gone is shown as broken, not silently replaced", () => {
+  const s = sandbox();
+  try {
+    localMap(s.a, "screening", { "01-feeling.md": ticketBody("感受") });
+    const path = ".scratch/screening/issues/01-feeling.md";
+    store.applyCanvasPatch(s.a, { ticketSession: { sessionId: "talk-1", ticket: path } }, s.agentDir);
+
+    // The session file is gone; another session of this workspace is not it.
+    const nodes = store.buildSnapshot(s.a, [session("talk-2", s.a)], [], s.agentDir).nodes;
+    const ticket = store.buildTicketSnapshot(s.a, nodes, s.agentDir).maps[0].tickets[0];
+    assert.deepEqual(ticket.discussions.map(d => [d.sessionId, d.missing]), [["talk-1", true]]);
+    assert.equal(store.readCanvasRecord(s.a, s.agentDir).ticketSessions["talk-1"], path, "the record still says what was linked");
+  } finally { s.done(); }
+});
+
+test("a ticket remembers the discussion last talked in, and whether its discussions are shown", () => {
+  const s = sandbox();
+  try {
+    localMap(s.a, "screening", { "01-feeling.md": ticketBody("感受") });
+    const path = ".scratch/screening/issues/01-feeling.md";
+    const sessions = [session("talk-1", s.a), session("talk-2", s.a)];
+    for (const id of ["talk-1", "talk-2"]) store.applyCanvasPatch(s.a, { ticketSession: { sessionId: id, ticket: path } }, s.agentDir);
+
+    const read = () => store.buildTicketSnapshot(s.a, store.buildSnapshot(s.a, sessions, [], s.agentDir).nodes, s.agentDir).maps[0].tickets[0];
+    assert.equal(read().expanded, true, "a ticket shows its discussions until it is collapsed");
+
+    store.applyCanvasPatch(s.a, { ticketExpanded: { ticket: path, expanded: false } }, s.agentDir);
+    store.applyCanvasPatch(s.a, { ticketLast: { ticket: path, sessionId: "talk-2", entryId: "e9" } }, s.agentDir);
+    const collapsed = read();
+    assert.equal(collapsed.expanded, false, "collapsing is kept");
+    assert.deepEqual(collapsed.lastDiscussion, { sessionId: "talk-2", entryId: "e9" }, "and so is where the talking was left off");
+
+    // A ticket that was collapsed can still be continued from inside itself.
+    assert.equal(collapsed.discussions.length, 2);
+  } finally { s.done(); }
+});
+
+test("associations to sessions of another workspace, or to no ticket, are refused", () => {
+  const s = sandbox();
+  try {
+    localMap(s.a, "screening", { "01-feeling.md": ticketBody("感受") });
+    store.applyCanvasPatch(s.a, { ticketSession: { sessionId: "", ticket: ".scratch/screening/issues/01-feeling.md" } }, s.agentDir);
+    store.applyCanvasPatch(s.a, { ticketSession: { sessionId: "talk-1", ticket: "../outside/map.md" } }, s.agentDir);
+    assert.deepEqual(store.readCanvasRecord(s.a, s.agentDir).ticketSessions, {});
+
+    store.applyCanvasPatch(s.a, { ticketSession: { sessionId: "talk-1", ticket: ".scratch/screening/issues/01-feeling.md" } }, s.agentDir);
+    store.applyCanvasPatch(s.a, { ticketSession: { sessionId: "talk-1", ticket: null } }, s.agentDir);
+    assert.deepEqual(store.readCanvasRecord(s.a, s.agentDir).ticketSessions, {}, "a discussion can be taken back out of a ticket");
   } finally { s.done(); }
 });

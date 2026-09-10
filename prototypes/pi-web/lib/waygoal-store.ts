@@ -7,7 +7,7 @@ import { writePrivateFileAtomicSync } from "./atomic-file";
 import { projectIdentityKey } from "./project-identity";
 import type { SessionInfo } from "./types";
 import { mergeTicketScan, readLocalTickets } from "./waygoal-tickets";
-import { NODE_HEIGHT, NODE_WIDTH, type WaygoalCanvasPatch, type WaygoalCanvasRecord, type WaygoalNode, type WaygoalNodeOrigin, type WaygoalOriginRecord, type WaygoalPoint, type WaygoalSavedTickets, type WaygoalSnapshot, type WaygoalTicketSnapshot, type WaygoalTitleSource, type WaygoalTreeInfo } from "./waygoal-types";
+import { NODE_HEIGHT, NODE_WIDTH, TICKET_CARD_HEIGHT, type WaygoalCanvasPatch, type WaygoalCanvasRecord, type WaygoalNode, type WaygoalNodeOrigin, type WaygoalOriginRecord, type WaygoalPoint, type WaygoalSavedTickets, type WaygoalSnapshot, type WaygoalTicketDiscussion, type WaygoalTicketSnapshot, type WaygoalTitleSource, type WaygoalTreeInfo } from "./waygoal-types";
 export { NODE_HEIGHT, NODE_WIDTH };
 
 // Records live under Pi's agent directory, apart from the plugin code, and
@@ -53,7 +53,7 @@ export function resolveWorkspaceCwd(input?: string | null): string {
 }
 
 function emptyRecord(cwd: string): WaygoalCanvasRecord {
-  return { version: 1, cwd, nodes: {}, origins: {}, tickets: emptySavedTickets(), updatedAt: new Date(0).toISOString() };
+  return { version: 1, cwd, nodes: {}, origins: {}, tickets: emptySavedTickets(), ticketSessions: {}, ticketExpanded: {}, ticketLast: {}, updatedAt: new Date(0).toISOString() };
 }
 
 const emptySavedTickets = (): WaygoalSavedTickets => ({ maps: {}, tickets: {} });
@@ -72,6 +72,12 @@ function validSavedTickets(value: unknown): WaygoalSavedTickets {
     if (ticket && ticket.id === path && typeof ticket.mapPath === "string" && typeof ticket.readAt === "string") saved.tickets[path] = ticket;
   }
   return saved;
+}
+
+/** A ticket is named by its path inside this workspace, which is how the
+ *  reader identifies it. Anything reaching outside is not this workspace's. */
+function isTicketPath(value: unknown): value is string {
+  return typeof value === "string" && Boolean(value) && !value.startsWith("/") && !value.split("/").includes("..");
 }
 
 function isOrigin(value: unknown): value is WaygoalOriginRecord {
@@ -105,6 +111,10 @@ export function readCanvasRecord(cwd: string, agentDir = getAgentDir()): Waygoal
       nodes,
       origins,
       tickets: validSavedTickets(parsed.tickets),
+      ticketSessions: Object.fromEntries(Object.entries(parsed.ticketSessions ?? {}).filter(([id, ticket]) => id && isTicketPath(ticket))),
+      ticketExpanded: Object.fromEntries(Object.entries(parsed.ticketExpanded ?? {}).filter(([t, open]) => isTicketPath(t) && typeof open === "boolean")),
+      ticketLast: Object.fromEntries(Object.entries(parsed.ticketLast ?? {}).filter(([t, place]) => isTicketPath(t) && place && typeof place.sessionId === "string" && Boolean(place.sessionId))
+        .map(([t, place]) => [t, { sessionId: place.sessionId, entryId: typeof place.entryId === "string" && place.entryId ? place.entryId : null }])),
       ...(view ? { view } : {}),
       lastViewed: typeof parsed.lastViewed === "string" ? parsed.lastViewed : null,
       lastViewedEntry: typeof parsed.lastViewedEntry === "string" ? parsed.lastViewedEntry : null,
@@ -147,6 +157,24 @@ export function applyCanvasPatch(cwd: string, patch: WaygoalCanvasPatch, agentDi
   // because the fallback below already reports "source unrecorded" honestly.
   if (origin && origin.sessionId && origin.originSessionId && origin.originEntryId && origin.sessionId !== origin.originSessionId) {
     record.origins[origin.sessionId] = { sessionId: origin.originSessionId, entryId: origin.originEntryId, recordedAt: new Date().toISOString() };
+    // Branching a discussion does not take it out of its ticket: the new path
+    // is another way of working on the same question.
+    const inherited = record.ticketSessions[origin.originSessionId];
+    if (inherited && !record.ticketSessions[origin.sessionId]) record.ticketSessions[origin.sessionId] = inherited;
+    changed = true;
+  }
+  const held = patch.ticketSession;
+  if (held && typeof held.sessionId === "string" && held.sessionId) {
+    if (held.ticket === null) { delete record.ticketSessions[held.sessionId]; changed = true; }
+    else if (isTicketPath(held.ticket)) { record.ticketSessions[held.sessionId] = held.ticket; changed = true; }
+  }
+  if (patch.ticketExpanded && isTicketPath(patch.ticketExpanded.ticket) && typeof patch.ticketExpanded.expanded === "boolean") {
+    record.ticketExpanded[patch.ticketExpanded.ticket] = patch.ticketExpanded.expanded;
+    changed = true;
+  }
+  const last = patch.ticketLast;
+  if (last && isTicketPath(last.ticket) && typeof last.sessionId === "string" && last.sessionId) {
+    record.ticketLast[last.ticket] = { sessionId: last.sessionId, entryId: typeof last.entryId === "string" && last.entryId ? last.entryId : null };
     changed = true;
   }
   if (changed) {
@@ -160,21 +188,32 @@ const GRID_X = NODE_WIDTH + 70;
 const GRID_Y = NODE_HEIGHT + 60;
 const GRID_COLUMNS = 3;
 
+/** How tall a card already on the canvas is. Ticket cards are the tall ones:
+ *  the record's own ticket list says which ids are tickets. */
+function cardHeight(record: WaygoalCanvasRecord, id: string): number {
+  return record.tickets.tickets[id] ? TICKET_CARD_HEIGHT : NODE_HEIGHT;
+}
+
 /** Give one card a place on the canvas, keeping the one it already has.
  *  Returns null when nothing had to be assigned, so callers know whether the
  *  record needs writing. */
-function placeOnCanvas(record: WaygoalCanvasRecord, id: string): WaygoalPoint | null {
+function placeOnCanvas(record: WaygoalCanvasRecord, id: string, height = NODE_HEIGHT): WaygoalPoint | null {
   if (record.nodes[id]) return null;
-  record.nodes[id] = nextFreePosition(Object.values(record.nodes));
+  const taken = Object.entries(record.nodes).map(([takenId, point]) => ({ ...point, height: cardHeight(record, takenId) }));
+  record.nodes[id] = nextFreePosition(taken, height);
   return record.nodes[id];
 }
 
-/** First free grid cell that does not overlap a saved node. */
-export function nextFreePosition(taken: Iterable<WaygoalPoint>): WaygoalPoint {
+/** First free grid cell that does not overlap a saved card, counting how tall
+ *  each of them is: a ticket's discussions hang below it, and a session card
+ *  dropped on top of them would hide the ticket's own discussions. */
+export function nextFreePosition(taken: Iterable<WaygoalPoint & { height: number }>, height: number): WaygoalPoint {
   const points = [...taken];
   for (let index = 0; ; index++) {
     const candidate = { x: (index % GRID_COLUMNS) * GRID_X, y: Math.floor(index / GRID_COLUMNS) * GRID_Y };
-    const overlaps = points.some(p => Math.abs(p.x - candidate.x) < NODE_WIDTH + 20 && Math.abs(p.y - candidate.y) < NODE_HEIGHT + 20);
+    const overlaps = points.some(p => Math.abs(p.x - candidate.x) < NODE_WIDTH + 20
+      && candidate.y < p.y + p.height + 20
+      && p.y < candidate.y + height + 20);
     if (!overlaps) return candidate;
   }
 }
@@ -274,19 +313,40 @@ export function buildSnapshot(
 /** One workspace's local tickets, ready to draw: what the source files say
  *  right now, plus where each card sits and anything that could not be read
  *  this time. Reading is all it does — no Pi session is opened or touched. */
-export function buildTicketSnapshot(cwd: string, agentDir = getAgentDir()): WaygoalTicketSnapshot {
+export function buildTicketSnapshot(cwd: string, nodes: WaygoalNode[] = [], agentDir = getAgentDir()): WaygoalTicketSnapshot {
   const scan = readLocalTickets(cwd);
   const record = readCanvasRecord(cwd, agentDir);
   const merged = mergeTicketScan(scan, record.tickets);
   let changed = JSON.stringify(record.tickets) !== JSON.stringify(merged.saved);
-  const place = (id: string): WaygoalPoint => {
-    if (placeOnCanvas(record, id)) changed = true;
+  const place = (id: string, height: number): WaygoalPoint => {
+    if (placeOnCanvas(record, id, height)) changed = true;
     return record.nodes[id];
   };
+  const byId = new Map(nodes.map(node => [node.id, node]));
+  /** The discussions held under one ticket, in the order they were held. A
+   *  session the record points at but the workspace no longer has is kept and
+   *  marked: the user linked it, so its absence is news, not noise. */
+  const discussionsOf = (ticket: string): WaygoalTicketDiscussion[] =>
+    Object.entries(record.ticketSessions).filter(([, path]) => path === ticket).map(([sessionId]) => {
+      const node = byId.get(sessionId);
+      return {
+        sessionId,
+        title: node?.title ?? "读不到这段讨论",
+        running: node?.running ?? false,
+        missing: !node,
+        originSessionId: record.origins[sessionId]?.sessionId ?? null,
+      };
+    });
   const maps = merged.maps.map(map => ({
     ...map,
-    position: place(map.path),
-    tickets: map.tickets.map(ticket => ({ ...ticket, position: place(ticket.id) })),
+    position: place(map.path, NODE_HEIGHT),
+    tickets: map.tickets.map(ticket => ({
+      ...ticket,
+      position: place(ticket.id, TICKET_CARD_HEIGHT),
+      discussions: discussionsOf(ticket.id),
+      expanded: record.ticketExpanded[ticket.id] ?? true,
+      lastDiscussion: record.ticketLast[ticket.id] ?? null,
+    })),
   }));
   if (changed) {
     record.tickets = merged.saved;

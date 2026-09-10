@@ -63,9 +63,9 @@ Waygoal 是通过 Pi extension 接入的本地无限画布会话空间。用户�
 
 已确认的产品规格见 [Spec #1](https://github.com/s0ftnote/Waygoal/issues/1)，实现拆分、阻塞关系及建议顺序见[实现票清单](.scratch/waygoal-tickets/README.md)。
 
-当前入口 `/beacon` 是真实会话画布（[票 #2](https://github.com/s0ftnote/Waygoal/issues/2)）：从任意普通工作目录开始，已有 Pi 会话按真实身份出现在默认画布上，可以新开独立会话、拖动节点、平移缩放，刷新和宿主重启后回到原来的位置。从一条消息可以真正分叉出新会话，也可以在同一段会话里分出方向（[票 #3](https://github.com/s0ftnote/Waygoal/issues/3)）：画布显示来源与各条路径，回看是只读的，在某条路径上发送消息才改变下一次发送进入哪条路径。工作目录里已有的本地 Markdown 地图和票据也直接读进同一张画布（[票 #7](https://github.com/s0ftnote/Waygoal/issues/7)）：程序自己读来源文件，展开看到的就是那个文件本身，看票据不启动会话。它复用 pi-web 宿主及其进程内 Pi extension、Pi 登录、模型、工具和会话能力，不要求 Git 仓库、GitHub、Matt skills 或 tracker，也没有固定的 Wayfinder 根入口或自动路由。
+当前入口 `/beacon` 是真实会话画布（[票 #2](https://github.com/s0ftnote/Waygoal/issues/2)）：从任意普通工作目录开始，已有 Pi 会话按真实身份出现在默认画布上，可以新开独立会话、拖动节点、平移缩放，刷新和宿主重启后回到原来的位置。从一条消息可以真正分叉出新会话，也可以在同一段会话里分出方向（[票 #3](https://github.com/s0ftnote/Waygoal/issues/3)）：画布显示来源与各条路径，回看是只读的，在某条路径上发送消息才改变下一次发送进入哪条路径。工作目录里已有的本地 Markdown 地图和票据也直接读进同一张画布（[票 #7](https://github.com/s0ftnote/Waygoal/issues/7)）：程序自己读来源文件，展开看到的就是那个文件本身，看票据不启动会话。票据和真实会话是挂在一起的（[票 #8](https://github.com/s0ftnote/Waygoal/issues/8)）：从一张还没有讨论的票据可以直接开始聊，发送之前不建立会话；一张票据可以带好几段讨论，从讨论里分叉出去的那段仍属于同一张票据。它复用 pi-web 宿主及其进程内 Pi extension、Pi 登录、模型、工具和会话能力，不要求 Git 仓库、GitHub、Matt skills 或 tracker，也没有固定的 Wayfinder 根入口或自动路由。
 
-更早的 Pi × Wayfinder 票据原型保留在 `/beacon/tickets`：把本地工作目录中的 Markdown 地图和票据变成可浏览的画布，点击节点开始或继续关联的 Pi 对话。票据讨论接入会话画布时再替换它；手动整理、多分支展开及通用来源通知尚未接入。产品工作指引见 [AGENTS.md](AGENTS.md)。
+更早的 Pi × Wayfinder 票据原型保留在 `/beacon/tickets`：把本地工作目录中的 Markdown 地图和票据变成可浏览的画布，点击节点开始或继续关联的 Pi 对话。它的两件事现在都在 `/beacon` 上了——本地票据进入画布（票 #7）、从票据开始并继续讨论（票 #8）——只是「一票只绑一段会话」的限制换成了一票多段讨论；这个更早的入口留着做对照，不再往前推进。产品工作指引见 [AGENTS.md](AGENTS.md)。
 
 ## 启动
 
@@ -93,8 +93,9 @@ npm run dev
 - 分叉与路径：分叉点和各条路径读自真实 Pi tree，会话内的分支不伪造成独立会话文件。位置标识是「会话 + 条目」，因为 Pi 的 fork 会把条目 id 复制进新文件。跨会话分叉调用 Pi 原生 `fork`，并在分叉当下记下来源会话与来源消息；只有 Pi header 可依据时，只说得出来源会话。
 - 回看与继续：回看走只读历史读取，不调用会切换活动路径的树导航，也不新增消息；在这条路径上发送消息才移动活动路径，消息本身就落在所选路径上，没有额外的确认步骤。界面上分开标出「正在看」的是哪条、「在聊」的是哪条，刷新和宿主重启后都保留；记录里的那条消息找不到时明确提示，不按相似标题绑到另一段历史。
 - 本地票据：只读 `.scratch/<地图>/map.md` 加 `issues/NN-*.md` 这一种布局，字段沿用本地 Markdown tracker；`.scratch/` 下不是这个布局的目录照实说明，不宣称支持任意 tracker。读取器只读不写，复用票据原型已有的扫描器，身份是「工作目录 + 来源文件路径」而不是标题或编号，改标题和反复刷新都不新增卡片。依赖复用现有阻塞判断，指不到或指到多份都算未知并保持被挡住。快照和布局存进同一份画布记录，宿主重启后仍在；来源文件读不到时卡片留在画布上，显示上一次成功读到的内容和时间，不按相似标题改绑。查看票据不启动 Pi 会话。
+- 票据下的讨论：从票据开始聊只是打开一个草稿，草稿按「票据 + 工作目录」记住，关掉面板再点还是同一份，发送才真正建立会话并挂到这张票据下。一张票据可以带多段讨论；从某段讨论分叉出去的那段沿用同一张票据，不复制票据也不新增依赖。票据下记着上次在聊哪一段，也记着这张票据的讨论是摊开还是收起，都存进同一份画布记录，宿主重启后仍在。收起只是不在画布上摊开，票据里照样能接着聊；被挡住的票据和已解决的票据都还能讨论，聊天本身不改票据状态。关联指向的会话不在了就照实说「打不开」，不按标题换一段顶上。票据卡片下的操作提示是写死的一句话，可关可再开，不读聊天内容也不调用模型。
 
-尚未处理：工作区切换界面、多画布、手动分组与连线、分支标题、票据与会话的挂载、远程来源、会话重命名入口、多进程同时写同一画布记录。
+尚未处理：工作区切换界面、多画布、手动分组与连线、分支标题、依赖变动的下游解锁提示、远程来源、会话重命名入口、多进程同时写同一画布记录。
 
 ## 验证
 
@@ -105,6 +106,7 @@ node_modules/.bin/tsc --noEmit
 node --test lib/beacon-store.test.mjs lib/waygoal-store.test.mjs lib/waygoal-tickets.test.mjs lib/startup-preferences.test.mjs lib/subagent-settings.test.mjs
 npm run test:waygoal
 npm run test:waygoal-tickets
+npm run test:waygoal-ticket-talks
 node e2e/beacon.mjs
 ```
 
@@ -112,6 +114,8 @@ node e2e/beacon.mjs
 
 `test:waygoal-tickets` 不配置模型、不建立任何 Pi 会话：它在临时工作目录里写出真实布局的本地地图与票据，从界面检查读取、修改、同号、缺失依赖、改标题、重复刷新、宿主重启与来源文件消失后的降级，截图写入 `docs/research/prototype-evidence/tickets/`。
 
+`test:waygoal-ticket-talks` 在同样隔离的宿主里配一个假模型，把真实的地图与票据文件写进临时工作目录，从界面检查：空票据开始聊只开草稿不建会话、重复点击回到同一份草稿、发送后讨论挂在票据下、真实分叉仍属这张票据、一票多段讨论、收起后从票据里接着聊、被挡住和已解决的票据照样能讨论、宿主重启后关联与位置都在、会话文件被删后照实说「打不开」，截图写入 `docs/research/prototype-evidence/ticket-talks/`。
+
 `e2e/beacon.mjs` 是票据原型的浏览器检查，需本机 Google Chrome、运行中的 30142 和已完成真实模型试跑的默认 playground。它恢复已有会话，不向模型追加消息。
 
-会话画布的试跑记录见 [session-canvas-results.md](docs/research/session-canvas-results.md)，分叉与回看的试跑记录见 [branch-navigation-results.md](docs/research/branch-navigation-results.md)，本地票据见 [local-tickets-results.md](docs/research/local-tickets-results.md)，票据原型见 [prototype-results.md](docs/research/prototype-results.md)。上游是 [agegr/pi-web](https://github.com/agegr/pi-web)，基于提交 `a26cc68df9227cb74253bddd7c59624aa475e61f`，Pi SDK 版本 `0.85.1`。
+会话画布的试跑记录见 [session-canvas-results.md](docs/research/session-canvas-results.md)，分叉与回看的试跑记录见 [branch-navigation-results.md](docs/research/branch-navigation-results.md)，本地票据见 [local-tickets-results.md](docs/research/local-tickets-results.md)，票据下的讨论见 [ticket-talks-results.md](docs/research/ticket-talks-results.md)，票据原型见 [prototype-results.md](docs/research/prototype-results.md)。上游是 [agegr/pi-web](https://github.com/agegr/pi-web)，基于提交 `a26cc68df9227cb74253bddd7c59624aa475e61f`，Pi SDK 版本 `0.85.1`。

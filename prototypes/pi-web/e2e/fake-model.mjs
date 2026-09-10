@@ -2,9 +2,13 @@
 // Pi's openai-completions provider streams SSE from `${baseUrl}/chat/completions`.
 import { createServer } from "node:http";
 import { once } from "node:events";
+import { setTimeout as delay } from "node:timers/promises";
 
 export async function startFakeModel({ reply = "E2E reply" } = {}) {
   const requests = [];
+  /** Milliseconds to hold an answer open, so a test can act while a session is
+   *  still running. Set it on the returned object; 0 answers at once. */
+  const control = { slowMs: 0 };
   const server = createServer((req, res) => {
     if (req.method === "GET" && req.url === "/models") {
       res.writeHead(200, { "content-type": "application/json" });
@@ -33,10 +37,13 @@ export async function startFakeModel({ reply = "E2E reply" } = {}) {
       })}\n\n`;
       res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store" });
       res.write(chunk({ role: "assistant", content: "" }));
-      res.write(chunk({ content: text }));
-      res.write(chunk({}, "stop", { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }));
-      res.write("data: [DONE]\n\n");
-      res.end();
+      void (async () => {
+        if (control.slowMs > 0) await delay(control.slowMs);
+        res.write(chunk({ content: text }));
+        res.write(chunk({}, "stop", { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }));
+        res.write("data: [DONE]\n\n");
+        res.end();
+      })();
     });
   });
   server.listen(0, "127.0.0.1");
@@ -45,6 +52,9 @@ export async function startFakeModel({ reply = "E2E reply" } = {}) {
   return {
     baseUrl,
     requests,
+    /** Hold the next answers open for this many ms (0 = answer at once). */
+    set slowMs(ms) { control.slowMs = ms; },
+    get slowMs() { return control.slowMs; },
     close: () => new Promise((resolve) => server.close(() => resolve())),
     /** Concatenated text of every message in every request so far. */
     transcript: () => JSON.stringify(requests.map((r) => r.body?.messages ?? [])),

@@ -1,9 +1,10 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { rekeyDraft } from "@/lib/draft-store";
 import type { SessionInfo } from "@/lib/types";
 import type { WaygoalBranchChoice, WaygoalBranchPoint, WaygoalSessionTreeResponse } from "@/lib/waygoal-branches";
-import { NODE_HEIGHT, NODE_WIDTH, type WaygoalCanvasPatch, type WaygoalNode, type WaygoalPoint, type WaygoalSnapshotResponse, type WaygoalView } from "@/lib/waygoal-types";
+import { CHIP_HEIGHT, NODE_HEIGHT, NODE_WIDTH, ticketCardHeight, ticketChipTop, type WaygoalCanvasPatch, type WaygoalNode, type WaygoalPoint, type WaygoalSnapshotResponse, type WaygoalView } from "@/lib/waygoal-types";
 import { ChatWindow } from "./ChatWindow";
 import { WaygoalPaths } from "./WaygoalPaths";
 import { WaygoalPathView } from "./WaygoalPathView";
@@ -14,7 +15,12 @@ const NODE_H = NODE_HEIGHT;
 const DEFAULT_VIEW: WaygoalView = { x: 48, y: 48, scale: 1 };
 const MIN_SCALE = 0.35;
 const MAX_SCALE = 1.8;
-const CHIP_HEIGHT = 30;
+/** The composer a ticket opens is a new-session composer, and the host clears a
+ *  new-session draft as soon as that composer unmounts. An unsent ticket draft
+ *  has to outlive closing the panel, so it is parked under the ticket's own key
+ *  while no composer holds it, and handed back when the ticket is opened again. */
+const liveTicketDraft = (ticket: string, cwd: string) => `waygoal-ticket:${ticket}:${cwd}`;
+const parkedTicketDraft = (ticket: string, cwd: string) => `waygoal-ticket-parked:${ticket}:${cwd}`;
 const CHIP_GAP = 16;
 
 function without<T>(record: Record<string, T>, key: string): Record<string, T> {
@@ -98,6 +104,9 @@ export function WaygoalCanvas() {
   const [dragging, setDragging] = useState<Record<string, WaygoalPoint>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draftKey, setDraftKey] = useState<string | null>(null);
+  // The ticket a discussion being started belongs to. Nothing is written until
+  // the user actually sends: an unsent draft holds no session and no ticket.
+  const [pendingTicket, setPendingTicket] = useState<string | null>(null);
   const [createdSession, setCreatedSession] = useState<SessionInfo | null>(null);
   const [panelKey, setPanelKey] = useState(0);
   const [trust, setTrust] = useState<{ requiresTrust: boolean; trusted: boolean } | null>(null);
@@ -264,8 +273,14 @@ export function WaygoalCanvas() {
   // Directories under .scratch/ that were not read as maps. Saying so on the
   // canvas is the point: a silently skipped directory looks like an empty one.
   const skipped = [...(snapshot?.tickets.unsupported ?? []), ...(snapshot?.tickets.unreadable ?? [])];
+  // Which ticket a discussion is held under, read from the same snapshot.
+  const ticketOfSession = useMemo(() => new Map(ticketMaps.flatMap(map =>
+    map.tickets.flatMap(ticket => ticket.discussions.map(talk => [talk.sessionId, ticket.id] as const)))), [ticketMaps]);
   const openTicketMap = openTicket ? ticketMaps.find(map => map.path === openTicket || map.tickets.some(t => t.id === openTicket)) ?? null : null;
   const openTicketCard = openTicketMap?.tickets.find(t => t.id === openTicket) ?? null;
+  const pendingTicketTitle = pendingTicket
+    ? ticketMaps.flatMap(map => map.tickets).find(ticket => ticket.id === pendingTicket)?.title ?? null
+    : null;
   const nodeById = useMemo(() => new Map(nodes.map(node => [node.id, node])), [nodes]);
   const selectedNode = nodes.find(n => n.id === selectedId) ?? null;
   const panelSession: SessionInfo | null = selectedNode ? nodeToSession(selectedNode, snapshot!.cwd) : createdSession;
@@ -281,6 +296,16 @@ export function WaygoalCanvas() {
     if (!from || from.id === node.id) return [];
     return [{ id: node.id, from: from.position, to: node.position, exact: Boolean(node.origin?.entryId) }];
   }), [nodes, nodeById]);
+
+  // A ticket and its discussions, drawn so the relation survives dragging one
+  // of them away. It is an association, not a fork and not a dependency.
+  const ticketEdges = useMemo(() => ticketMaps.flatMap(map => map.tickets.flatMap(ticket =>
+    ticket.discussions.flatMap(talk => {
+      const node = nodeById.get(talk.sessionId);
+      // Collapsed means this ticket is not spread out on the canvas: its lines
+      // go quiet with its chips. The discussions are still held under it.
+      return node && ticket.expanded ? [{ id: `${ticket.id}->${talk.sessionId}`, from: ticket.position, to: node.position }] : [];
+    }))), [ticketMaps, nodeById]);
 
   // The card grows when it carries origin or branch marks, so the chip stack
   // is placed under its measured height rather than the nominal one.
@@ -310,13 +335,15 @@ export function WaygoalCanvas() {
     setSelectedId(node.id);
     setPanelKey(k => k + 1);
     setNotice("");
-    void patch({ lastViewed: node.id, lastViewedEntry: null });
-  }, [patch]);
+    setPendingTicket(null);
+    const ticket = ticketOfSession.get(node.id);
+    void patch({ lastViewed: node.id, lastViewedEntry: null, ...(ticket ? { ticketLast: { ticket, sessionId: node.id, entryId: null } } : {}) });
+  }, [patch, ticketOfSession]);
 
   /** Open one local map or ticket: a file this workspace already has. Reading
    *  it starts nothing — it is not a Pi session and has none of its own. */
   const openLocalTicket = useCallback((path: string) => {
-    setDraftKey(null); setCreatedSession(null); setViewing(null);
+    setDraftKey(null); setCreatedSession(null); setViewing(null); setPendingTicket(null);
     setSelectedId(null);
     setOpenTicket(path);
     setNotice("");
@@ -333,6 +360,8 @@ export function WaygoalCanvas() {
       setPanelKey(k => k + 1);
     }
     setViewing({ sessionId, entryId, leafId, label });
+    // Reading is not talking: the ticket keeps pointing at the discussion the
+    // user last talked in, not at whatever history they are looking through.
     void patch({ lastViewed: sessionId, lastViewedEntry: entryId });
   }, [patch, selectedId]);
 
@@ -343,27 +372,65 @@ export function WaygoalCanvas() {
 
   const startNewChat = useCallback(() => {
     if (!snapshot) return;
-    setSelectedId(null); setCreatedSession(null); setViewing(null); setOpenTicket(null);
+    setSelectedId(null); setCreatedSession(null); setViewing(null); setOpenTicket(null); setPendingTicket(null);
     setDraftKey(`waygoal-new:${crypto.randomUUID()}:${snapshot.cwd}`);
     setPanelKey(k => k + 1);
     setNotice("");
   }, [snapshot]);
 
+  /** Start a discussion under one ticket. Like the plain new chat, this only
+   *  opens a composer: the draft is kept under the ticket's own key, so coming
+   *  back — or clicking twice — lands on the same unsent draft instead of a
+   *  second session, and nothing is held under the ticket until it is sent. */
+  const startTicketChat = useCallback((ticketPath: string) => {
+    if (!snapshot) return;
+    setSelectedId(null); setCreatedSession(null); setViewing(null); setOpenTicket(null);
+    setPendingTicket(ticketPath);
+    // Hand the parked draft back before the composer mounts: it reads the
+    // stored draft while rendering, so an effect would be a render too late.
+    rekeyDraft(parkedTicketDraft(ticketPath, snapshot.cwd), liveTicketDraft(ticketPath, snapshot.cwd));
+    setDraftKey(liveTicketDraft(ticketPath, snapshot.cwd));
+    setPanelKey(k => k + 1);
+    setNotice("");
+  }, [snapshot]);
+
+  const pendingCwd = snapshot?.cwd;
+  useEffect(() => {
+    if (!pendingTicket || !pendingCwd) return;
+    const live = liveTicketDraft(pendingTicket, pendingCwd);
+    const parked = parkedTicketDraft(pendingTicket, pendingCwd);
+    return () => { rekeyDraft(live, parked); };
+  }, [pendingTicket, pendingCwd]);
+
+  const toggleTicket = useCallback((ticketPath: string, expanded: boolean) => {
+    void patch({ ticketExpanded: { ticket: ticketPath, expanded } });
+  }, [patch]);
+
   const closePanel = useCallback(() => {
-    setSelectedId(null); setDraftKey(null); setCreatedSession(null); setViewing(null); setOpenTicket(null);
+    setSelectedId(null); setDraftKey(null); setCreatedSession(null); setViewing(null); setOpenTicket(null); setPendingTicket(null);
     viewportRef.current?.focus();
   }, []);
 
   const onSessionCreated = useCallback((session: SessionInfo) => {
     setCreatedSession(session);
     setSelectedId(session.id);
-    void patch({ lastViewed: session.id, lastViewedEntry: null });
+    const ticket = pendingTicket;
+    setPendingTicket(null);
+    void patch({
+      lastViewed: session.id, lastViewedEntry: null,
+      ...(ticket ? { ticketSession: { sessionId: session.id, ticket }, ticketLast: { ticket, sessionId: session.id, entryId: null } } : {}),
+    });
     void refresh(true);
-  }, [patch, refresh]);
+  }, [patch, pendingTicket, refresh]);
 
   /** Land on a session that was just branched off, keeping where it came from. */
   const landOnFork = useCallback(async (newSessionId: string, originSessionId: string, originEntryId?: string) => {
+    // The ticket comes along either way: with a message position the store
+    // carries it over with the origin, and without one it is said outright, so
+    // a fork Pi can only trace back to the session does not leave the ticket.
+    const ticket = ticketOfSession.get(originSessionId);
     if (originEntryId) await patch({ origin: { sessionId: newSessionId, originSessionId, originEntryId } });
+    else if (ticket) await patch({ ticketSession: { sessionId: newSessionId, ticket } });
     setViewing(null); setDraftKey(null); setCreatedSession(null);
     setSelectedId(newSessionId);
     setPanelKey(k => k + 1);
@@ -372,7 +439,7 @@ export function WaygoalCanvas() {
       ? "已分出一条新路径。原来的讨论还在画布上，连线指向它分出的那条消息。"
       : "已分出一条新路径。这次没有记下具体消息位置，画布只显示来源会话。");
     await refresh(true);
-  }, [patch, refresh]);
+  }, [patch, refresh, ticketOfSession]);
 
   /** The real Pi fork, from a message in the read-only view. */
   const forkFrom = useCallback(async (sessionId: string, entryId: string) => {
@@ -422,8 +489,11 @@ export function WaygoalCanvas() {
    *  the move fails, so a message cannot land on the path the user left. */
   const continueAndSend = useCallback(async (sessionId: string, leafId: string, text: string) => {
     if (!(await continueAt(sessionId, leafId))) return;
+    // Sending is what makes this the discussion — and the path — being talked in.
+    const ticket = ticketOfSession.get(sessionId);
+    if (ticket) await patch({ ticketLast: { ticket, sessionId, entryId: leafId } });
     setPending(text);
-  }, [continueAt]);
+  }, [continueAt, patch, ticketOfSession]);
 
   const zoomBy = useCallback((factor: number, center?: WaygoalPoint) => {
     viewDirty.current = true;
@@ -435,16 +505,28 @@ export function WaygoalCanvas() {
     });
   }, []);
 
+  /** 回到全景 means the whole canvas: session cards and ticket cards alike, and
+   *  a ticket takes as much room as the discussions shown under it. */
   const fitAll = useCallback(() => {
     viewDirty.current = true;
     const el = viewportRef.current;
-    if (!el || nodes.length === 0) { setView(DEFAULT_VIEW); return; }
-    const xs = nodes.map(n => n.position.x), ys = nodes.map(n => n.position.y);
-    const minX = Math.min(...xs), minY = Math.min(...ys);
-    const width = Math.max(...xs) + NODE_W - minX, height = Math.max(...ys) + NODE_H - minY;
+    const boxes = [
+      ...nodes.map(node => ({ ...node.position, height: NODE_H })),
+      ...ticketMaps.flatMap(map => [
+        { ...map.position, height: NODE_H },
+        ...map.tickets.map(ticket => ({
+          ...ticket.position,
+          height: ticket.expanded ? ticketCardHeight(ticket.discussions.length) : NODE_H,
+        })),
+      ]),
+    ];
+    if (!el || boxes.length === 0) { setView(DEFAULT_VIEW); return; }
+    const minX = Math.min(...boxes.map(b => b.x)), minY = Math.min(...boxes.map(b => b.y));
+    const width = Math.max(...boxes.map(b => b.x + NODE_W)) - minX;
+    const height = Math.max(...boxes.map(b => b.y + b.height)) - minY;
     const scale = Math.min(1, Math.max(MIN_SCALE, Math.min((el.clientWidth - 96) / width, (el.clientHeight - 96) / height)));
     setView({ x: (el.clientWidth - width * scale) / 2 - minX * scale, y: (el.clientHeight - height * scale) / 2 - minY * scale, scale });
-  }, [nodes]);
+  }, [nodes, ticketMaps]);
 
   const nudge = useCallback((node: WaygoalNode, dx: number, dy: number) => {
     const position = { x: node.position.x + dx, y: node.position.y + dy };
@@ -546,6 +628,14 @@ export function WaygoalCanvas() {
                     && <text x={mx} y={my - 9} textAnchor="middle">{label}</text>}
                 </g>;
               })}
+              {ticketEdges.map(edge => {
+                const start = borderAnchor(edge.from, edge.to);
+                const end = borderAnchor(edge.to, edge.from);
+                return <g key={`ticket-${edge.id}`} className="waygoal-link ticket">
+                  <path d={`M ${start.x} ${start.y} L ${end.x} ${end.y}`} />
+                  <circle cx={end.x} cy={end.y} r={4.5} />
+                </g>;
+              })}
             </svg>
             {nodes.map(node => <button key={node.id} type="button" data-node={node.id}
               ref={node.id === selectedId ? selectedElRef : undefined}
@@ -600,6 +690,35 @@ export function WaygoalCanvas() {
                   {card.marks && <span className="waygoal-node-marks">{card.marks}</span>}
                   <span className="waygoal-node-foot"><span>{card.foot}</span><span aria-hidden="true">{openTicket === card.id ? "正在看" : "打开 →"}</span></span>
                 </button>)}
+              {/* The discussions held under each ticket, right below it: the
+                  tickets stay laid out flat, no container wraps them. */}
+              {map.tickets.map(ticket => <Fragment key={`talks-${ticket.id}`}>
+                {ticket.discussions.length > 0 && <button type="button" data-talk-toggle={ticket.id}
+                  className="waygoal-chip toggle" style={{ left: ticket.position.x, top: ticket.position.y + ticketChipTop(0), width: NODE_W }}
+                  onPointerDown={e => e.stopPropagation()}
+                  onClick={e => { e.stopPropagation(); toggleTicket(ticket.id, !ticket.expanded); }}>
+                  <span className="waygoal-chip-label">{ticket.discussions.length} 段讨论</span>
+                  <span className="waygoal-chip-preview">{ticket.expanded ? "收起" : "展开"}</span>
+                </button>}
+                {ticket.expanded && ticket.discussions.map((talk, index) => <button key={talk.sessionId} type="button" data-talk={talk.sessionId}
+                  className={`waygoal-chip${selectedId === talk.sessionId ? " viewing" : ""}${talk.missing ? " missing" : ""}`}
+                  style={{ left: ticket.position.x, top: ticket.position.y + ticketChipTop(index + 1), width: NODE_W }}
+                  onPointerDown={e => e.stopPropagation()}
+                  disabled={talk.missing}
+                  title={talk.missing ? "这段讨论已经不在了" : "打开这段讨论"}
+                  onClick={e => { e.stopPropagation(); const node = nodeById.get(talk.sessionId); if (node) openNode(node); }}>
+                  <span className="waygoal-chip-label">{talk.missing ? "打不开" : "讨论"}</span>
+                  <span className="waygoal-chip-preview">{talk.title}</span>
+                </button>)}
+                {ticket.expanded && <button type="button" data-talk-start={ticket.id}
+                  className="waygoal-chip start"
+                  style={{ left: ticket.position.x, top: ticket.position.y + ticketChipTop(ticket.discussions.length ? ticket.discussions.length + 1 : 0), width: NODE_W }}
+                  onPointerDown={e => e.stopPropagation()}
+                  onClick={e => { e.stopPropagation(); startTicketChat(ticket.id); }}>
+                  <span className="waygoal-chip-label">＋</span>
+                  <span className="waygoal-chip-preview">{ticket.discussions.length ? "另开一段讨论" : "还没有讨论，开始聊"}</span>
+                </button>}
+              </Fragment>)}
             </div>)}
             {/* In-session paths of the open node, so branches stay findable on the
                 canvas and not only inside the chat panel. Clicking one reads it. */}
@@ -628,13 +747,18 @@ export function WaygoalCanvas() {
         <div className="waygoal-panel-head">
           {isMobile && <button type="button" className="waygoal-button outlined small" onClick={closePanel}>← 回到画布</button>}
           <div className="waygoal-panel-title">
-            <span className="waygoal-eyebrow">{openTicketMap ? (openTicketCard ? "本地票据" : "本地地图") : viewing ? "正在看这条路径" : panelSession ? (selectedNode?.running ? "正在运行" : "已有会话") : "新的会话"}</span>
-            <strong>{openTicketMap ? (openTicketCard?.title ?? openTicketMap.title) : panelSession ? (selectedNode?.title ?? createdSession?.firstMessage ?? "会话") : "先写下第一句，发送后这段会话才会出现在画布上"}</strong>
+            <span className="waygoal-eyebrow">{openTicketMap ? (openTicketCard ? "本地票据" : "本地地图") : viewing ? "正在看这条路径" : panelSession ? (selectedNode?.running ? "正在运行" : "已有会话") : pendingTicket ? "这张票下的新讨论" : "新的会话"}</span>
+            <strong>{openTicketMap ? (openTicketCard?.title ?? openTicketMap.title)
+              : panelSession ? (selectedNode?.title ?? createdSession?.firstMessage ?? "会话")
+              : pendingTicket ? `${pendingTicketTitle ?? pendingTicket}：写下第一句，发送后这段讨论就挂在这张票下`
+              : "先写下第一句，发送后这段会话才会出现在画布上"}</strong>
           </div>
           {viewing && <button type="button" className="waygoal-button outlined small" onClick={stopViewing}>回到在聊的那条</button>}
           {!isMobile && <button type="button" className="waygoal-icon" aria-label="关闭面板" onClick={closePanel}>×</button>}
         </div>
-        {openTicketMap && <WaygoalTicketPanel map={openTicketMap} ticket={openTicketCard} readAt={snapshot.tickets.readAt} />}
+        {openTicketMap && <WaygoalTicketPanel map={openTicketMap} ticket={openTicketCard} readAt={snapshot.tickets.readAt}
+          onStart={ticket => startTicketChat(ticket.id)}
+          onOpenDiscussion={id => { const node = nodes.find(n => n.id === id); if (node) openNode(node); }} />}
         {panelSession && <WaygoalPaths
           origin={panelOrigin}
           branchPoints={tree?.sessionId === panelSession.id ? tree.branchPoints : []}
