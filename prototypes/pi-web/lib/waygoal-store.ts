@@ -6,7 +6,7 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { writePrivateFileAtomicSync } from "./atomic-file";
 import { projectIdentityKey } from "./project-identity";
 import type { SessionInfo } from "./types";
-import { NODE_HEIGHT, NODE_WIDTH, type WaygoalCanvasPatch, type WaygoalCanvasRecord, type WaygoalNode, type WaygoalPoint, type WaygoalSnapshot, type WaygoalTitleSource } from "./waygoal-types";
+import { NODE_HEIGHT, NODE_WIDTH, type WaygoalCanvasPatch, type WaygoalCanvasRecord, type WaygoalNode, type WaygoalNodeOrigin, type WaygoalOriginRecord, type WaygoalPoint, type WaygoalSnapshot, type WaygoalTitleSource, type WaygoalTreeInfo } from "./waygoal-types";
 export { NODE_HEIGHT, NODE_WIDTH };
 
 // Records live under Pi's agent directory, apart from the plugin code, and
@@ -52,7 +52,13 @@ export function resolveWorkspaceCwd(input?: string | null): string {
 }
 
 function emptyRecord(cwd: string): WaygoalCanvasRecord {
-  return { version: 1, cwd, nodes: {}, updatedAt: new Date(0).toISOString() };
+  return { version: 1, cwd, nodes: {}, origins: {}, updatedAt: new Date(0).toISOString() };
+}
+
+function isOrigin(value: unknown): value is WaygoalOriginRecord {
+  const origin = value as WaygoalOriginRecord;
+  return Boolean(origin) && typeof origin.sessionId === "string" && Boolean(origin.sessionId)
+    && typeof origin.entryId === "string" && Boolean(origin.entryId);
 }
 
 function isPoint(value: unknown): value is WaygoalPoint {
@@ -68,12 +74,20 @@ export function readCanvasRecord(cwd: string, agentDir = getAgentDir()): Waygoal
     const nodes: Record<string, WaygoalPoint> = {};
     for (const [id, point] of Object.entries(parsed.nodes ?? {})) if (isPoint(point)) nodes[id] = { x: point.x, y: point.y };
     const view = parsed.view && isPoint(parsed.view) && typeof parsed.view.scale === "number" && parsed.view.scale > 0 ? parsed.view : undefined;
+    const origins: Record<string, WaygoalOriginRecord> = {};
+    for (const [id, origin] of Object.entries(parsed.origins ?? {})) {
+      if (isOrigin(origin) && id && origin.sessionId !== id) {
+        origins[id] = { sessionId: origin.sessionId, entryId: origin.entryId, recordedAt: typeof origin.recordedAt === "string" ? origin.recordedAt : "" };
+      }
+    }
     return {
       version: 1,
       cwd,
       nodes,
+      origins,
       ...(view ? { view } : {}),
       lastViewed: typeof parsed.lastViewed === "string" ? parsed.lastViewed : null,
+      lastViewedEntry: typeof parsed.lastViewedEntry === "string" ? parsed.lastViewedEntry : null,
       updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : emptyRecord(cwd).updatedAt,
     };
   } catch {
@@ -101,6 +115,18 @@ export function applyCanvasPatch(cwd: string, patch: WaygoalCanvasPatch, agentDi
   }
   if (patch.lastViewed !== undefined) {
     record.lastViewed = typeof patch.lastViewed === "string" && patch.lastViewed ? patch.lastViewed : null;
+    changed = true;
+  }
+  if (patch.lastViewedEntry !== undefined) {
+    record.lastViewedEntry = typeof patch.lastViewedEntry === "string" && patch.lastViewedEntry ? patch.lastViewedEntry : null;
+    changed = true;
+  }
+  const origin = patch.origin;
+  // A fork records where it came from at the moment it happens. An incomplete
+  // or self-referential origin is dropped: a wrong source is worse than none,
+  // because the fallback below already reports "source unrecorded" honestly.
+  if (origin && origin.sessionId && origin.originSessionId && origin.originEntryId && origin.sessionId !== origin.originSessionId) {
+    record.origins[origin.sessionId] = { sessionId: origin.originSessionId, entryId: origin.originEntryId, recordedAt: new Date().toISOString() };
     changed = true;
   }
   if (changed) {
@@ -154,10 +180,33 @@ export function workspaceSessions(cwd: string, sessions: SessionInfo[]): Session
   return [...byId.values()];
 }
 
-export function buildSnapshot(cwd: string, sessions: SessionInfo[], runningIds: Iterable<string>, agentDir = getAgentDir()): WaygoalSnapshot {
+/** The source a fork came from: our own record first, else Pi's header, which
+ *  knows the source session but never the message. Missing stays missing —
+ *  a similar title is not evidence of the same history. */
+function nodeOrigin(session: SessionInfo, record: WaygoalCanvasRecord, titles: Map<string, string>): WaygoalNodeOrigin | null {
+  const recorded = record.origins[session.id];
+  const headerOrigin = session.relation?.kind === "fork" ? session.relation.originSessionId ?? session.parentSessionId : undefined;
+  const sessionId = recorded?.sessionId ?? headerOrigin;
+  if (!sessionId || sessionId === session.id) return null;
+  return {
+    sessionId,
+    entryId: recorded?.entryId ?? null,
+    inWorkspace: titles.has(sessionId),
+    title: titles.get(sessionId) ?? null,
+  };
+}
+
+export function buildSnapshot(
+  cwd: string,
+  sessions: SessionInfo[],
+  runningIds: Iterable<string>,
+  agentDir = getAgentDir(),
+  trees: ReadonlyMap<string, WaygoalTreeInfo> = new Map(),
+): WaygoalSnapshot {
   const running = new Set(runningIds);
   const record = readCanvasRecord(cwd, agentDir);
   const owned = workspaceSessions(cwd, sessions).sort((a, b) => a.created.localeCompare(b.created));
+  const titles = new Map(owned.map(session => [session.id, sessionTitle(session).title]));
   let changed = false;
   const nodes: WaygoalNode[] = owned.map(session => {
     let position = record.nodes[session.id];
@@ -175,6 +224,9 @@ export function buildSnapshot(cwd: string, sessions: SessionInfo[], runningIds: 
       running: running.has(session.id),
       transient: Boolean(session.transient),
       position,
+      origin: nodeOrigin(session, record, titles),
+      branchPointCount: trees.get(session.id)?.branchPointCount ?? 0,
+      activeLeafId: trees.get(session.id)?.activeLeafId ?? null,
     };
   });
   if (changed) {
@@ -182,12 +234,15 @@ export function buildSnapshot(cwd: string, sessions: SessionInfo[], runningIds: 
     writeCanvasRecord(record, agentDir);
   }
   const lastViewed = record.lastViewed ?? null;
+  const lastViewedMissing = Boolean(lastViewed) && !nodes.some(n => n.id === lastViewed);
   return {
     cwd,
     workspaceId: workspaceId(cwd),
     nodes,
     view: record.view ?? null,
     lastViewed,
-    lastViewedMissing: Boolean(lastViewed) && !nodes.some(n => n.id === lastViewed),
+    // The position belongs to that session only; it must never be carried over.
+    lastViewedEntry: lastViewedMissing ? null : record.lastViewedEntry ?? null,
+    lastViewedMissing,
   };
 }

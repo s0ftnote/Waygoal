@@ -240,7 +240,9 @@ test("built-in clone switches to the independent child session", () => {
   assert.match(builtinSource, /case "clone"/);
   assert.match(builtinSource, /type: "clone",\s+leafId: activeLeafId/);
   assert.match(builtinSource, /agentRunningRef\.current \|\| bashRunningRef\.current/);
-  assert.match(builtinSource, /onSessionForked\?\.\(result\.newSessionId\)/);
+  // The clone is a fork, and a fork must report the entry it came from:
+  // an entry id alone is not a locator once Pi copies it into a new file.
+  assert.match(builtinSource, /onSessionForked\?\.\(result\.newSessionId, activeLeafId \?\? undefined\)/);
 });
 
 test("post-accept prompt errors do not duplicate the user submission", () => {

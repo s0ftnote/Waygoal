@@ -146,7 +146,10 @@ export interface UseAgentSessionOptions {
   onAgentEnd?: () => void;
   onAttentionNeeded?: (request: BlockingExtensionUiRequest) => void;
   onSessionCreated?: (session: SessionInfo, sourceDraftKey: string) => void;
-  onSessionForked?: (newSessionId: string) => void;
+  /** `originEntryId` is the message the new session was branched at. Pi's
+   *  header records only the source file, so this is the one moment it is
+   *  known; a listener that wants the position must keep it now. */
+  onSessionForked?: (newSessionId: string, originEntryId?: string) => void;
   modelsRefreshKey?: number;
   chatInputRef?: React.RefObject<ChatInputHandle | null>;
   onBranchDataChange?: (tree: SessionTreeNode[], activeLeafId: string | null, onLeafChange: (leafId: string | null) => void) => void;
@@ -1462,7 +1465,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       });
       const { cancelled, newSessionId } = result ?? {};
       if (!cancelled && newSessionId) {
-        onSessionForked?.(newSessionId);
+        onSessionForked?.(newSessionId, entryId);
       }
     } catch (e) {
       console.error("Fork failed:", e);
@@ -1689,7 +1692,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
             return complete({ handled: true, error: "Cannot clone an empty or unsaved session" });
           }
           const completed = complete({ handled: true, message: "Cloned current session branch" });
-          onSessionForked?.(result.newSessionId);
+          onSessionForked?.(result.newSessionId, activeLeafId ?? undefined);
           return completed;
         }
 

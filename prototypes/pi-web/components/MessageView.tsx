@@ -191,6 +191,9 @@ interface Props {
   searchBlock?: AssistantContentBlock;
   onFork?: (entryId: string) => void;
   forking?: boolean;
+  /** Overrides the fork control's label where the host names the action
+   *  differently. The action itself is unchanged. */
+  forkLabel?: string;
   onNavigate?: (entryId: string) => void;
   prevAssistantEntryId?: string;
   onEditContent?: (message: UserMessage) => void;
@@ -252,9 +255,9 @@ function haveSameRelevantToolResults(
   return true;
 }
 
-export const MessageView = memo(function MessageView({ message, isStreaming, toolResults, modelNames, cwd, onOpenFile, onOpenSession, entryId, searchBlock, onFork, forking, onNavigate, prevAssistantEntryId, onEditContent, showTimestamp, prevTimestamp, sessionId, writtenFiles }: Props) {
+export const MessageView = memo(function MessageView({ message, isStreaming, toolResults, modelNames, cwd, onOpenFile, onOpenSession, entryId, searchBlock, onFork, forking, forkLabel, onNavigate, prevAssistantEntryId, onEditContent, showTimestamp, prevTimestamp, sessionId, writtenFiles }: Props) {
   if (message.role === "user") {
-    return <UserMessageView message={message as UserMessage} cwd={cwd} onOpenFile={onOpenFile} entryId={entryId} onFork={onFork} forking={forking} onNavigate={onNavigate} prevAssistantEntryId={prevAssistantEntryId} onEditContent={onEditContent} />;
+    return <UserMessageView message={message as UserMessage} cwd={cwd} onOpenFile={onOpenFile} entryId={entryId} onFork={onFork} forking={forking} forkLabel={forkLabel} onNavigate={onNavigate} prevAssistantEntryId={prevAssistantEntryId} onEditContent={onEditContent} />;
   }
   if (message.role === "assistant") {
     return <AssistantMessageView message={message as AssistantMessage} isStreaming={isStreaming} toolResults={toolResults} modelNames={modelNames} cwd={cwd} onOpenFile={onOpenFile} onOpenSession={onOpenSession} showTimestamp={showTimestamp} prevTimestamp={prevTimestamp} sessionId={sessionId} entryId={entryId} searchBlock={searchBlock} writtenFiles={writtenFiles} />;
@@ -285,6 +288,7 @@ export const MessageView = memo(function MessageView({ message, isStreaming, too
     && prev.searchBlock === next.searchBlock
     && prev.onFork === next.onFork
     && prev.forking === next.forking
+    && prev.forkLabel === next.forkLabel
     && prev.onNavigate === next.onNavigate
     && prev.prevAssistantEntryId === next.prevAssistantEntryId
     && prev.onEditContent === next.onEditContent
@@ -294,13 +298,14 @@ export const MessageView = memo(function MessageView({ message, isStreaming, too
     && prev.sessionId === next.sessionId;
 });
 
-function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, onNavigate, prevAssistantEntryId, onEditContent }: {
+function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, forkLabel, onNavigate, prevAssistantEntryId, onEditContent }: {
   message: UserMessage;
   cwd?: string;
   onOpenFile?: (filePath: string) => void;
   entryId?: string;
   onFork?: (entryId: string) => void;
   forking?: boolean;
+  forkLabel?: string;
   onNavigate?: (entryId: string) => void;
   prevAssistantEntryId?: string;
   onEditContent?: (message: UserMessage) => void;
@@ -542,7 +547,7 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
                 <button
                   onClick={() => { onFork!(entryId!); }}
                   disabled={forking}
-                   title={forking ? t("i18n.creatingSession") : t("i18n.newSessionTitle")}
+                   title={forking ? t("i18n.creatingSession") : forkLabel ?? t("i18n.newSessionTitle")}
                   style={{
                     display: "flex", alignItems: "center", gap: 4,
                     padding: "3px 8px", height: 22,
@@ -563,7 +568,7 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, o
                     <circle cx="6" cy="18" r="3" />
                     <path d="M18 9a9 9 0 0 1-9 9" />
                   </svg>
-                   {forking ? t("i18n.creating") : t("i18n.newSession")}
+                   {forking ? t("i18n.creating") : forkLabel ?? t("i18n.newSession")}
                 </button>
               )}
             </div>

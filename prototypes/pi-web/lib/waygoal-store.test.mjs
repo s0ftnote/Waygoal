@@ -120,3 +120,73 @@ test("extension: unknown /skill: gets feedback and is not sent; known skills pas
     assert.deepEqual(await handlers.input({ text: "/skill:", source: "rpc" }, ctx), { action: "handled" }, "empty name is reported, not sent");
   } finally { s.done(); }
 });
+
+test("a recorded fork origin keeps the source session and the source message", () => {
+  const s = sandbox();
+  try {
+    const sessions = [session("origin", s.a, { name: "共同来源" }), session("forked", s.a)];
+    store.buildSnapshot(s.a, sessions, [], s.agentDir);
+    store.applyCanvasPatch(s.a, { origin: { sessionId: "forked", originSessionId: "origin", originEntryId: "u7" } }, s.agentDir);
+    const node = store.buildSnapshot(s.a, sessions, [], s.agentDir).nodes.find(n => n.id === "forked");
+    assert.deepEqual(node.origin, { sessionId: "origin", entryId: "u7", inWorkspace: true, title: "共同来源" });
+    assert.equal(store.buildSnapshot(s.a, sessions, [], s.agentDir).nodes.find(n => n.id === "origin").origin, null);
+  } finally { s.done(); }
+});
+
+test("a fork made outside Waygoal reports the source session with no message position", () => {
+  const s = sandbox();
+  try {
+    // Pi's header only records parentSession, never the entry it was forked at.
+    const sessions = [session("origin", s.a), session("forked", s.a, { parentSessionId: "origin", relation: { kind: "fork", originSessionId: "origin" } })];
+    const node = store.buildSnapshot(s.a, sessions, [], s.agentDir).nodes.find(n => n.id === "forked");
+    assert.deepEqual(node.origin, { sessionId: "origin", entryId: null, inWorkspace: true, title: "first origin" });
+  } finally { s.done(); }
+});
+
+test("an origin outside this workspace is reported as such, not matched by title", () => {
+  const s = sandbox();
+  try {
+    const sessions = [session("forked", s.a), session("origin", s.b, { name: "first forked" })];
+    store.applyCanvasPatch(s.a, { origin: { sessionId: "forked", originSessionId: "origin", originEntryId: "u1" } }, s.agentDir);
+    const node = store.buildSnapshot(s.a, sessions, [], s.agentDir).nodes.find(n => n.id === "forked");
+    assert.deepEqual(node.origin, { sessionId: "origin", entryId: "u1", inWorkspace: false, title: null });
+  } finally { s.done(); }
+});
+
+test("incomplete or self-referential origins are refused instead of stored", () => {
+  const s = sandbox();
+  try {
+    for (const origin of [
+      { sessionId: "forked", originSessionId: "forked", originEntryId: "u1" },
+      { sessionId: "forked", originSessionId: "origin", originEntryId: "" },
+      { sessionId: "", originSessionId: "origin", originEntryId: "u1" },
+    ]) store.applyCanvasPatch(s.a, { origin }, s.agentDir);
+    assert.deepEqual(store.readCanvasRecord(s.a, s.agentDir).origins, {});
+  } finally { s.done(); }
+});
+
+test("the last viewed position keeps its entry, and drops it with its session", () => {
+  const s = sandbox();
+  try {
+    const sessions = [session("one", s.a), session("two", s.a)];
+    store.applyCanvasPatch(s.a, { lastViewed: "two", lastViewedEntry: "a3" }, s.agentDir);
+    let snap = store.buildSnapshot(s.a, sessions, [], s.agentDir);
+    assert.equal(snap.lastViewed, "two"); assert.equal(snap.lastViewedEntry, "a3");
+    snap = store.buildSnapshot(s.a, [sessions[0]], [], s.agentDir);
+    assert.equal(snap.lastViewedMissing, true);
+    assert.equal(snap.lastViewedEntry, null, "a missing session must not carry a position into another one");
+    store.applyCanvasPatch(s.a, { lastViewedEntry: null }, s.agentDir);
+    assert.equal(store.buildSnapshot(s.a, sessions, [], s.agentDir).lastViewedEntry, null);
+  } finally { s.done(); }
+});
+
+test("branch counts and the active leaf come from the real tree, not from the record", () => {
+  const s = sandbox();
+  try {
+    const sessions = [session("one", s.a), session("two", s.a)];
+    const trees = new Map([["one", { activeLeafId: "a9", branchPointCount: 2 }]]);
+    const byId = Object.fromEntries(store.buildSnapshot(s.a, sessions, [], s.agentDir, trees).nodes.map(n => [n.id, n]));
+    assert.equal(byId.one.branchPointCount, 2); assert.equal(byId.one.activeLeafId, "a9");
+    assert.equal(byId.two.branchPointCount, 0); assert.equal(byId.two.activeLeafId, null);
+  } finally { s.done(); }
+});

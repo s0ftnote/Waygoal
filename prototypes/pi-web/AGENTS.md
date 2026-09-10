@@ -243,15 +243,21 @@ Files that are not in upstream agegr/pi-web. Keep them narrow; product docs live
 app/beacon/page.tsx              /beacon — Waygoal session canvas (ticket #2)
 app/beacon/waygoal.css           Waygoal light theme; remaps ChatWindow CSS vars inside .waygoal-app
 app/beacon/tickets/page.tsx      /beacon/tickets — earlier Pi × Wayfinder ticket prototype (BeaconCanvas)
-app/api/waygoal/route.ts         GET ?cwd=&force=1 snapshot | PATCH { cwd, positions?, view?, lastViewed? }
+app/api/waygoal/route.ts         GET ?cwd=&force=1 snapshot | PATCH { cwd, positions?, view?, lastViewed?, lastViewedEntry?, origin? }
+app/api/waygoal/session/[id]/route.ts  GET ?entry= — one session's real branch points and active leaf; read-only, never navigates (ticket #3)
 app/api/beacon/route.ts          ticket prototype: tracker snapshot and ticket → session binding
 components/WaygoalCanvas.tsx     pan/zoom canvas, draggable session nodes, right panel hosting ChatWindow
+components/WaygoalPaths.tsx      panel header: fork origin, branch points, 只看这段 / 从这里继续 (ticket #3)
+components/WaygoalPathView.tsx   read-only history of one path; reuses GET /api/sessions/[id]/context (ticket #3)
 components/BeaconCanvas.tsx      ticket prototype canvas
 lib/waygoal-store.ts             canvas records in <agentDir>/waygoal/workspaces/<id>/canvas.json; snapshot builder
+lib/waygoal-branches.ts          pure projection of a Pi tree into branch points and paths; no I/O (ticket #3)
+lib/waygoal-tree.ts              reads the real Pi tree for a session (live manager, else the file), mtime-cached
 lib/waygoal-types.ts             record / snapshot / patch types
 lib/beacon-extension.ts          in-process Pi extension: /skill: feedback (all sessions) + tracker watcher (ticket prototype dirs only)
 lib/beacon-store.ts              local Markdown tracker reader for the ticket prototype
 e2e/waygoal.mjs                  npm run test:waygoal — own server, temp PI_CODING_AGENT_DIR, fake model (e2e/fake-model.mjs)
+e2e/waygoal-branches.mjs         npm run test:waygoal-branches — fork / read-only review / explicit continue (ticket #3)
 e2e/beacon.mjs                   ticket prototype browser check against a running 30142
 ```
 

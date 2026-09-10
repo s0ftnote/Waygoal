@@ -1,0 +1,76 @@
+{
+  "originSession": [
+    {
+      "id": "02ea8518",
+      "parentId": "7fbe656d",
+      "role": "user",
+      "model": null,
+      "text": "周末聚会安排什么？只回复一句话，不要调用工具。"
+    },
+    {
+      "id": "39b04bff",
+      "parentId": "02ea8518",
+      "role": "assistant",
+      "model": "gpt-5.6-luna",
+      "text": "可以安排一次轻松的户外野餐，准备些喜欢的食物和桌游。"
+    },
+    {
+      "id": "d6fef377",
+      "parentId": "39b04bff",
+      "role": "user",
+      "model": null,
+      "text": "那就先说野餐。只回复一句话。"
+    },
+    {
+      "id": "933280b1",
+      "parentId": "d6fef377",
+      "role": "assistant",
+      "model": "gpt-5.6-luna",
+      "text": "那就先安排一场轻松的户外野餐吧。"
+    },
+    {
+      "id": "e8dc8570",
+      "parentId": "39b04bff",
+      "role": "user",
+      "model": null,
+      "text": "那就改成桌游。只回复一句话。"
+    },
+    {
+      "id": "54552cfd",
+      "parentId": "e8dc8570",
+      "role": "assistant",
+      "model": "gpt-5.6-luna",
+      "text": "那就安排一场轻松的桌游聚会，准备几款大家都感兴趣的游戏和零食。"
+    },
+    {
+      "id": "6a6bfad3",
+      "parentId": "933280b1",
+      "role": "user",
+      "model": null,
+      "text": "再补一句野餐的建议。只回复一句话。"
+    },
+    {
+      "id": "32440002",
+      "parentId": "6a6bfad3",
+      "role": "assistant",
+      "model": "gpt-5.6-luna",
+      "text": "可以选个天气晴朗的公园，带上野餐垫、饮料和几样方便分享的食物。"
+    }
+  ],
+  "forkedSession": [
+    {
+      "id": "02ea8518",
+      "parentId": "7fbe656d",
+      "role": "user",
+      "model": null,
+      "text": "周末聚会安排什么？只回复一句话，不要调用工具。"
+    },
+    {
+      "id": "39b04bff",
+      "parentId": "02ea8518",
+      "role": "assistant",
+      "model": "gpt-5.6-luna",
+      "text": "可以安排一次轻松的户外野餐，准备些喜欢的食物和桌游。"
+    }
+  ]
+}
