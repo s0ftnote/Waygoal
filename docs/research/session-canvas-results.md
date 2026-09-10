@@ -10,7 +10,7 @@
 
 - 发现：`GET /api/waygoal?cwd=` 合并磁盘会话（`listAllSessions`）与进程内运行会话，按 `projectIdentityKey` 匹配工作目录，排除子代理会话，同一 ID 只保留一个节点（优先磁盘记录）。标题来源依次为已存会话名称、首条消息、空会话标记。
 - 新建与发送：右侧面板直接挂载 pi-web 的 ChatWindow；`onSessionCreated` 后把新会话记为最近查看并强制刷新。运行状态来自 `getRunningRpcSessionIds()`。
-- 画布记录：`<agentDir>/waygoal/workspaces/<目录名-身份哈希>/canvas.json`（节点位置、视野、最近查看）。`PATCH /api/waygoal` 只写这三类字段；GET 只在新发现的会话需要位置时写一次；记录损坏时按空记录处理并重写。工作目录来自 `?cwd=`，否则是 `playground/`；切换与记住工作区留给票 #3。
+- 画布记录：`<agentDir>/waygoal/workspaces/<目录名-身份哈希>/canvas.json`（节点位置、视野、最近查看）。`PATCH /api/waygoal` 只写这三类字段；GET 只在新发现的会话需要位置时写一次；记录损坏时按空记录处理并重写。工作目录来自 `?cwd=`，否则是 `playground/`；切换与记住工作区留给票 #4。
 - Skills：extension 在 `input` 事件按 Pi `_expandSkillCommand` 同样的规则解析 `/skill:名称`（不去前导空白），名单由宿主绑定到该会话自己的 `resourceLoader.getSkills()`；缺少时 `ctx.ui.notify(..., "warning")` 并返回 `handled`，消息不会发到模型。已安装 skill 走 Pi 原有展开。
 - 可达性与窄屏：节点是按钮，Tab/Enter 打开，方向键微调（Shift 大步）；画布区域获得焦点后方向键平移、`+`/`-` 缩放、`0` 回到全景、Esc 关闭面板；640px 以下面板全屏并提供「← 回到画布」。主题按 `docs/design/waygoal-theme.css`，ChatWindow 的 CSS 变量在 `.waygoal-app` 内重映射。
 
