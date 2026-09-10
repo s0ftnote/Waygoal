@@ -198,7 +198,7 @@ try {
   const beforeRead = model.requests.length;
   const entriesBeforeRead = sessionEntries(sessionId).length;
   await page.locator(".waygoal-chip").first().click();
-  await panel().getByText("只读回看，发送时才接到这条路径上").waitFor();
+  await panel().getByText("不发一句就什么都不动").waitFor();
   await panel().getByText("回复: 先说观影", { exact: true }).waitFor();
   await delay(1500);
   check("reading a sibling path sends nothing and adds no entry",
@@ -210,7 +210,7 @@ try {
 
   // 4. A reload keeps the reading position, still without sending.
   await page.reload({ waitUntil: "domcontentloaded" });
-  await panel().getByText("只读回看，发送时才接到这条路径上").waitFor();
+  await panel().getByText("不发一句就什么都不动").waitFor();
   await delay(1500);
   check("a reload comes back to the same reading position without sending",
     model.requests.length === beforeRead && sessionEntries(sessionId).length === entriesBeforeRead);
@@ -244,7 +244,7 @@ try {
   // instead of after it — and would overwrite the message with that entry's.
   const openPath = async (chipIndex) => {
     await page.locator(".waygoal-chip").nth(chipIndex).click();
-    await panel().getByText("只读回看，发送时才接到这条路径上").waitFor();
+    await panel().getByText("不发一句就什么都不动").waitFor();
   };
   await openPath(1);
   await sendFromPath("桌游那边再想想");
@@ -259,7 +259,7 @@ try {
   // 6. A real fork: a separate session that remembers the message it came from.
   const originEntry = sessionEntries(sessionId).find((e) => e.type === "message" && e.message?.role === "user" && String(JSON.stringify(e.message.content)).includes("先说观影"));
   await page.locator(".waygoal-chip").first().click();
-  await panel().getByText("只读回看，发送时才接到这条路径上").waitFor();
+  await panel().getByText("不发一句就什么都不动").waitFor();
   await clickOnHover("先说观影", "从这里分叉");
   const forkedId = await waitFor(async () => (await snapshot()).nodes.find((n) => n.id !== sessionId)?.id, "a second canvas node");
   const forkedNode = (await snapshot()).nodes.find((n) => n.id === forkedId);
@@ -275,7 +275,7 @@ try {
   // 7. From the fork, the origin message is reachable and reading it sends nothing.
   const beforeOrigin = model.requests.length;
   await panel().getByRole("button", { name: "回到来源这条消息" }).click();
-  await panel().getByText("只读回看，这里不会发送消息").waitFor();
+  await panel().getByText("来源那边的历史，这里只看不发").waitFor();
   await panel().getByText("先说观影", { exact: true }).first().waitFor();
   await delay(1200);
   check("going back to the origin message reads it without sending", model.requests.length === beforeOrigin);
@@ -290,7 +290,7 @@ try {
   await stopServer(server); server = await startServer();
   page = await openPage();
   await page.goto(canvasUrl, { waitUntil: "domcontentloaded" });
-  await panel().getByText("只读回看，这里不会发送消息").waitFor();
+  await panel().getByText("来源那边的历史，这里只看不发").waitFor();
   await page.getByText(/分叉自「/).first().waitFor();
   await delay(1500);
   check("a host restart restores the fork origin and the reading position without sending",
@@ -303,7 +303,7 @@ try {
     body: JSON.stringify({ cwd: workspace, lastViewed: sessionId, lastViewedEntry: "entry-that-never-existed" }),
   });
   await page.reload({ waitUntil: "domcontentloaded" });
-  await page.getByText(/上次查看的位置在这段会话里已经找不到了/).waitFor();
+  await page.getByText(/上次看的那条消息在这段会话里已经找不到了/).waitFor();
   check("a lost reading position is reported instead of bound to another history", true);
   await page.screenshot({ animations: "disabled", path: join(evidence, "07-missing-position.png") });
 

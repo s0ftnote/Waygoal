@@ -224,7 +224,7 @@ export function WaygoalCanvas() {
           setViewing({ sessionId, entryId, leafId: choice?.leafId ?? null, label: "上次查看的位置" });
         }
         else {
-          setNotice("上次查看的位置在这段会话里已经找不到了，画布没有按标题绑定到别的历史，面板停在当前继续位置。");
+          setNotice("上次看的那条消息在这段会话里已经找不到了，画布没有按标题绑到别的历史，面板停在这段会话现在在聊的那条路径。");
           void patch({ lastViewedEntry: null });
         }
       } catch { /* the panel still opens at the continue position */ }
@@ -285,7 +285,7 @@ export function WaygoalCanvas() {
   );
 
   const busyReason = nodes.find(n => n.id === openSessionId)?.running
-    ? "这段会话正在运行。分叉和切换继续位置要等它结束，Waygoal 不打断正在进行的任务；查看不受影响。"
+    ? "这段会话正在运行。分叉和在别的路径里接着说都要等它结束，Waygoal 不打断正在进行的任务；看历史不受影响。"
     : null;
 
   const openNode = useCallback((node: WaygoalNode) => {
@@ -366,7 +366,7 @@ export function WaygoalCanvas() {
     } finally { setForkingEntryId(null); }
   }, [landOnFork]);
 
-  /** The one action that moves the agent: continue from an explicit position. */
+  /** The one action that moves the agent: continue this session in one path. */
   const continueAt = useCallback(async (sessionId: string, entryId: string): Promise<boolean> => {
     try {
       const res = await fetch(`/api/agent/${encodeURIComponent(sessionId)}`, {
@@ -376,17 +376,17 @@ export function WaygoalCanvas() {
       const body = await res.json() as { error?: string; data?: { cancelled?: boolean } };
       if (!res.ok) throw new Error(body.error);
       // Pi can refuse the move (an extension cancelled it, a summary aborted).
-      if (body.data?.cancelled) { setNotice("没有接到这条路径上，Pi 取消了这次切换。"); return false; }
+      if (body.data?.cancelled) { setNotice("没能接着这条聊，Pi 取消了这次切换。"); return false; }
       setViewing(null);
       setSelectedId(sessionId);
       setPanelKey(k => k + 1);
-      setNotice("已经接到这条路径上，其他路径仍然保留。");
+      setNotice("现在在这条路径里继续，其他路径都还留着。");
       await patch({ lastViewed: sessionId, lastViewedEntry: null });
       await loadTree(sessionId);
       await refresh(true);
       return true;
     } catch (e) {
-      setError(`没有接到这条路径上：${e instanceof Error ? e.message : String(e)}`);
+      setError(`没能接着这条聊：${e instanceof Error ? e.message : String(e)}`);
       return false;
     }
   }, [loadTree, patch, refresh]);
@@ -548,11 +548,11 @@ export function WaygoalCanvas() {
               style={{ left: selectedNode.position.x, top: selectedNode.position.y + chipTop + index * CHIP_HEIGHT, width: NODE_W }}
               onPointerDown={e => e.stopPropagation()}
               onClick={e => { e.stopPropagation(); viewPath(selectedNode.id, choice.entryId, `会话内路径 ${order + 1}`, choice.leafId); }}
-              title="打开这段：显示这条路径的历史，发送时才接到它后面">
+              title="点开这段历史，直接接着说">
               <span className="waygoal-chip-label">路径 {order + 1}</span>
               <span className="waygoal-chip-preview">{choice.preview}</span>
-              {viewing?.entryId === choice.entryId && <span className="waygoal-tag reading">正在查看</span>}
-              {choice.active && <span className="waygoal-tag continuing">继续位置</span>}
+              {viewing?.entryId === choice.entryId && <span className="waygoal-tag reading">正在看</span>}
+              {choice.active && <span className="waygoal-tag continuing">在聊这条</span>}
             </button>)}
             {snapshot && nodes.length === 0 && <div className="waygoal-empty" style={{ left: 0, top: 0 }}>
               <strong>这个目录还没有 Pi 会话。</strong>
@@ -560,16 +560,16 @@ export function WaygoalCanvas() {
             </div>}
           </div>
         </div>
-        <div className="waygoal-statusline"><span>拖动卡片摆放 · 拖动空白处平移 · 滚轮缩放 · 打开路径只是回看，发送时才切过去</span><span className="waygoal-id">{snapshot?.workspaceId}</span></div>
+        <div className="waygoal-statusline"><span>拖动卡片摆放 · 拖动空白处平移 · 滚轮缩放 · 点开路径只是看，说一句才在那条里继续</span><span className="waygoal-id">{snapshot?.workspaceId}</span></div>
       </section>
       {panelOpen && snapshot && <aside className="waygoal-panel" aria-label="讨论面板">
         <div className="waygoal-panel-head">
           {isMobile && <button type="button" className="waygoal-button outlined small" onClick={closePanel}>← 回到画布</button>}
           <div className="waygoal-panel-title">
-            <span className="waygoal-eyebrow">{viewing ? "只读回看" : panelSession ? (selectedNode?.running ? "正在运行" : "已有会话") : "新的会话"}</span>
+            <span className="waygoal-eyebrow">{viewing ? "正在看这条路径" : panelSession ? (selectedNode?.running ? "正在运行" : "已有会话") : "新的会话"}</span>
             <strong>{panelSession ? (selectedNode?.title ?? createdSession?.firstMessage ?? "会话") : "先写下第一句，发送后这段会话才会出现在画布上"}</strong>
           </div>
-          {viewing && <button type="button" className="waygoal-button outlined small" onClick={stopViewing}>回到继续位置</button>}
+          {viewing && <button type="button" className="waygoal-button outlined small" onClick={stopViewing}>回到在聊的那条</button>}
           {!isMobile && <button type="button" className="waygoal-icon" aria-label="关闭面板" onClick={closePanel}>×</button>}
         </div>
         {panelSession && <WaygoalPaths

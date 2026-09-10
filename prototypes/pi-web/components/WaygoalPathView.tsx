@@ -14,9 +14,9 @@ interface Props {
   /** Continuing or forking is refused while Pi is working on this session. */
   busyReason: string | null;
   forkingEntryId: string | null;
-  /** Send from here: the path becomes the continue position and the message
-    *  goes into it. Null when this position is not one to continue from — an
-    *  origin whose message was never recorded. */
+  /** Say something here: this path becomes the one the session is being
+    *  continued in, and the message goes into it. Null when this is not a path
+    *  to talk in — an origin whose message was never recorded. */
   onSend: ((text: string) => void) | null;
   onFork: (entryId: string) => void;
 }
@@ -39,7 +39,7 @@ export function WaygoalPathView({ sessionId, leafId, cwd, label, busyReason, for
   };
 
   // Opening a path is meant to be one click away from talking, so the composer
-  // takes focus. preventScroll: the history above must stay where it was read.
+  // takes focus. preventScroll: the history above must stay where it was left.
   useEffect(() => { composer.current?.focus({ preventScroll: true }); }, [leafId]);
 
   useEffect(() => {
@@ -66,9 +66,9 @@ export function WaygoalPathView({ sessionId, leafId, cwd, label, busyReason, for
 
   return <div className="waygoal-readonly">
     <div className="waygoal-readonly-bar">
-      <span className="waygoal-tag reading">正在查看</span>
+      <span className="waygoal-tag reading">正在看</span>
       <span className="waygoal-readonly-label">{label}</span>
-      <span className="waygoal-readonly-hint">{onSend ? "只读回看，发送时才接到这条路径上" : "只读回看，这里不会发送消息"}</span>
+      <span className="waygoal-readonly-hint">{onSend ? "不发一句就什么都不动" : "来源那边的历史，这里只看不发"}</span>
     </div>
     {busyReason && <p className="waygoal-readonly-note">{busyReason}</p>}
     <div className="waygoal-readonly-body">
@@ -89,11 +89,11 @@ export function WaygoalPathView({ sessionId, leafId, cwd, label, busyReason, for
     </div>
     {onSend && <div className="waygoal-readonly-composer">
       <textarea ref={composer} value={draft} onChange={e => setDraft(e.target.value)} rows={2}
-        placeholder={busyReason ?? "在这条路径上继续说…发送时才切过来"}
-        disabled={Boolean(busyReason)} aria-label="在这条路径上继续"
+        placeholder={busyReason ?? "在这条里接着说…"}
+        disabled={Boolean(busyReason)} aria-label="在这条路径里接着说"
         onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} />
       <button type="button" className="waygoal-button action small" onClick={send} disabled={Boolean(busyReason) || !draft.trim()}
-        title={busyReason ?? "发送并把继续位置切到这条路径"}>发送</button>
+        title={busyReason ?? "发送；之后这段会话就在这条路径里继续"}>发送</button>
     </div>}
   </div>;
 }

@@ -32,8 +32,8 @@ function OriginRow({ origin, onViewOrigin }: { origin: WaygoalNodeOrigin; onView
 }
 
 /** Where this discussion came from and which paths it splits into. Opening a
- *  path only displays it; sending from it is what makes it the path the next
- *  message goes into, so there is no separate switch action here. */
+ *  path just shows that history, the way a session list does; saying something
+ *  in it is what continues there, so there is no separate switch action. */
 export function WaygoalPaths({ origin, branchPoints, viewingEntryId, busyReason, loading, onViewOrigin, onView }: Props) {
   if (!origin && branchPoints.length === 0) {
     return loading ? null : <div className="waygoal-paths"><p className="waygoal-path-note">这段讨论还没有分叉。把鼠标停在自己发过的消息上，点「从这里分叉」，就会分出一条保留来源、可以独立继续的路径。</p></div>;
@@ -47,10 +47,10 @@ export function WaygoalPaths({ origin, branchPoints, viewingEntryId, busyReason,
           <span className="waygoal-path-order">路径 {order + 1}</span>
           <span className="waygoal-path-preview" title={choice.preview}>{choice.preview}</span>
           <span className="waygoal-path-steps">{choice.steps > 0 ? `+${choice.steps} 条` : "路径末端"}</span>
-          {choice.active && <span className="waygoal-tag continuing">继续位置</span>}
-          {viewingEntryId === choice.entryId && <span className="waygoal-tag reading">正在查看</span>}
+          {choice.active && <span className="waygoal-tag continuing">在聊这条</span>}
+          {viewingEntryId === choice.entryId && <span className="waygoal-tag reading">正在看</span>}
           <button type="button" className="waygoal-button outlined small" onClick={() => onView(choice)}
-            title="打开这条路径的历史；发送时才接到它后面">打开这段</button>
+            title="点开这段历史，直接接着说">打开这段</button>
         </li>)}
       </ul>
     </section>)}
