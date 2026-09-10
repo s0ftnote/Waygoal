@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Waygoal · 分出去，再接回来</title>
+<style>
+:root{color-scheme:dark;--bg:#14241f;--panel:#1d3028;--line:#425348;--ink:#f3eedf;--muted:#b6beaf;--accent:#e6d9a8}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 system-ui,-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}main{max-width:1320px;margin:auto;padding:32px}header{display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{font-weight:650;letter-spacing:.08em}.meta,.eyebrow{color:var(--muted);font-size:12px}.eyebrow{letter-spacing:.1em}h1{font-size:36px;line-height:1.3;font-weight:500;margin:26px 0 10px}h2{font-size:18px;font-weight:550;margin:4px 0 16px}h3{font-size:16px;margin:12px 0 5px}p{margin:8px 0}.intro{max-width:820px;color:var(--muted)}a{color:var(--accent)}button{font:inherit;color:var(--ink);background:transparent;border:1px solid var(--line);padding:10px 15px;border-radius:9px;cursor:pointer;text-align:left}button:hover,button:focus-visible{border-color:var(--accent);background:#2b4034}button:disabled{opacity:.38;cursor:default}button.primary{background:var(--accent);color:#19271f;border-color:var(--accent);font-weight:650}button.selected{border-color:var(--accent);color:var(--accent)}.status{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:24px 0 18px}.field{border-top:1px solid var(--line);padding-top:10px}.field span{display:block;color:var(--muted);font-size:12px}.field strong{font-size:16px;font-weight:550}.canvas{display:grid;grid-template-columns:1fr 1fr 1.1fr;gap:18px;align-items:stretch;margin:20px 0}.node{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:22px;position:relative;min-width:0}.node.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}.node.muted{opacity:.6}.connector{font-size:12px;color:var(--accent);margin-bottom:8px}.quote{border-left:2px solid var(--accent);padding-left:14px;margin:14px 0;color:var(--ink)}.chip{display:inline-block;border:1px solid var(--line);border-radius:20px;padding:3px 9px;font-size:12px;margin:0 5px 6px 0}.message{white-space:pre-wrap;font-size:14px;line-height:1.8;margin:12px 0}.notice{background:#304335;border-radius:9px;padding:12px 16px;min-height:49px;margin:16px 0}.actions{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 26px}.guide{border-top:1px solid var(--line);padding-top:22px;margin-top:25px}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.steps{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.steps button{font-size:13px}.hint{color:var(--muted);font-size:13px}.artifact{background:#e9e4d4;color:#24392d;border-radius:12px;padding:22px;margin:20px 0}.artifact button{color:#24392d;border-color:#8e9987}.artifact button:hover,.artifact button:focus-visible{background:#d5dbc7;color:#17271e}.artifact .hint{color:#586855}.trace{background:#253e31;border-radius:8px;padding:14px;margin-top:14px}.trace a{color:var(--accent)}details{margin-top:20px}summary{cursor:pointer;color:var(--muted)}pre{overflow:auto;font-size:12px}footer{border-top:1px solid var(--line);margin-top:30px;padding-top:16px;color:var(--muted);font-size:12px}.live-label{font-size:11px;color:var(--accent);margin-top:14px}#evidence-links a{margin-right:16px}@media(max-width:900px){main{padding:20px}.canvas{grid-template-columns:1fr}.status{grid-template-columns:1fr 1fr}h1{font-size:29px}.node{padding:18px}header{align-items:flex-start}.meta{max-width:200px;text-align:right}}
+</style>
+<main>
+<header><div class="brand">WAYGOAL <span class="eyebrow">/ 交互实验</span></div><div class="meta">虚构放映会 · Luna 实测回放<br>点击不调用模型，不保存状态</div></header>
+<h1>分出去，再接回来。</h1>
+<p class="intro">我们正在选放映场地，中途去核对设备。回来后，能否接上原来的问题？如果预算变了，还会沿用旧答案吗？这个小样用固定样例比较这些情况。</p>
+<section class="status" aria-label="当前状态" id="state"></section>
+<div class="canvas">
+ <section class="node" id="parent-card"><div class="connector">01 / 从这里出发</div><h2>选一个合适的场地</h2><div id="constraints"></div><p class="hint">小画室场租 400 元；咖啡馆场租 550 元。先核对设备，再比较可行性。</p><div class="quote">设备核对后，我们再继续比较哪个场地可行。</div><p class="hint">这句是返回时接着讨论的位置。</p><details><summary>展开原会话的真实回复</summary><div class="message" id="initial-reply"></div></details></section>
+ <section class="node" id="child-card"><div class="connector">↳ 从场地讨论分出</div><h2>核对设备与遮光</h2><div id="child-content"></div></section>
+ <section class="node" id="return-card"><div class="connector">↶ 带回原来的问题</div><h2 id="return-title">回来后，继续选场地</h2><div id="return-content"></div></section>
+</div>
+<div class="notice" id="notice" role="status" aria-live="polite"></div>
+<div class="eyebrow">自由试一试</div>
+<div class="actions" id="actions"></div>
+<section id="artifact"></section>
+<section id="trace"></section>
+<section class="guide"><h2>也可以跟着这几条路径走</h2><div class="tabs" id="tabs" role="tablist" aria-label="样例路径"></div><div id="walkthrough"></div></section>
+<details><summary>查看这次真实模型试跑的证据与边界</summary><div id="evidence-links"></div><p class="hint">真实调用 Pi SDK，模型为 gpt-5.6-luna。样例人数、预算和场地资料均由实验预设。正常返回保留同一父会话；另外两条路径从相同父上下文复制，用于对照。没有联网查场地、调用 Wayfinder、修改 tracker 或替真实用户确认。</p><pre id="technical-state"></pre></details>
+<footer>THROWAWAY PROTOTYPE · UI 状态在内存中演示；模型文字来自一次已完成试跑。方案与依据的展开是交互假设，尚未接入现有节点树。</footer>
+</main>
+<script id="evidence" type="application/json">{"at": "2026-09-09T04:08:19.601Z", "fixture": true, "model": "openai-codex/gpt-5.6-luna", "scope": "Real Pi SDK model calls with in-memory sessions; no Wayfinder, tracker, external research or human acceptance is tested.", "runs": {"parent": {"prompt": "测试夹具：8人放映会，总预算不超过1000元，饮料固定300元。候选：小画室场租400元，没有投影仪；咖啡馆场租550元，有投影仪。放映需要投影、幕布、音箱和遮光。我们正在比较两个场地，但设备条件和额外费用尚未核对。请说清现在卡在哪里，留下一句设备核对后回来接着解决的问题，不要现在替我决定。", "text": "目前卡在设备条件和额外费用尚未核对：\n\n- 小画室：场租400元、无投影仪；还需确认幕布、音箱、遮光及设备租借费。\n- 咖啡馆：场租550元、有投影仪；仍需确认幕布、音箱、遮光及相关费用。\n- 饮料固定300元，预算余款分别为300元和150元。\n\n设备核对后，我们再继续比较哪个场地可行。", "model": "gpt-5.6-luna", "provider": "openai-codex", "sessionId": "01a0845a-3594-743c-af05-f9cd7de00405", "entryId": "1d16cc47"}, "child": {"prompt": "测试夹具：你是独立的设备核对子会话，返回主讨论的问题是选场地。只报告设备、遮光、费用的事实和限制，不替主讨论做选择。资料：小画室可完全遮光；租用设备套装200元，含投影仪、幕布、音箱。咖啡馆的投影仪、幕布、音箱免费，但活动时段无法遮光。此次放映需要遮光。请给出能带回主讨论的简短核对结论。", "text": "设备与费用：小画室设备套装200元，含投影仪、幕布、音箱，且可完全遮光；咖啡馆设备免费，但活动时段无法遮光。此次放映需要遮光。", "model": "gpt-5.6-luna", "provider": "openai-codex", "sessionId": "01a0845a-52ce-743c-af05-f9d3b83011d9", "entryId": "af6bdb50"}, "baseline": {"prompt": "设备分支已经聊完了。回到刚才的问题，继续比较两个场地。", "text": "目前可确认：\n\n- 小画室：场租400＋饮料300＝700元，预算余300元；无投影仪。\n- 咖啡馆：场租550＋饮料300＝850元，预算余150元；有投影仪。\n\n设备核对结果未出现在当前信息中，因此无法进一步判断额外费用、完整可行性或推荐场地。", "model": "gpt-5.6-luna", "provider": "openai-codex", "sessionId": "01a0845a-52cc-743c-af05-f9cf3e170f54", "entryId": "1efa87ef"}, "returned": {"prompt": "系统交接资料（子会话报告，不是用户的选择）：\n{\"parentSessionId\":\"01a0845a-3594-743c-af05-f9cd7de00405\",\"sourceEntryId\":\"1d16cc47\",\"childSessionId\":\"01a0845a-52ce-743c-af05-f9d3b83011d9\",\"returnQuestion\":\"设备核对后，哪个场地满足放映条件且总价不超过预算？\",\"constraints\":{\"people\":8,\"budget\":1000,\"drinks\":300},\"sourceResultEntryId\":\"af6bdb50\",\"facts\":\"设备与费用：小画室设备套装200元，含投影仪、幕布、音箱，且可完全遮光；咖啡馆设备免费，但活动时段无法遮光。此次放映需要遮光。\"}\n请接着此前的场地比较，结合主会话已有约束说明可行性与理由。不要重新询问已知人数或预算，不要声称用户已选择。", "text": "结合已知条件：\n\n- **小画室可行**：400元场租＋300元饮料＋200元设备，共900元；设备含投影仪、幕布、音箱，并可完全遮光，满足放映要求和1000元预算。\n- **咖啡馆不可行**：总价虽为850元，但活动时段无法遮光，不满足放映条件。\n\n目前尚未替你作出场地选择。", "model": "gpt-5.6-luna", "provider": "openai-codex", "sessionId": "01a0845a-3594-743c-af05-f9cd7de00405", "entryId": "47ce4ecd"}, "changed": {"prompt": "测试夹具更新：我把总预算改成800元，饮料仍为300元。\n系统收到此前设备分支的交接资料：{\"parentSessionId\":\"01a0845a-3594-743c-af05-f9cd7de00405\",\"sourceEntryId\":\"1d16cc47\",\"childSessionId\":\"01a0845a-52ce-743c-af05-f9d3b83011d9\",\"returnQuestion\":\"设备核对后，哪个场地满足放映条件且总价不超过预算？\",\"constraints\":{\"people\":8,\"budget\":1000,\"drinks\":300},\"sourceResultEntryId\":\"af6bdb50\",\"facts\":\"设备与费用：小画室设备套装200元，含投影仪、幕布、音箱，且可完全遮光；咖啡馆设备免费，但活动时段无法遮光。此次放映需要遮光。\"}\n请按本会话最新约束继续场地比较。报告建议，不替用户接受。", "text": "按最新预算800元、饮料300元：\n\n- 小画室：400+200+300=900元，设备满足放映条件，但超预算100元。\n- 咖啡馆：550+0+300=850元，超预算50元，且无法遮光，不满足放映条件。\n\n目前没有候选场地同时满足放映条件和预算；建议暂不接受任何方案。", "model": "gpt-5.6-luna", "provider": "openai-codex", "sessionId": "01a0845a-52cd-743c-af05-f9d0d0e65830", "entryId": "f219062e"}}, "anchor": {"parentSessionId": "01a0845a-3594-743c-af05-f9cd7de00405", "sourceEntryId": "1d16cc47", "childSessionId": "01a0845a-52ce-743c-af05-f9d3b83011d9", "returnQuestion": "设备核对后，哪个场地满足放映条件且总价不超过预算？", "constraints": {"people": 8, "budget": 1000, "drinks": 300}}, "handback": {"parentSessionId": "01a0845a-3594-743c-af05-f9cd7de00405", "sourceEntryId": "1d16cc47", "childSessionId": "01a0845a-52ce-743c-af05-f9d3b83011d9", "returnQuestion": "设备核对后，哪个场地满足放映条件且总价不超过预算？", "constraints": {"people": 8, "budget": 1000, "drinks": 300}, "sourceResultEntryId": "af6bdb50", "facts": "设备与费用：小画室设备套装200元，含投影仪、幕布、音箱，且可完全遮光；咖啡馆设备免费，但活动时段无法遮光。此次放映需要遮光。"}, "sessionContinuity": {"parentBefore": "01a0845a-3594-743c-af05-f9cd7de00405", "parentAfter": "01a0845a-3594-743c-af05-f9cd7de00405", "same": true}}</script>
+<script>
+// Portable state model. It tracks navigation separately from whether a result is available to the parent.
+const initialState=()=>({active:'parent',branch:'none',budget:1000,attached:false,reply:null,artifact:false,trace:false,notice:'先进入设备分支。你也可以直接尝试返回，看看没有结论时会发生什么。'});
+function transition(state,action){
+ const s={...state,trace:false};
+ switch(action){
+  case 'reset':return initialState();
+  case 'enter':return {...s,active:'child',branch:s.branch==='none'?'working':s.branch,notice:'进入设备分支；原来的场地问题和预算仍然保留。'};
+  case 'finish':return s.branch==='none'?{...s,notice:'还没进入设备分支。先从场地问题分出去。'}:{...s,active:'child',branch:'done',notice:'设备核对已有结果。它存在于子会话里，尚不等于原会话已经读过。'};
+  case 'switch':return {...s,active:'parent',reply:s.attached?s.reply:'baseline',notice:s.attached?'回到已读过结论的原会话。':'只切换位置，没有传递设备结果。原会话仍然缺少这份信息。'};
+  case 'return':
+   if(s.branch!=='done')return {...s,active:'parent',notice:'可以回来看原讨论，但设备还没有结论，不能当作已解决。'};
+   if(s.attached&&s.reply)return {...s,active:'parent',notice:'这份结论已经带回过了，重复点击不会重复插入。'};
+   return {...s,active:'parent',attached:true,reply:s.budget===800?'changed':'returned',notice:s.budget===800?'设备事实保留，按最新的 800 元预算重新判断；旧的 1000 元预算不再适用。':'设备结论送回原会话，接着原来的场地问题继续判断。'};
+  case 'budget':return {...s,budget:800,reply:null,artifact:false,notice:'预算改为 800 元。设备核对事实仍有效，原有可行性建议需要重新判断。'};
+  case 'artifact':return s.attached&&s.reply&&s.reply!=='baseline'?{...s,artifact:true,notice:'把场地判断收拢为一段方案草稿。你可以展开这段话的依据。'}:{...s,notice:'先带回设备结论，再形成有依据的方案草稿。'};
+  case 'trace':return {...s,trace:true,notice:'从方案回看：设备结论与预算来自哪里。'};
+  default:return s;
+ }
+}
+</script>
+<script>
+const evidence=JSON.parse(document.getElementById('evidence').textContent);
+const labels={enter:'进入设备分支',finish:'完成设备核对',switch:'只切回原会话',return:'带着结论返回',budget:'预算改为 800 元',artifact:'查看方案与依据',reset:'重新开始'};
+const scenarios=[
+ {title:'正常往返',description:'先只切回去，观察缺了什么；再带着结论返回，比较同一个问题的回答。',steps:['enter','finish','switch','return','artifact','trace']},
+ {title:'中途改变想法',description:'设备核对完成后，把预算降到 800 元。事实仍然有用，但旧建议不应继续成立。',steps:['enter','finish','budget','return','artifact','trace']},
+ {title:'还没结论就返回',description:'可以返回原讨论；这不能把没完成的分支变成已完成。之后仍能进去继续。',steps:['enter','return','enter','finish','return']},
+ {title:'重复返回',description:'同一份报告带回一次就够了。重复点击只回到原位置。',steps:['enter','finish','return','return']}
+];
+let state=initialState(),scenario=0,step=0;
+const el=id=>document.getElementById(id);
+const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const text=s=>escape(s).replace(/\*\*/g,'');
+function act(action){state=transition(state,action);render()}
+function render(){
+ el('state').innerHTML=[['当前位置',state.active==='child'?'设备分支':'场地讨论'],['设备问题',({none:'尚未展开',working:'正在核对',done:'已有结论'})[state.branch]],['当前总预算',state.budget+' 元'],['结论已带回',state.attached?'1 份 · 可回看来源':'0 份']].map(([k,v])=>`<div class="field"><span>${k}</span><strong>${v}</strong></div>`).join('');
+ el('constraints').innerHTML=`<span class="chip">8 人</span><span class="chip">总预算 ${state.budget} 元</span><span class="chip">饮料 300 元</span>`;
+ el('parent-card').className='node'+(state.active==='parent'?' active':'');
+ el('child-card').className='node'+(state.active==='child'?' active':'')+(state.branch==='none'?' muted':'');
+ el('return-card').className='node'+(state.reply?' active':'');
+ el('initial-reply').textContent=evidence.runs.parent.text;
+ el('child-content').innerHTML=state.branch==='done'?`<span class="chip">已核对 · 尚未代表选定场地</span><div class="message">${text(evidence.runs.child.text)}</div><div class="live-label">LUNA · 实际子会话回复</div>`:state.branch==='working'?'<p>回来要接着解决：</p><div class="quote">哪个场地满足放映条件，且没有超出预算？</div><p class="hint">这次只核对设备与遮光，不在这里替用户选场地。</p>':'<p class="hint">这里会展开独立问题。主讨论不需要从头重讲。</p>';
+ el('return-title').textContent=state.reply==='baseline'?'只切回来，信息没有回来':state.reply==='changed'?'预算变了，判断也要变':state.reply==='returned'?'接上了：现在可以比较':'回来后，继续选场地';
+ el('return-content').innerHTML=state.reply?`<div class="message">${text(evidence.runs[state.reply].text)}</div><div class="live-label">LUNA · ${state.reply==='baseline'?'无结果交接的对照回复':state.reply==='changed'?'最新预算下的实际回复':'同一父会话的实际续聊'}</div>`:'<p class="hint">这里将显示原会话接着说的话。不是把设备报告贴在旁边，而是让它参与原来的判断。</p>';
+ el('notice').textContent=state.notice;
+ el('actions').innerHTML=Object.entries(labels).map(([action,label])=>`<button data-action="${action}" class="${action==='return'?'primary':''}">${label}</button>`).join('');
+ el('artifact').innerHTML=state.artifact?`<div class="artifact"><div class="eyebrow" style="color:#586855">方案草稿 · 交互演示，未获用户确认</div><h2>朋友放映会 / 场地安排</h2><p>${state.budget===800?'场地待定：小画室合计 900 元，超过当前预算；咖啡馆超预算且无法遮光。需要另找候选或调整开支。':'小画室可作为候选：场租 400 元 + 设备 200 元 + 饮料 300 元 = 900 元，满足遮光要求。是否采用，仍等用户选择。'}</p><button data-action="trace">这段方案依据什么？</button></div>`:'';
+ el('trace').innerHTML=state.trace?`<div class="trace"><h3>这段判断的来路</h3><p>① 场地讨论：8 人、饮料 300 元，${state.budget===800?'预算后来改为 800 元':'总预算 1000 元'}。</p><p>② 设备分支：${text(evidence.runs.child.text)}</p><p>③ 回到场地问题：合并预算与设备条件，形成可行性判断。${state.budget===800?'预算变化影响可行性，没有推翻设备事实。':''}</p><p class="hint">这个回溯面板由样例关系生成；真实应用还需把同样的关系接入 tracker。</p></div>`:'';
+ el('tabs').innerHTML=scenarios.map((s,i)=>`<button role="tab" aria-selected="${i===scenario}" data-scenario="${i}" class="${i===scenario?'selected':''}">${s.title}</button>`).join('');
+ const current=scenarios[scenario];
+ el('walkthrough').innerHTML=`<p class="hint">${current.description}</p><div class="steps">${current.steps.map((action,i)=>`<button data-step="${i}" ${i!==step?'disabled':''} class="${i===step?'primary':''}">${i<step?'✓':i+1} ${labels[action]||'展开依据'}</button>`).join('')}</div>${step===current.steps.length?'<p class="hint">这条路径走完了。可以切换场景，或继续用上面的按钮探索。</p>':''}`;
+ el('technical-state').textContent=JSON.stringify({parentSessionId:evidence.anchor.parentSessionId,sourceEntryId:evidence.anchor.sourceEntryId,childSessionId:evidence.anchor.childSessionId,resultEntryId:evidence.handback.sourceResultEntryId,parentSessionUnchanged:evidence.sessionContinuity.same,active:state.active,branch:state.branch,budget:state.budget,attached:state.attached,reply:state.reply},null,2);
+}
+document.addEventListener('click',event=>{const b=event.target.closest('button');if(!b)return;if(b.dataset.scenario!==undefined){scenario=Number(b.dataset.scenario);step=0;state=initialState();render()}else if(b.dataset.step!==undefined){const action=scenarios[scenario].steps[step];step++;act(action)}else if(b.dataset.action){if(b.dataset.action==='reset')step=0;act(b.dataset.action)}});
+render();
+</script>
+</html>

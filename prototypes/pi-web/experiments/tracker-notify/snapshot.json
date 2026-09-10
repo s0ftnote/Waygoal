@@ -1,0 +1,105 @@
+{
+  "nodes": [
+    {
+      "sourceKey": "file:///Users/neuron/%E6%96%87%E7%A8%BF/2%20%E7%A7%81%E4%BA%BA/beacon/prototypes/pi-web/experiments/tracker-notify/PROTOTYPE-wipe-me/.scratch/screening/issues/01-equipment.md",
+      "source": "本地 Markdown",
+      "locator": "file:///Users/neuron/%E6%96%87%E7%A8%BF/2%20%E7%A7%81%E4%BA%BA/beacon/prototypes/pi-web/experiments/tracker-notify/PROTOTYPE-wipe-me/.scratch/screening/issues/01-equipment.md",
+      "title": "核对设备",
+      "status": "resolved",
+      "body": "# 核对设备\n\nType: research\nStatus: resolved\nQuestion: 设备和遮光条件是什么？\nAnswer: 小画室设备套装200元，含投影仪、幕布、音箱，且可遮光。\n",
+      "answer": "小画室设备套装200元，含投影仪、幕布、音箱，且可遮光。",
+      "mapRef": "file:///Users/neuron/%E6%96%87%E7%A8%BF/2%20%E7%A7%81%E4%BA%BA/beacon/prototypes/pi-web/experiments/tracker-notify/PROTOTYPE-wipe-me/.scratch/screening/map.md",
+      "blockers": [],
+      "firstSeen": "2026-09-09T06:51:20.451Z",
+      "deliveries": 2
+    },
+    {
+      "sourceKey": "file:///Users/neuron/%E6%96%87%E7%A8%BF/2%20%E7%A7%81%E4%BA%BA/beacon/prototypes/pi-web/experiments/tracker-notify/PROTOTYPE-wipe-me/.scratch/screening/issues/02-location.md",
+      "source": "本地 Markdown",
+      "locator": "file:///Users/neuron/%E6%96%87%E7%A8%BF/2%20%E7%A7%81%E4%BA%BA/beacon/prototypes/pi-web/experiments/tracker-notify/PROTOTYPE-wipe-me/.scratch/screening/issues/02-location.md",
+      "title": "根据设备条件选择场地",
+      "status": "deleted",
+      "body": "# 根据设备条件选择场地\n\nType: grilling\nStatus: open\nBlocked by: 01\nQuestion: 哪个场地适合？\n",
+      "mapRef": "file:///Users/neuron/%E6%96%87%E7%A8%BF/2%20%E7%A7%81%E4%BA%BA/beacon/prototypes/pi-web/experiments/tracker-notify/PROTOTYPE-wipe-me/.scratch/screening/map.md",
+      "blockers": [
+        "file:///Users/neuron/%E6%96%87%E7%A8%BF/2%20%E7%A7%81%E4%BA%BA/beacon/prototypes/pi-web/experiments/tracker-notify/PROTOTYPE-wipe-me/.scratch/screening/issues/01-equipment.md"
+      ],
+      "firstSeen": "2026-09-09T06:51:20.455Z",
+      "deliveries": 3
+    },
+    {
+      "sourceKey": "https://github.com/agegr/pi-web/issues/786",
+      "source": "GitHub · 只读快照",
+      "locator": "https://github.com/agegr/pi-web/issues/786",
+      "title": "纯文本类模型，在发送图片时会报错，导致后面无论发什么都报错。",
+      "status": "open",
+      "body": "粘贴无文字图片时生成 [{type:\"text\",text:\"\"},{image}]，空文本分片被 Z.ai 拒收 400）\n\n<img width=\"1728\" height=\"980\" alt=\"Image\" src=\"https://github.com/user-attachments/assets/17aa5a0b-371b-4228-9018-84e5e9dea10e\" />",
+      "firstSeen": "2026-09-09T06:52:06.833Z",
+      "deliveries": 1
+    },
+    {
+      "sourceKey": "sample-tracker://creative/01",
+      "source": "自定义 tracker · 虚构样本",
+      "locator": "sample-tracker://creative/01",
+      "title": "为活动写一句开场白",
+      "status": "open",
+      "body": "怎样用一句话让朋友轻松开口？",
+      "blockers": [],
+      "firstSeen": "2026-09-09T06:52:06.835Z",
+      "deliveries": 1
+    }
+  ],
+  "log": [
+    {
+      "action": "新增节点",
+      "title": "核对设备",
+      "source": "本地 Markdown",
+      "at": "2026-09-09T06:51:20.451Z"
+    },
+    {
+      "action": "新增节点",
+      "title": "选择场地",
+      "source": "本地 Markdown",
+      "at": "2026-09-09T06:51:20.455Z"
+    },
+    {
+      "action": "重复通知已忽略",
+      "title": "选择场地",
+      "at": "2026-09-09T06:51:23.637Z"
+    },
+    {
+      "action": "模拟接收失败",
+      "at": "2026-09-09T06:51:52.314Z"
+    },
+    {
+      "action": "更新节点",
+      "title": "根据设备条件选择场地",
+      "source": "本地 Markdown",
+      "at": "2026-09-09T06:51:52.317Z"
+    },
+    {
+      "action": "更新节点",
+      "title": "核对设备",
+      "source": "本地 Markdown",
+      "at": "2026-09-09T06:51:52.319Z"
+    },
+    {
+      "action": "新增节点",
+      "title": "纯文本类模型，在发送图片时会报错，导致后面无论发什么都报错。",
+      "source": "GitHub · 只读快照",
+      "at": "2026-09-09T06:52:06.833Z"
+    },
+    {
+      "action": "新增节点",
+      "title": "为活动写一句开场白",
+      "source": "自定义 tracker · 虚构样本",
+      "at": "2026-09-09T06:52:06.835Z"
+    },
+    {
+      "action": "记录删除",
+      "title": "根据设备条件选择场地",
+      "source": "本地 Markdown",
+      "at": "2026-09-09T06:52:14.187Z"
+    }
+  ]
+}

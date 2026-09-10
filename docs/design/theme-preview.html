@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Waygoal · 主题与交互气质</title>
+<link rel="stylesheet" href="waygoal-theme.css"><link rel="stylesheet" href="theme-preview.css">
+</head>
+<body>
+<svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><symbol id="arrow" viewBox="0 0 24 24"><path d="M5 12h13m-5-5 5 5-5 5"/></symbol><symbol id="branch" viewBox="0 0 48 48"><path d="M8 36c11 0 10-24 29-24M8 36c14 0 16-4 29-3M31 7l7 5-6 6M31 28l7 5-6 6"/></symbol></defs></svg>
+<main>
+<header><a class="brand" href="#" aria-label="Waygoal 主题预览">waygoal<span>.</span></a><div class="edition">视觉研究 <span>02 / 浅色主题</span></div><a class="nav-link" href="#palette" id="spec-link">查看色板 <svg><use href="#arrow"/></svg></a></header>
+<section class="intro">
+<div><div class="eyebrow">A LITTLE ROOM FOR YOUR IDEAS</div><h1>想法，可以<br>走岔路<span class="period">。</span><svg class="title-doodle" aria-hidden="true"><use href="#branch"/></svg></h1></div>
+<div class="intro-copy"><p>从一个念头出发，<br>分出去看看，再带着发现回来。</p><div class="palette" id="palette" aria-label="主题色"><span><i style="--swatch:var(--wg-canvas)"></i>纸白 <code>#F6FAF6</code></span><span><i style="--swatch:var(--wg-accent)"></i>浅青 <code>#A9DBDC</code></span><span><i style="--swatch:var(--wg-ink)"></i>深蓝 <code>#1D365A</code></span><span><i style="--swatch:var(--wg-action)"></i>朱红 <code>#E53A46</code></span></div></div>
+</section>
+<section class="playground" id="playground" aria-label="虚构会话的主题演示">
+<div class="section-head"><div><span class="eyebrow">FOLLOW A THOUGHT</span><h2>一个起点，<span>两种可能。</span></h2></div><button class="pill" id="reset">回到整体 <span class="round-arrow"><svg><use href="#arrow"/></svg></span></button></div>
+<div class="workspace">
+<div class="canvas"><div class="canvas-label"><span class="mini-mark">↳</span> 周末聚会 <span class="canvas-tag">讨论路径</span></div>
+<div class="graph" id="graph">
+<svg class="links" aria-hidden="true"><path id="edge-a"/><path id="edge-b"/></svg>
+<button class="node root" data-key="root" aria-pressed="false"><span class="node-meta">起点 <span class="node-number">01</span></span><strong>想和朋友<br>好好聚一次</strong><span class="node-caption">形式还没想好，也没关系。</span><span class="node-foot">从这个念头出发 <svg><use href="#arrow"/></svg></span></button>
+<button class="node a" data-key="a" aria-pressed="true"><span class="node-meta">一种可能 <span class="selected-dot"></span></span><strong>一起看一部电影</strong><span class="node-caption">看完之后，还想聊些什么？</span></button>
+<button class="node b" data-key="b" aria-pressed="false"><span class="node-meta">另一种可能 <span class="selected-dot"></span></span><strong>围着桌子玩点什么</strong><span class="node-caption">让不熟悉的人也能参与。</span></button>
+</div>
+<div class="canvas-bottom"><span>一张票据 · 两条讨论分支</span><span class="position-key"><i></i> 当前查看</span></div></div>
+<article class="chat" aria-label="讨论内容预览"><div class="chat-top"><span>讨论片段</span><span class="badge">查看历史</span></div><h3 id="title">一起看一部电影</h3><div class="conversation" id="conversation"><div class="speaker">你</div><p class="bubble" id="question">我希望能聊起来，不只是坐着看完就散场。</p><div class="speaker agent">Pi <span>·</span></div><p class="reply" id="reply">可以把电影当作开场。我们先聊聊，你希望大家散场时带走什么感受？</p></div><div class="actions"><button class="pill" id="continue">从这里继续 <span class="round-arrow"><svg><use href="#arrow"/></svg></span></button><button class="text-button" id="back">回到来源</button></div><div class="notice" id="notice" role="status">主题示意，未连接实际会话。</div></article>
+</div>
+<div class="playground-foot"><span>点开另一条路径，看看同一个想法的不同方向。</span><span>虚构样例 / 可交互</span></div>
+</section>
+<section class="afterthought"><div class="hand-note"><svg viewBox="0 0 42 48" aria-hidden="true"><path d="m9 9 5 10 6-13 5 11 9-6M18 31l2 1m-10 9 18-3"/></svg><div><strong>“不知道”，也是一个好开头。</strong><p>可以犹豫，可以不同意。下一步，慢慢聊。</p></div></div><button class="tip-dismiss" aria-label="关闭方法提示">×</button></section>
+<section class="invitation" aria-label="尝试配色示例"><svg class="waves" viewBox="0 0 1100 170" preserveAspectRatio="none" aria-hidden="true"><path d="M-20 24C160 0 280 49 460 22S800 12 1130 31M-20 91C160 62 320 115 560 82S910 78 1130 99M-20 151C180 116 330 172 590 140S900 151 1130 137"/></svg><div class="invitation-copy"><span class="eyebrow">TAKE A SMALL DETOUR</span><h2>另一条路，会聊出什么？</h2></div><div class="invite-control"><button class="invite-button" id="try">试着走走看 <svg><use href="#arrow"/></svg></button><svg class="spark" viewBox="0 0 48 48" aria-hidden="true"><path d="m11 24 4-12m9 15 9-8m-6 18 13-2"/></svg></div></section>
+<footer><span>纸白留白 · 浅青承托 · 深蓝成形 · 朱红点睛</span><span>参考 <a href="https://www.onenewbite.com/" target="_blank" rel="noreferrer">一口新饭</a> / Waygoal 主题试配</span></footer>
+</main>
+<script>
+const entries={root:['想和朋友好好聚一次','想办个周末小聚会，但形式还没想好。','没关系。先聊聊这次想和谁一起，以及你最期待发生的一件小事。'],a:['一起看一部电影','我希望能聊起来，不只是坐着看完就散场。','可以把电影当作开场。我们先聊聊，你希望大家散场时带走什么感受？'],b:['围着桌子玩点什么','如果有人不喜欢复杂规则，怎么让大家都能参与？','那就先从大家愿意参与的方式聊起。你希望更多是合作，还是轻松的竞争？']};
+const reduced=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
+function select(key){document.querySelectorAll('[data-key]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.key===key)));document.querySelectorAll('.links path').forEach(p=>p.classList.toggle('active',p.id==='edge-'+key));const e=entries[key];document.getElementById('title').textContent=e[0];document.getElementById('question').textContent=e[1];document.getElementById('reply').textContent=e[2];document.getElementById('notice').textContent='仅切换预览，未改变实际会话。';if(!reduced())document.getElementById('conversation').animate([{opacity:.35,transform:'translateY(5px)'},{opacity:1,transform:'translateY(0)'}],{duration:240,easing:'ease-out'});}
+function layout(){const g=document.getElementById('graph').getBoundingClientRect(),r=document.querySelector('.root').getBoundingClientRect();for(const key of ['a','b']){const n=document.querySelector('.node.'+key).getBoundingClientRect();const x=r.right-g.left,y=r.top+r.height/2-g.top,ex=n.left-g.left,ey=n.top+n.height/2-g.top;const mid=(x+ex)/2;document.getElementById('edge-'+key).setAttribute('d',`M${x} ${y} C${mid} ${y} ${mid} ${ey} ${ex} ${ey}`);}}
+new ResizeObserver(layout).observe(document.getElementById('graph'));document.fonts.ready.then(layout);
+document.querySelectorAll('[data-key]').forEach(b=>b.addEventListener('click',()=>select(b.dataset.key)));
+document.getElementById('back').addEventListener('click',()=>select('root'));
+document.getElementById('reset').addEventListener('click',()=>select('root'));
+document.getElementById('continue').addEventListener('click',()=>document.getElementById('notice').textContent='这是样式预览，未发送消息或启动 Agent。');
+document.getElementById('try').addEventListener('click',()=>{select('b');document.getElementById('playground').scrollIntoView({behavior:reduced()?'instant':'smooth',block:'center'});document.querySelector('.node.b').focus({preventScroll:true});});
+document.querySelector('.tip-dismiss').addEventListener('click',()=>{const note=document.querySelector('.hand-note');note.hidden=!note.hidden;const b=document.querySelector('.tip-dismiss');b.textContent=note.hidden?'?':'×';b.setAttribute('aria-label',note.hidden?'重新打开方法提示':'关闭方法提示');});
+select('a');
+</script>
+</body></html>

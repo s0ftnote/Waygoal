@@ -1,5 +1,8 @@
 {
   "name": "beacon-experiment",
   "private": true,
-  "scripts": { "dev": "npm --prefix prototypes/pi-web run dev:beacon" }
+  "scripts": {
+    "dev": "npm --prefix prototypes/pi-web run dev:beacon",
+    "prototype:canvas": "python3 -m http.server 30145 --bind 127.0.0.1 --directory prototypes/pi-web/public"
+  }
 }

@@ -1,0 +1,10 @@
+{
+  "identity": "sample-tracker://creative/01",
+  "heading": "为活动写一句开场白",
+  "phase": "todo",
+  "links": {
+    "waitsFor": []
+  },
+  "question": "怎样用一句话让朋友轻松开口？",
+  "fixture": true
+}

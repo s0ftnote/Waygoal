@@ -1,0 +1,14 @@
+:root {
+  color-scheme: light;
+  --wg-canvas: #F6FAF6;
+  --wg-surface: #FFFFFF;
+  --wg-accent: #A9DBDC;
+  --wg-accent-soft: #E8F4F2;
+  --wg-action: #E53A46;
+  --wg-ink: #1D365A;
+  --wg-muted: #586A76;
+  --wg-border: #D7E5E1;
+  --wg-path: #597B82;
+  --wg-danger: #AA3540;
+  --wg-shadow: 0 10px 28px rgb(29 54 90 / 7%);
+}

@@ -16,3 +16,7 @@ test-results/
 
 # Keep the prototype's existing upstream checkout local.
 prototypes/pi-web/.git
+
+# Local request payload and pre-publication verification backup
+.scratch/waygoal-tickets/request.json
+.scratch/waygoal-tickets/parent-before.json

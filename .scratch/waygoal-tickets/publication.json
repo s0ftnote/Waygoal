@@ -1,0 +1,188 @@
+{
+  "parent": "https://github.com/s0ftnote/Waygoal/issues/1",
+  "status": "published-and-verified",
+  "tickets": {
+    "1": {
+      "draftId": 1,
+      "number": 2,
+      "id": 5408691727,
+      "url": "https://github.com/s0ftnote/Waygoal/issues/2",
+      "title": "从普通工作目录开始真实会话画布",
+      "blockedBy": []
+    },
+    "2": {
+      "draftId": 2,
+      "number": 3,
+      "id": 5408692229,
+      "url": "https://github.com/s0ftnote/Waygoal/issues/3",
+      "title": "真实分叉、只读回看与明确继续",
+      "blockedBy": [
+        2
+      ]
+    },
+    "3": {
+      "draftId": 3,
+      "number": 4,
+      "id": 5408692855,
+      "url": "https://github.com/s0ftnote/Waygoal/issues/4",
+      "title": "切换工作区与创建多张画布",
+      "blockedBy": [
+        2
+      ]
+    },
+    "4": {
+      "draftId": 4,
+      "number": 5,
+      "id": 5408693531,
+      "url": "https://github.com/s0ftnote/Waygoal/issues/5",
+      "title": "通过标题和位置找回讨论",
+      "blockedBy": [
+        2
+      ]
+    },
+    "5": {
+      "draftId": 5,
+      "number": 6,
+      "id": 5408694121,
+      "url": "https://github.com/s0ftnote/Waygoal/issues/6",
+      "title": "手动分组和关联想法",
+      "blockedBy": [
+        2
+      ]
+    },
+    "6": {
+      "draftId": 6,
+      "number": 7,
+      "id": 5408694816,
+      "url": "https://github.com/s0ftnote/Waygoal/issues/7",
+      "title": "本地票据从来源进入画布",
+      "blockedBy": [
+        2
+      ]
+    },
+    "7": {
+      "draftId": 7,
+      "number": 8,
+      "id": 5408695691,
+      "url": "https://github.com/s0ftnote/Waygoal/issues/8",
+      "title": "从票据开始、分叉和继续讨论",
+      "blockedBy": [
+        3,
+        7
+      ]
+    },
+    "8": {
+      "draftId": 8,
+      "number": 9,
+      "id": 5408696265,
+      "url": "https://github.com/s0ftnote/Waygoal/issues/9",
+      "title": "依赖变动与下游解锁可见",
+      "blockedBy": [
+        7
+      ]
+    },
+    "9": {
+      "draftId": 9,
+      "number": 10,
+      "id": 5408696729,
+      "url": "https://github.com/s0ftnote/Waygoal/issues/10",
+      "title": "远程原文也走同一票据入口",
+      "blockedBy": [
+        7
+      ]
+    },
+    "10": {
+      "draftId": 10,
+      "number": 11,
+      "id": 5408697218,
+      "url": "https://github.com/s0ftnote/Waygoal/issues/11",
+      "title": "从地图结论回到讨论与产物",
+      "blockedBy": [
+        8
+      ]
+    }
+  },
+  "verifiedAt": "2026-09-10T06:37:54.094146+00:00",
+  "verification": [
+    {
+      "number": 2,
+      "bodyMatches": true,
+      "labelVerified": true,
+      "nativeBlockedBy": []
+    },
+    {
+      "number": 3,
+      "bodyMatches": true,
+      "labelVerified": true,
+      "nativeBlockedBy": [
+        2
+      ]
+    },
+    {
+      "number": 4,
+      "bodyMatches": true,
+      "labelVerified": true,
+      "nativeBlockedBy": [
+        2
+      ]
+    },
+    {
+      "number": 5,
+      "bodyMatches": true,
+      "labelVerified": true,
+      "nativeBlockedBy": [
+        2
+      ]
+    },
+    {
+      "number": 6,
+      "bodyMatches": true,
+      "labelVerified": true,
+      "nativeBlockedBy": [
+        2
+      ]
+    },
+    {
+      "number": 7,
+      "bodyMatches": true,
+      "labelVerified": true,
+      "nativeBlockedBy": [
+        2
+      ]
+    },
+    {
+      "number": 8,
+      "bodyMatches": true,
+      "labelVerified": true,
+      "nativeBlockedBy": [
+        3,
+        7
+      ]
+    },
+    {
+      "number": 9,
+      "bodyMatches": true,
+      "labelVerified": true,
+      "nativeBlockedBy": [
+        7
+      ]
+    },
+    {
+      "number": 10,
+      "bodyMatches": true,
+      "labelVerified": true,
+      "nativeBlockedBy": [
+        7
+      ]
+    },
+    {
+      "number": 11,
+      "bodyMatches": true,
+      "labelVerified": true,
+      "nativeBlockedBy": [
+        8
+      ]
+    }
+  ],
+  "parentUnchanged": true
+}
