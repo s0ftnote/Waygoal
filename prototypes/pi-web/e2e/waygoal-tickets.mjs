@@ -110,6 +110,14 @@ try {
   let page = await openPage();
   const card = (title) => page.locator(".waygoal-ticket-card", { hasText: title }).first();
   const panel = () => page.locator(".waygoal-panel");
+  /** Opening a card brings it into view, which can carry another one off the
+   *  screen. Start from the whole canvas before reaching for the next card. */
+  const fitCanvas = async () => {
+    const close = page.getByRole("button", { name: "关闭面板" });
+    if (await close.count() > 0 && await close.isVisible()) await close.click();
+    await page.getByRole("button", { name: "回到全景", exact: true }).click();
+    await delay(400);
+  };
 
   await page.goto(canvasUrl, { waitUntil: "domcontentloaded" });
   await card("给朋友办一场小型放映会").waitFor();
@@ -146,6 +154,7 @@ try {
   // 4. Dependencies that cannot be resolved say so instead of counting as met.
   writeTicket("screening", "03-opening.md", ticket("开场怎么说", { blockedBy: "09, 02" }));
   await card("开场怎么说").waitFor();
+  await fitCanvas();
   await card("开场怎么说").click();
   await panel().getByText("这张地图里找不到").waitFor();
   check("a dependency that names nothing is reported, not treated as satisfied", true);
@@ -172,6 +181,7 @@ try {
     (await skipped.textContent()).includes(".scratch/notes"), await skipped.textContent());
 
   // 6. A card the user moved stays where it was put, across a host restart.
+  await fitCanvas();
   const box = await card("希望朋友带走什么感受").boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + 12);
   await page.mouse.down();

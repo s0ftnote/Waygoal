@@ -126,6 +126,14 @@ try {
   const card = (title) => page.locator(".waygoal-ticket-card", { hasText: title }).first();
   const state = async (title) => card(title).getAttribute("data-state");
   const panel = () => page.locator(".waygoal-panel");
+  /** Opening a card brings it into view, which can carry another one off the
+   *  screen. Start from the whole canvas before reaching for the next card. */
+  const fitCanvas = async () => {
+    const close = page.getByRole("button", { name: "关闭面板" });
+    if (await close.count() > 0 && await close.isVisible()) await close.click();
+    await page.getByRole("button", { name: "回到全景", exact: true }).click();
+    await delay(400);
+  };
   const stateOf = (title, want) => waitFor(async () => (await state(title)) === want, `${title} to read ${want}`);
 
   await page.goto(canvasUrl, { waitUntil: "domcontentloaded" });
@@ -259,6 +267,7 @@ try {
   await stateOf(DRINKS[1], "unblocked");
   check("with reduced motion the state is shown straight away",
     (await card(DRINKS[1]).textContent()).includes("前提都满足了"));
+  await fitCanvas();
   await card(DRINKS[1]).click();
   await panel().getByText(".scratch/party/issues/05-drinks.md").waitFor();
   check("and the card can be opened without waiting for anything to finish",
@@ -271,6 +280,7 @@ try {
   writeTicket("party", "06-toast.md", ticket("敬酒说什么", { blockedBy: "02" }));
   await card("敬酒说什么").waitFor();
   await stateOf("敬酒说什么", "unblocked");
+  await fitCanvas();
   await card("敬酒说什么").click();
   writeTicket("party", "02-second.md", ticket("同号的另一张票"));
   await waitFor(async () => (await blockerText()).includes("同号有多份"), "the ambiguous dependency");

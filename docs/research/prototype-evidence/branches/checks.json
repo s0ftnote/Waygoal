@@ -1,5 +1,5 @@
 {
-  "ranAt": "2026-09-10T18:20:43.043Z",
+  "ranAt": "2026-09-10T19:27:11.099Z",
   "checks": [
     {
       "name": "a plain session starts with no branches",
@@ -14,7 +14,7 @@
     {
       "name": "the shared origin message is the branch point",
       "ok": true,
-      "detail": "b6443243"
+      "detail": "01219ec8"
     },
     {
       "name": "both paths are kept and the newest one is where the session continues",
@@ -64,12 +64,12 @@
     {
       "name": "the next message really lands on the chosen path",
       "ok": true,
-      "detail": "{\"ancestors\":[\"cee452a3\",\"55aeceb6\",\"b5b47c2e\",\"40a9abc6\",\"b6443243\",\"ac4469ae\",\"9859878b\",\"aa933426\"],\"chosen\":\"9859878b\"}"
+      "detail": "{\"ancestors\":[\"0f7735cb\",\"a03f575f\",\"077aa616\",\"5f1819f0\",\"01219ec8\",\"4880d678\",\"45e52f8a\",\"47faf6d0\"],\"chosen\":\"45e52f8a\"}"
     },
     {
       "name": "it did not land on the other path",
       "ok": true,
-      "detail": "{\"ancestors\":[\"cee452a3\",\"55aeceb6\",\"b5b47c2e\",\"40a9abc6\",\"b6443243\",\"ac4469ae\",\"9859878b\",\"aa933426\"],\"other\":\"97aaa711\"}"
+      "detail": "{\"ancestors\":[\"0f7735cb\",\"a03f575f\",\"077aa616\",\"5f1819f0\",\"01219ec8\",\"4880d678\",\"45e52f8a\",\"47faf6d0\"],\"other\":\"a889e7dd\"}"
     },
     {
       "name": "the abandoned path is still stored",
@@ -84,7 +84,7 @@
     {
       "name": "a send from the other path follows its leaf, not the message on display",
       "ok": true,
-      "detail": "{\"ancestors\":[\"cee452a3\",\"55aeceb6\",\"b5b47c2e\",\"40a9abc6\",\"b6443243\",\"63beb2e5\",\"97aaa711\",\"3c59f1c4\"],\"leaf\":\"97aaa711\"}"
+      "detail": "{\"ancestors\":[\"0f7735cb\",\"a03f575f\",\"077aa616\",\"5f1819f0\",\"01219ec8\",\"f9e37cf1\",\"a889e7dd\",\"59269ea6\"],\"leaf\":\"a889e7dd\"}"
     },
     {
       "name": "the message kept the text that was typed",
@@ -99,7 +99,7 @@
     {
       "name": "the fork records the session AND the message it came from",
       "ok": true,
-      "detail": "{\"sessionId\":\"01a08c8c-9db1-7119-96d6-3178d66c5061\",\"entryId\":\"ac4469ae\",\"inWorkspace\":true,\"title\":\"周末聚会做什么\"}"
+      "detail": "{\"sessionId\":\"01a08cc9-77f6-73a2-95ea-3e27bf989ddf\",\"entryId\":\"4880d678\",\"inWorkspace\":true,\"title\":\"周末聚会做什么\"}"
     },
     {
       "name": "the original path is untouched by the fork",

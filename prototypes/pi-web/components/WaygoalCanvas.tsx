@@ -2,17 +2,22 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { rekeyDraft } from "@/lib/draft-store";
+import { cardBounds, cardCenter, thumbnail, viewCenteredOn, worldPoint, type WaygoalCard } from "@/lib/waygoal-locate";
 import type { SessionInfo } from "@/lib/types";
 import type { WaygoalBranchChoice, WaygoalBranchPoint, WaygoalSessionTreeResponse } from "@/lib/waygoal-branches";
 import { CHIP_HEIGHT, NODE_HEIGHT, NODE_WIDTH, needsCheck, ticketCardHeight, ticketChipTop, type WaygoalCanvasPatch, type WaygoalNode, type WaygoalPoint, type WaygoalSnapshotResponse, type WaygoalView } from "@/lib/waygoal-types";
 import { ChatWindow } from "./ChatWindow";
 import { WaygoalPaths } from "./WaygoalPaths";
+import { WaygoalFind } from "./WaygoalFind";
 import { WaygoalPathView } from "./WaygoalPathView";
+import { WaygoalRename } from "./WaygoalRename";
 import { stateClass, WaygoalTicketPanel } from "./WaygoalTicketPanel";
 
 const NODE_W = NODE_WIDTH;
 const NODE_H = NODE_HEIGHT;
 const DEFAULT_VIEW: WaygoalView = { x: 48, y: 48, scale: 1 };
+/** The thumbnail's own size in screen pixels. */
+const THUMB = { width: 168, height: 112 };
 const MIN_SCALE = 0.35;
 const MAX_SCALE = 1.8;
 /** The composer a ticket opens is a new-session composer, and the host clears a
@@ -107,6 +112,7 @@ export function WaygoalCanvas() {
   // The ticket a discussion being started belongs to. Nothing is written until
   // the user actually sends: an unsent draft holds no session and no ticket.
   const [pendingTicket, setPendingTicket] = useState<string | null>(null);
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [createdSession, setCreatedSession] = useState<SessionInfo | null>(null);
   const [panelKey, setPanelKey] = useState(0);
   const [trust, setTrust] = useState<{ requiresTrust: boolean; trusted: boolean } | null>(null);
@@ -245,21 +251,6 @@ export function WaygoalCanvas() {
     return () => { cancelled = true; };
   }, [openSessionId, patch]);
 
-  const revealedFor = useRef<string | null>(null);
-  useEffect(() => {
-    if (!selectedId || revealedFor.current === selectedId) return;
-    const el = viewportRef.current;
-    const node = snapshot?.nodes.find(n => n.id === selectedId);
-    if (!el || !node) return;
-    revealedFor.current = selectedId;
-    setView(v => {
-      const left = node.position.x * v.scale + v.x, top = node.position.y * v.scale + v.y;
-      const right = left + NODE_W * v.scale, bottom = top + NODE_H * v.scale;
-      const margin = 24;
-      if (left >= margin && top >= margin && right <= el.clientWidth - margin && bottom <= el.clientHeight - margin) return v;
-      return { ...v, x: (el.clientWidth - NODE_W * v.scale) / 2 - node.position.x * v.scale, y: (el.clientHeight - NODE_H * v.scale) / 2 - node.position.y * v.scale };
-    });
-  }, [selectedId, snapshot]);
 
   const nodes = useMemo(() => (snapshot?.nodes ?? []).map(node => ({ ...node, position: dragging[node.id] ?? node.position })), [snapshot, dragging]);
   // Map and ticket cards, laid out from the same record as the session cards
@@ -276,6 +267,46 @@ export function WaygoalCanvas() {
   // Which ticket a discussion is held under, read from the same snapshot.
   const ticketOfSession = useMemo(() => new Map(ticketMaps.flatMap(map =>
     map.tickets.flatMap(ticket => ticket.discussions.map(talk => [talk.sessionId, ticket.id] as const)))), [ticketMaps]);
+  // Every card on the canvas, in the one shape finding, 回到全景 and the
+  // thumbnail all read. A ticket's title comes from its source file: renaming
+  // happens to Pi sessions only, never to a ticket.
+  const cards = useMemo<WaygoalCard[]>(() => [
+    ...nodes.map(node => ({ id: node.id, title: node.title, kind: "session" as const, position: node.position, height: NODE_H, modified: node.modified })),
+    ...ticketMaps.flatMap(map => [
+      { id: map.path, title: map.title, kind: "map" as const, position: map.position, height: NODE_H, modified: null },
+      ...map.tickets.map(ticket => ({
+        id: ticket.id, title: ticket.title, kind: "ticket" as const, position: ticket.position,
+        height: ticket.expanded ? ticketCardHeight(ticket.discussions.length) : NODE_H, modified: null,
+      })),
+    ]),
+  ], [nodes, ticketMaps]);
+  // The card the record was left on, while it is still here.
+  const continueCard = useMemo(() => (snapshot?.lastViewed && !snapshot.lastViewedMissing
+    ? cards.find(card => card.id === snapshot.lastViewed) ?? null
+    : null), [cards, snapshot]);
+
+  // Whatever the panel just opened, brought back into view when opening the
+  // panel — or going there before it had taken its room — left it outside. It
+  // reads the viewport element rather than the tracked size: the panel takes
+  // its room in the same commit, and the observer only reports it afterwards.
+  const revealedFor = useRef<string | null>(null);
+  useEffect(() => {
+    const id = selectedId ?? openTicket;
+    const el = viewportRef.current;
+    if (!id || revealedFor.current === id || !el) return;
+    const card = cards.find(c => c.id === id);
+    if (!card) return;
+    revealedFor.current = id;
+    const viewport = { width: el.clientWidth, height: el.clientHeight };
+    setView(v => {
+      const left = card.position.x * v.scale + v.x, top = card.position.y * v.scale + v.y;
+      const right = left + NODE_W * v.scale, bottom = top + card.height * v.scale;
+      const margin = 24;
+      if (left >= margin && top >= margin && right <= viewport.width - margin && bottom <= viewport.height - margin) return v;
+      return viewCenteredOn(cardCenter(card), v, viewport);
+    });
+  }, [selectedId, openTicket, cards]);
+
   const openTicketMap = openTicket ? ticketMaps.find(map => map.path === openTicket || map.tickets.some(t => t.id === openTicket)) ?? null : null;
   const openTicketCard = openTicketMap?.tickets.find(t => t.id === openTicket) ?? null;
   const pendingTicketTitle = pendingTicket
@@ -320,6 +351,18 @@ export function WaygoalCanvas() {
     observer.observe(el);
     return () => observer.disconnect();
   }, [selectedId, snapshot]);
+
+  // The thumbnail and 定位 both need the viewport in screen pixels, and it
+  // changes whenever the panel opens or the window is resized.
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const update = () => setViewportSize({ width: el.clientWidth, height: el.clientHeight });
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const selectedChoices = useMemo(
     () => (tree && tree.sessionId === selectedId ? flattenChoices(tree.branchPoints) : []),
@@ -509,24 +552,33 @@ export function WaygoalCanvas() {
    *  a ticket takes as much room as the discussions shown under it. */
   const fitAll = useCallback(() => {
     viewDirty.current = true;
-    const el = viewportRef.current;
-    const boxes = [
-      ...nodes.map(node => ({ ...node.position, height: NODE_H })),
-      ...ticketMaps.flatMap(map => [
-        { ...map.position, height: NODE_H },
-        ...map.tickets.map(ticket => ({
-          ...ticket.position,
-          height: ticket.expanded ? ticketCardHeight(ticket.discussions.length) : NODE_H,
-        })),
-      ]),
-    ];
-    if (!el || boxes.length === 0) { setView(DEFAULT_VIEW); return; }
-    const minX = Math.min(...boxes.map(b => b.x)), minY = Math.min(...boxes.map(b => b.y));
-    const width = Math.max(...boxes.map(b => b.x + NODE_W)) - minX;
-    const height = Math.max(...boxes.map(b => b.y + b.height)) - minY;
-    const scale = Math.min(1, Math.max(MIN_SCALE, Math.min((el.clientWidth - 96) / width, (el.clientHeight - 96) / height)));
-    setView({ x: (el.clientWidth - width * scale) / 2 - minX * scale, y: (el.clientHeight - height * scale) / 2 - minY * scale, scale });
-  }, [nodes, ticketMaps]);
+    const box = cardBounds(cards);
+    if (!box || viewportSize.width === 0) { setView(DEFAULT_VIEW); return; }
+    const scale = Math.min(1, Math.max(MIN_SCALE, Math.min((viewportSize.width - 96) / box.width, (viewportSize.height - 96) / box.height)));
+    setView(viewCenteredOn({ x: box.x + box.width / 2, y: box.y + box.height / 2 }, { ...DEFAULT_VIEW, scale }, viewportSize));
+  }, [cards, viewportSize]);
+
+  /** Move the view so a place on the canvas sits in the middle. Locating is
+   *  only that: no session is opened, nothing is sent, and which path a
+   *  session would continue on does not change. */
+  const moveTo = useCallback((point: WaygoalPoint) => {
+    viewDirty.current = true;
+    setView(v => viewCenteredOn(point, v, viewportSize));
+  }, [viewportSize]);
+
+  /** A hit in 查找: go to it and open it. Opening reads — it does not send. */
+  const goToCard = useCallback((card: WaygoalCard) => {
+    moveTo(cardCenter(card));
+    if (card.kind === "session") {
+      const node = nodes.find(n => n.id === card.id);
+      if (node) openNode(node);
+    } else openLocalTicket(card.id);
+  }, [moveTo, nodes, openNode, openLocalTicket]);
+
+  const thumb = useMemo(
+    () => (viewportSize.width > 0 ? thumbnail(cards, view, viewportSize, THUMB) : null),
+    [cards, view, viewportSize],
+  );
 
   const nudge = useCallback((node: WaygoalNode, dx: number, dy: number) => {
     const position = { x: node.position.x + dx, y: node.position.y + dy };
@@ -600,6 +652,11 @@ export function WaygoalCanvas() {
           {skipped.length > 0 && <span className="waygoal-count waygoal-skipped" title={skipped.map(s => `${s.path}：${s.reason}`).join("\n")}>
             {skipped.length} 个目录没有读成地图：{skipped.map(s => s.path).join("、")}
           </span>}
+          <WaygoalFind cards={cards} onGo={goToCard} />
+          {/* One step back to what the canvas restores on load. 看 and 在聊 are
+              two different things (票 #3), and this entry is the 看 one. */}
+          {continueCard && <button type="button" data-continue className="waygoal-button outlined small"
+            onClick={() => goToCard(continueCard)}>回到上次看的地方</button>}
           <div className="waygoal-zoom" role="group" aria-label="缩放">
             <button type="button" aria-label="缩小" onClick={() => zoomBy(1 / 1.15)}>−</button>
             <span aria-live="polite">{Math.round(view.scale * 100)}%</span>
@@ -750,6 +807,24 @@ export function WaygoalCanvas() {
             </div>}
           </div>
         </div>
+        {thumb && <div className="waygoal-thumb-box">
+          {/* Where everything sits and where the user is looking. Clicking only
+              moves the view: no session is opened and nothing is sent. */}
+          <button type="button" data-thumb className="waygoal-thumb" aria-label="画布缩略图：点一下把视野移过去，用键盘按下则显示整张画布"
+            style={{ width: THUMB.width, height: THUMB.height }}
+            onClick={e => {
+              // Activated from the keyboard there is no point to read, so it
+              // means the whole canvas — the same as 回到全景 and the 0 key.
+              if (e.detail === 0) { fitAll(); return; }
+              const box = e.currentTarget.getBoundingClientRect();
+              moveTo(worldPoint(thumb, { x: e.clientX - box.left, y: e.clientY - box.top }));
+            }}>
+            {thumb.cards.map(card => <span key={card.id} className={`waygoal-thumb-card ${card.kind}`} aria-hidden="true"
+              style={{ left: card.x, top: card.y, width: Math.max(2, card.width), height: Math.max(2, card.height) }} />)}
+            <span className="waygoal-thumb-view" data-thumb-view aria-hidden="true"
+              style={{ left: thumb.view.x, top: thumb.view.y, width: thumb.view.width, height: thumb.view.height }} />
+          </button>
+        </div>}
         <div className="waygoal-statusline"><span>拖动卡片摆放 · 拖动空白处平移 · 滚轮缩放 · 点开路径只是看，说一句才在那条里继续</span><span className="waygoal-id">{snapshot?.workspaceId}</span></div>
       </section>
       {panelOpen && snapshot && <aside className="waygoal-panel" aria-label="讨论面板">
@@ -762,6 +837,11 @@ export function WaygoalCanvas() {
               : pendingTicket ? `${pendingTicketTitle ?? pendingTicket}：写下第一句，发送后这段讨论就挂在这张票下`
               : "先写下第一句，发送后这段会话才会出现在画布上"}</strong>
           </div>
+          {/* A ticket keeps the name its source file gives it, and a path
+              inside a session is not named at all: only a session gets these. */}
+          {selectedNode && !viewing && <WaygoalRename key={selectedNode.id}
+            sessionId={selectedNode.id} title={selectedNode.title} titleSource={selectedNode.titleSource}
+            onRenamed={() => refresh(true)} onError={setError} onNotice={setNotice} />}
           {viewing && <button type="button" className="waygoal-button outlined small" onClick={stopViewing}>回到在聊的那条</button>}
           {!isMobile && <button type="button" className="waygoal-icon" aria-label="关闭面板" onClick={closePanel}>×</button>}
         </div>

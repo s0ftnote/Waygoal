@@ -1,0 +1,115 @@
+{
+  "ranAt": "2026-09-10T19:25:52.740Z",
+  "checks": [
+    {
+      "name": "an unnamed session falls back to its first message without that becoming its name",
+      "ok": true,
+      "detail": "{\"id\":\"01a08cc8-44be-7332-b249-f4d89d4f4eaf\",\"title\":\"放映会放哪部片好\",\"titleSource\":\"fallback\",\"messageCount\":2,\"created\":\"2026-09-10T19:25:30.174Z\",\"modified\":\"2026-09-10T19:25:33.145Z\",\"running\":false,\"transient\":false,\"position\":{\"x\":0,\"y\":200},\"origin\":null,\"branchPointCount\":0,\"activeLeafId\":\"46f79a63\"}"
+    },
+    {
+      "name": "the rename box does not start out holding the fallback title",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "renaming keeps the session's identity, place, messages and relations, and calls no model",
+      "ok": true,
+      "detail": "{\"after\":{\"id\":\"01a08cc8-44be-7332-b249-f4d89d4f4eaf\",\"title\":\"放映会选片\",\"titleSource\":\"name\",\"messageCount\":2,\"created\":\"2026-09-10T19:25:30.174Z\",\"modified\":\"2026-09-10T19:25:33.145Z\",\"running\":false,\"transient\":false,\"position\":{\"x\":0,\"y\":200},\"origin\":null,\"branchPointCount\":0,\"activeLeafId\":\"46f79a63\"},\"was\":{\"position\":{\"x\":0,\"y\":200},\"messages\":[\"user:[{\\\"type\\\":\\\"text\\\",\\\"text\\\":\\\"放映会放哪部片好\\\"}]\",\"assistant:[{\\\"type\\\":\\\"text\\\",\\\"text\\\":\\\"回复: 放映会放哪部片好\\\"}]\"],\"count\":2},\"requests\":0}"
+    },
+    {
+      "name": "plain chat does not overwrite the name the user gave",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "and neither does a refresh",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "nothing asks a model for a title on its own",
+      "ok": true,
+      "detail": "0"
+    },
+    {
+      "name": "asking Pi for a name uses the host's own title generation, once, and adds no message to the session",
+      "ok": true,
+      "detail": "{\"titleRequests\":1}"
+    },
+    {
+      "name": "the names survive a host restart",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "finding opens over the canvas instead of replacing it with a session list",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "only the session whose title has those characters is offered",
+      "ok": true,
+      "detail": "1"
+    },
+    {
+      "name": "going to a hit moves the view and opens it, without sending anything or changing where it would continue",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "and the card it went to is wholly in view, not left under the panel",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a ticket it went to is wholly in view too",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a ticket is found under the title its source file gives it, and has no rename controls",
+      "ok": true,
+      "detail": "0"
+    },
+    {
+      "name": "a title nobody has says so, rather than offering a near miss",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "an empty box lists the discussions and no tickets",
+      "ok": true,
+      "detail": "[\"放映会场地\",\"放映会选片\"]"
+    },
+    {
+      "name": "the discussion just talked in comes first",
+      "ok": true,
+      "detail": "[\"放映会选片\",\"放映会场地\"]"
+    },
+    {
+      "name": "the thumbnail draws every card on the canvas and where the user is looking",
+      "ok": true,
+      "detail": "{\"drawn\":5,\"cardCount\":5}"
+    },
+    {
+      "name": "pressing the thumbnail from the keyboard goes to the whole canvas rather than a corner",
+      "ok": true,
+      "detail": "{\"panorama\":\"translate(275px, 88.5px) scale(1)\",\"fitAll\":\"translate(275px, 88.5px) scale(1)\"}"
+    },
+    {
+      "name": "clicking the thumbnail moves the view only: no panel opens, nothing is sent, no session changes where it continues",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "回到上次看的地方 comes back to the card the canvas was left on",
+      "ok": true,
+      "detail": "{\"lastSeen\":\"01a08cc8-44be-7332-b249-f4d89d4f4eaf\",\"filmId\":\"01a08cc8-44be-7332-b249-f4d89d4f4eaf\"}"
+    },
+    {
+      "name": "no page or console errors",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}
