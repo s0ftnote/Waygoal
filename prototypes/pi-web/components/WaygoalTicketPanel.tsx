@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import type { WaygoalTicketCard, WaygoalTicketMapCard } from "@/lib/waygoal-types";
+import { needsCheck, type WaygoalTicketBlocker, type WaygoalTicketCard, type WaygoalTicketMapCard, type WaygoalTicketState } from "@/lib/waygoal-types";
 
 interface Props {
   map: WaygoalTicketMapCard;
@@ -14,27 +14,51 @@ interface Props {
   onOpenDiscussion: (sessionId: string) => void;
 }
 
-/** A ticket's own status, and a blocker's, read the same way everywhere. */
-export const statusClass = (status: string): string => status === "resolved" ? "done" : "waiting";
+/** Where a ticket stands, coloured the same way everywhere it is shown. */
+export const stateClass = (state: WaygoalTicketState): string =>
+  state === "resolved" ? "done" : state === "cancelled" ? "dropped" : state === "unblocked" ? "unblocked" : "waiting";
+
+/** A premise, coloured by whether it is met, still being worked on, or a
+ *  relation nobody can settle by reading. */
+export const blockerClass = (blocker: WaygoalTicketBlocker): string =>
+  blocker.holding === null ? "done" : needsCheck(blocker) ? "unknown" : "waiting";
+
+/** What one premise still needs, when reading cannot settle it. Each of these
+ *  is a relation the source has to change; until it does, the ticket waits. */
+const HOLD_NOTE = {
+  cancelled: "取消不等于解决；要放行，请在来源里改掉这条依赖",
+  missing: "这张地图里找不到",
+  ambiguous: "同号有多份，无法确定",
+  unreadable: "现在读不到它，读不到就不算解决",
+} as const;
 
 function readTime(iso: string): string {
   const at = new Date(iso);
   return Number.isNaN(at.getTime()) ? iso : at.toLocaleString("zh-CN", { hour12: false });
 }
 
+/** Every `Blocked by:` reference as the source spells it, and what each one
+ *  still needs. A premise nobody can settle by reading is named as such: the
+ *  ticket keeps waiting until the source says what the relation means now. */
 function Blockers({ ticket }: { ticket: WaygoalTicketCard }) {
   if (ticket.blockers.length === 0) return null;
-  return <p className="waygoal-ticket-blockers">
-    <span className="waygoal-ticket-label">依赖</span>
-    {ticket.blockers.map(blocker => <span key={`${blocker.number}-${blocker.path ?? "?"}`}
-      className={`waygoal-tag ${blocker.unknown ? "unknown" : statusClass(blocker.status ?? "")}`}
-      title={blocker.path ?? undefined}>
-      {blocker.number}
-      {blocker.unknown === "missing" ? " · 这张地图里找不到"
-        : blocker.unknown === "ambiguous" ? " · 同号有多份，无法确定"
-        : ` · ${blocker.status}`}
-    </span>)}
-  </p>;
+  const unsettled = ticket.blockers.filter(needsCheck).length;
+  return <div className="waygoal-ticket-blockers">
+    <p>
+      <span className="waygoal-ticket-label">依赖</span>
+      {ticket.blockers.map(blocker => <span key={`${blocker.number}-${blocker.path ?? "?"}`}
+        className={`waygoal-tag ${blockerClass(blocker)}`} title={blocker.path ?? undefined}>
+        {blocker.number}{blocker.status ? ` · ${blocker.status}` : ""}
+        {blocker.holding && blocker.holding !== "waiting" ? ` · ${HOLD_NOTE[blocker.holding]}` : ""}
+      </span>)}
+    </p>
+    {/* Unblocking is a change of state and nothing else: it does not finish
+        this ticket, start a discussion, or close the map it belongs to. */}
+    {ticket.state === "unblocked" && <p className="waygoal-ticket-unblocked" role="status">前提都满足了，这张票可以往下走。</p>}
+    {unsettled > 0 && <p className="waygoal-ticket-check" role="status">
+      有 {unsettled} 条依赖要在来源里核对；核对之前，这张票还在等。
+    </p>}
+  </div>;
 }
 
 const HINT_KEY = "waygoal-ticket-hint";
@@ -97,7 +121,7 @@ export function WaygoalTicketPanel({ map, ticket, readAt, onStart, onOpenDiscuss
     <div className="waygoal-ticket-head">
       {/* The panel header already names it; this is what the file says about it. */}
       <p className="waygoal-ticket-meta">
-        {ticket && <><span className="waygoal-tag">{ticket.type}</span><span className={`waygoal-tag ${statusClass(ticket.status)}`}>{ticket.status}</span></>}
+        {ticket && <><span className="waygoal-tag">{ticket.type}</span><span className={`waygoal-tag ${stateClass(ticket.state)}`}>{ticket.status}</span></>}
         {ticket && <span className="waygoal-ticket-map">来自「{map.title}」</span>}
       </p>
       {ticket && <Blockers ticket={ticket} />}

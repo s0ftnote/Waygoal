@@ -4,11 +4,11 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { rekeyDraft } from "@/lib/draft-store";
 import type { SessionInfo } from "@/lib/types";
 import type { WaygoalBranchChoice, WaygoalBranchPoint, WaygoalSessionTreeResponse } from "@/lib/waygoal-branches";
-import { CHIP_HEIGHT, NODE_HEIGHT, NODE_WIDTH, ticketCardHeight, ticketChipTop, type WaygoalCanvasPatch, type WaygoalNode, type WaygoalPoint, type WaygoalSnapshotResponse, type WaygoalView } from "@/lib/waygoal-types";
+import { CHIP_HEIGHT, NODE_HEIGHT, NODE_WIDTH, needsCheck, ticketCardHeight, ticketChipTop, type WaygoalCanvasPatch, type WaygoalNode, type WaygoalPoint, type WaygoalSnapshotResponse, type WaygoalView } from "@/lib/waygoal-types";
 import { ChatWindow } from "./ChatWindow";
 import { WaygoalPaths } from "./WaygoalPaths";
 import { WaygoalPathView } from "./WaygoalPathView";
-import { statusClass, WaygoalTicketPanel } from "./WaygoalTicketPanel";
+import { stateClass, WaygoalTicketPanel } from "./WaygoalTicketPanel";
 
 const NODE_W = NODE_WIDTH;
 const NODE_H = NODE_HEIGHT;
@@ -664,18 +664,27 @@ export function WaygoalCanvas() {
                 files. Opening one only reads it: no Pi session is started. */}
             {ticketMaps.map(map => <div key={map.path} className="waygoal-ticket-group">
               {[{ id: map.path, title: map.title, position: map.position, stale: map.stale, kind: "本地地图",
-                  extra: " map", label: "本地地图", state: "", marks: null, foot: `${map.tickets.length} 张票据` },
+                  extra: " map", label: "本地地图", state: "", ticketState: null, lit: false, marks: null, foot: `${map.tickets.length} 张票据` },
                 ...map.tickets.map(ticket => ({
                   id: ticket.id, title: ticket.title, position: ticket.position, stale: ticket.stale, kind: "本地票据",
                   extra: "", label: `票据 ${ticket.number}`, state: ticket.type,
+                  ticketState: ticket.state,
+                  // Only the snapshot that first sees it stop waiting says so;
+                  // what the card reads then is what it goes on reading.
+                  lit: ticket.justUnblocked,
                   marks: <>
-                    <span className={`waygoal-tag ${statusClass(ticket.status)}`}>{ticket.status}</span>
-                    {ticket.blocked && <span className="waygoal-tag waiting">{ticket.blockers.some(b => b.unknown) ? "依赖未知" : "被依赖挡着"}</span>}
+                    <span className={`waygoal-tag ${stateClass(ticket.state)}`}>{ticket.status}</span>
+                    {/* What the source concluded and what its relations say are
+                        two facts, shown as two marks: a ticket closed while it
+                        still names an unmet premise says both. */}
+                    {ticket.blocked && <span className="waygoal-tag waiting">{ticket.blockers.some(needsCheck) ? "依赖要核对" : "被依赖挡着"}</span>}
+                    {ticket.state === "unblocked" && ticket.blockers.length > 0 && <span className="waygoal-tag unblocked">前提都满足了</span>}
                   </>,
                   foot: ticket.question.slice(0, 28) || "还没写下要解决的问题",
                 }))]
                 .map(card => <button key={card.id} type="button" data-node={card.id}
-                  className={`waygoal-ticket-card${card.extra}${openTicket === card.id ? " selected" : ""}${card.stale ? " stale" : ""}`}
+                  data-state={card.ticketState ?? undefined} data-unblocked={card.lit ? "true" : undefined}
+                  className={`waygoal-ticket-card${card.extra}${openTicket === card.id ? " selected" : ""}${card.stale ? " stale" : ""}${card.lit ? " unblocked" : ""}`}
                   style={{ left: card.position.x, top: card.position.y }}
                   aria-pressed={openTicket === card.id}
                   aria-label={`${card.kind}：${card.title}${card.stale ? "，读不到来源文件" : ""}`}

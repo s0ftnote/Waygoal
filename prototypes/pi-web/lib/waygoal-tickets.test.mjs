@@ -5,7 +5,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createJiti } from "jiti";
 const jiti = createJiti(import.meta.url, { alias: { "@": new URL("..", import.meta.url).pathname } });
-const { readLocalTickets } = await jiti.import("./waygoal-tickets.ts");
+const { readLocalTickets, mergeTicketScan } = await jiti.import("./waygoal-tickets.ts");
+const at = (iso) => () => new Date(iso);
+
+/** One read of a workspace the way the canvas sees it. Dependencies are
+ *  settled over everything the canvas is showing — what was read this time and
+ *  what was only read before — so a premise that stopped being readable is not
+ *  mistaken for one that was never there. */
+const view = (w, saved = {}, iso = "2026-09-10T01:00:00.000Z") =>
+  mergeTicketScan(readLocalTickets(w.cwd, at(iso)), saved, at(iso));
+const ticketOf = (merged, title) => merged.maps.flatMap(m => m.tickets).find(t => t.title === title);
 
 /** A workspace holding real files in the layout the local Markdown tracker
  *  documents: `.scratch/<effort>/map.md` with `issues/NN-<slug>.md` under it. */
@@ -72,16 +81,16 @@ test("blockers resolve inside their own map: known ones carry a status, unknown 
     dinner: { "map.md": "# 另一张地图\n", "01-menu.md": TICKET("菜单").replace("Status: open", "Status: resolved") },
   });
   try {
-    const scan = readLocalTickets(w.cwd);
-    const screening = scan.maps.find(m => m.path.includes("screening"));
+    const merged = view(w);
+    const screening = merged.maps.find(m => m.path.includes("screening"));
     const [, film, opening] = screening.tickets;
-    assert.deepEqual(film.blockers, [{ number: "01", path: ".scratch/screening/issues/01-feeling.md", status: "resolved", unknown: null }]);
+    assert.deepEqual(film.blockers, [{ number: "01", path: ".scratch/screening/issues/01-feeling.md", status: "resolved", holding: null }]);
     assert.equal(film.blocked, false, "its only blocker is resolved");
     // A resolved reference reads as the ticket it found; one that found nothing
     // can only report the number the line named.
-    assert.deepEqual(opening.blockers.map(b => [b.number, b.status, b.unknown]), [["02", "open", null], ["9", null, "missing"]]);
+    assert.deepEqual(opening.blockers.map(b => [b.number, b.status, b.holding]), [["02", "open", "waiting"], ["9", null, "missing"]]);
     assert.equal(opening.blocked, true, "an open blocker and an unknown one both hold it");
-    assert.equal(scan.maps.find(m => m.path.includes("dinner")).tickets[0].blockers.length, 0);
+    assert.equal(merged.maps.find(m => m.path.includes("dinner")).tickets[0].blockers.length, 0);
   } finally { w.done(); }
 });
 
@@ -93,9 +102,9 @@ test("two tickets sharing a number in one map are reported, not silently picked 
     "03-opening.md": TICKET("开场", "Blocked by: 02\n"),
   } });
   try {
-    const [map] = readLocalTickets(w.cwd).maps;
+    const [map] = view(w).maps;
     const opening = map.tickets.find(t => t.title === "开场");
-    assert.deepEqual(opening.blockers.map(b => [b.number, b.path, b.unknown]), [["2", null, "ambiguous"]]);
+    assert.deepEqual(opening.blockers.map(b => [b.number, b.path, b.holding]), [["2", null, "ambiguous"]]);
     assert.equal(opening.blocked, true, "an ambiguous dependency is not treated as satisfied");
     assert.equal(map.warnings.length, 1);
     assert.match(map.warnings[0], /02/);
@@ -135,9 +144,6 @@ test("a workspace with no local tracker reads as empty, without inventing a map"
     assert.match(scan.readAt, /^\d{4}-\d{2}-\d{2}T/);
   } finally { w.done(); }
 });
-
-const { mergeTicketScan } = await jiti.import("./waygoal-tickets.ts");
-const at = (iso) => () => new Date(iso);
 
 test("a source file that stops being readable keeps its last good content, marked stale", () => {
   const w = workspace({ screening: { "map.md": MAP, "01-feeling.md": TICKET("感受"), "02-film.md": TICKET("影片") } });
@@ -229,5 +235,76 @@ test("reading the same files again produces the same record, so nothing is rewri
     writeFileSync(join(w.cwd, ".scratch/screening/issues/01-feeling.md"), TICKET("换了个标题"));
     const third = mergeTicketScan(readLocalTickets(w.cwd, at("2026-09-10T03:00:00.000Z")), second.saved, at("2026-09-10T03:00:00.000Z"));
     assert.equal(third.saved.tickets[".scratch/screening/issues/01-feeling.md"].readAt, "2026-09-10T03:00:00.000Z");
+  } finally { w.done(); }
+});
+
+const resolved = (title, extra = "") => TICKET(title, extra).replace("Status: open", "Status: resolved");
+
+test("two premises let a ticket through only once both are resolved", () => {
+  const w = workspace({ screening: {
+    "map.md": MAP,
+    "01-room.md": resolved("场地"),
+    "02-films.md": TICKET("片单"),
+    "03-opening.md": TICKET("开场", "Blocked by: 01, 02\n"),
+  } });
+  try {
+    const first = view(w);
+    const waiting = ticketOf(first, "开场");
+    assert.equal(waiting.state, "waiting", "one premise resolved is not all of them");
+    assert.deepEqual(waiting.blockers.map(b => [b.number, b.holding]), [["01", null], ["02", "waiting"]]);
+
+    writeFileSync(join(w.cwd, ".scratch/screening/issues/02-films.md"), resolved("片单"));
+    const second = view(w, first.saved, "2026-09-10T02:00:00.000Z");
+    const through = ticketOf(second, "开场");
+    assert.equal(through.state, "unblocked", "with every premise resolved it can be worked on");
+    assert.equal(through.blocked, false);
+    assert.deepEqual(through.blockers.map(b => b.holding), [null, null]);
+  } finally { w.done(); }
+});
+
+test("a premise that was dropped is not a premise that was met", () => {
+  const w = workspace({ screening: {
+    "map.md": MAP,
+    "01-room.md": TICKET("场地").replace("Status: open", "Status: cancelled"),
+    "02-opening.md": TICKET("开场", "Blocked by: 01\n"),
+  } });
+  try {
+    const merged = view(w);
+    assert.equal(ticketOf(merged, "场地").state, "cancelled", "the source says it was dropped, not finished");
+    const opening = ticketOf(merged, "开场");
+    assert.equal(opening.state, "waiting", "dropping a premise does not release what waited on it");
+    assert.deepEqual(opening.blockers.map(b => [b.status, b.holding]), [["cancelled", "cancelled"]]);
+  } finally { w.done(); }
+});
+
+test("a premise that cannot be read now holds, and does not read as one that was never there", () => {
+  const w = workspace({ screening: {
+    "map.md": MAP,
+    "01-room.md": resolved("场地"),
+    "02-opening.md": TICKET("开场", "Blocked by: 01\n"),
+  } });
+  try {
+    const first = view(w);
+    assert.equal(ticketOf(first, "开场").state, "unblocked");
+
+    rmSync(join(w.cwd, ".scratch/screening/issues/01-room.md"));
+    const second = view(w, first.saved, "2026-09-10T02:00:00.000Z");
+    const opening = ticketOf(second, "开场");
+    assert.equal(opening.state, "waiting", "a read that failed is not a premise that was met");
+    assert.deepEqual(opening.blockers.map(b => [b.number, b.holding]), [["01", "unreadable"]]);
+    assert.ok(ticketOf(second, "场地").stale, "and the premise itself is shown as unread, not gone");
+  } finally { w.done(); }
+});
+
+test("a ticket the source already resolved reads as resolved, whatever it waited on", () => {
+  const w = workspace({ screening: {
+    "map.md": MAP,
+    "01-room.md": TICKET("场地"),
+    "02-opening.md": resolved("开场", "Blocked by: 01\n"),
+  } });
+  try {
+    const opening = ticketOf(view(w), "开场");
+    assert.equal(opening.state, "resolved", "the source's own conclusion is not overruled by the relation");
+    assert.equal(opening.blocked, true, "and the relation it still names is reported as it reads");
   } finally { w.done(); }
 });

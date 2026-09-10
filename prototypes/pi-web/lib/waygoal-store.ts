@@ -7,7 +7,7 @@ import { writePrivateFileAtomicSync } from "./atomic-file";
 import { projectIdentityKey } from "./project-identity";
 import type { SessionInfo } from "./types";
 import { mergeTicketScan, readLocalTickets } from "./waygoal-tickets";
-import { NODE_HEIGHT, NODE_WIDTH, TICKET_CARD_HEIGHT, type WaygoalCanvasPatch, type WaygoalCanvasRecord, type WaygoalNode, type WaygoalNodeOrigin, type WaygoalOriginRecord, type WaygoalPoint, type WaygoalSavedTickets, type WaygoalSnapshot, type WaygoalTicketDiscussion, type WaygoalTicketSnapshot, type WaygoalTitleSource, type WaygoalTreeInfo } from "./waygoal-types";
+import { NODE_HEIGHT, NODE_WIDTH, TICKET_CARD_HEIGHT, type WaygoalCanvasPatch, type WaygoalCanvasRecord, type WaygoalNode, type WaygoalNodeOrigin, type WaygoalOriginRecord, type WaygoalPoint, type WaygoalSavedTickets, type WaygoalSnapshot, type WaygoalTicketDiscussion, type WaygoalTicketSnapshot, type WaygoalTicketView, type WaygoalTitleSource, type WaygoalTreeInfo } from "./waygoal-types";
 export { NODE_HEIGHT, NODE_WIDTH };
 
 // Records live under Pi's agent directory, apart from the plugin code, and
@@ -53,7 +53,7 @@ export function resolveWorkspaceCwd(input?: string | null): string {
 }
 
 function emptyRecord(cwd: string): WaygoalCanvasRecord {
-  return { version: 1, cwd, nodes: {}, origins: {}, tickets: emptySavedTickets(), ticketSessions: {}, ticketExpanded: {}, ticketLast: {}, updatedAt: new Date(0).toISOString() };
+  return { version: 1, cwd, nodes: {}, origins: {}, tickets: emptySavedTickets(), ticketSessions: {}, ticketExpanded: {}, ticketLast: {}, ticketWaiting: {}, updatedAt: new Date(0).toISOString() };
 }
 
 const emptySavedTickets = (): WaygoalSavedTickets => ({ maps: {}, tickets: {} });
@@ -113,6 +113,7 @@ export function readCanvasRecord(cwd: string, agentDir = getAgentDir()): Waygoal
       tickets: validSavedTickets(parsed.tickets),
       ticketSessions: Object.fromEntries(Object.entries(parsed.ticketSessions ?? {}).filter(([id, ticket]) => id && isTicketPath(ticket))),
       ticketExpanded: Object.fromEntries(Object.entries(parsed.ticketExpanded ?? {}).filter(([t, open]) => isTicketPath(t) && typeof open === "boolean")),
+      ticketWaiting: Object.fromEntries(Object.entries(parsed.ticketWaiting ?? {}).filter(([t, waiting]) => isTicketPath(t) && typeof waiting === "boolean")),
       ticketLast: Object.fromEntries(Object.entries(parsed.ticketLast ?? {}).filter(([t, place]) => isTicketPath(t) && place && typeof place.sessionId === "string" && Boolean(place.sessionId))
         .map(([t, place]) => [t, { sessionId: place.sessionId, entryId: typeof place.entryId === "string" && place.entryId ? place.entryId : null }])),
       ...(view ? { view } : {}),
@@ -323,6 +324,21 @@ export function buildTicketSnapshot(cwd: string, nodes: WaygoalNode[] = [], agen
     return record.nodes[id];
   };
   const byId = new Map(nodes.map(node => [node.id, node]));
+  /** Write down what this ticket is waiting on now, and answer whether it has
+   *  just stopped waiting. Only the snapshot that first sees that says so: the
+   *  record remembers, so no later read and no restarted host says it again.
+   *  Unblocking is only that — it finishes nothing, opens nothing, and leaves
+   *  the ticket's own status to the source. */
+  const recordWaiting = (ticket: WaygoalTicketView): boolean => {
+    const waiting = ticket.state === "waiting";
+    const wasWaiting = record.ticketWaiting[ticket.id];
+    // A premise that merely could not be read this time holds the ticket, but
+    // it says nothing about the work: remembering that as waiting would make
+    // the next successful read look like the premise had just been met.
+    const readable = !ticket.blockers.some(blocker => blocker.holding === "unreadable");
+    if (readable && wasWaiting !== waiting) { record.ticketWaiting[ticket.id] = waiting; changed = true; }
+    return wasWaiting === true && ticket.state === "unblocked";
+  };
   /** The discussions held under one ticket, in the order they were held. A
    *  session the record points at but the workspace no longer has is kept and
    *  marked: the user linked it, so its absence is news, not noise. */
@@ -343,12 +359,15 @@ export function buildTicketSnapshot(cwd: string, nodes: WaygoalNode[] = [], agen
     tickets: map.tickets.map(ticket => ({
       ...ticket,
       position: place(ticket.id, TICKET_CARD_HEIGHT),
+      justUnblocked: recordWaiting(ticket),
       discussions: discussionsOf(ticket.id),
       expanded: record.ticketExpanded[ticket.id] ?? true,
       lastDiscussion: record.ticketLast[ticket.id] ?? null,
     })),
   }));
   if (changed) {
+    // The layout, the cached reads and what each ticket was last seen waiting
+    // on are one record; a snapshot that learned any of them writes it once.
     record.tickets = merged.saved;
     record.updatedAt = new Date().toISOString();
     writeCanvasRecord(record, agentDir);

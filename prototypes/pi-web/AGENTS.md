@@ -249,19 +249,20 @@ app/api/beacon/route.ts          ticket prototype: tracker snapshot and ticket �
 components/WaygoalCanvas.tsx     pan/zoom canvas, draggable session nodes, right panel hosting ChatWindow
 components/WaygoalPaths.tsx      panel header: fork origin, branch points, 打开这段 (ticket #3)
 components/WaygoalPathView.tsx   read-only history of one path; reuses GET /api/sessions/[id]/context (ticket #3)
-components/WaygoalTicketPanel.tsx  full view of one local ticket or map: the source file itself, blockers, read time (ticket #7); the discussions held under it and the closable how-to (ticket #8)
+components/WaygoalTicketPanel.tsx  full view of one local ticket or map: the source file itself, blockers, read time (ticket #7); the discussions held under it and the closable how-to (ticket #8); what each premise still needs (ticket #9)
 components/BeaconCanvas.tsx      ticket prototype canvas
 lib/waygoal-store.ts             canvas records in <agentDir>/waygoal/workspaces/<id>/canvas.json; snapshot builder
 lib/waygoal-branches.ts          pure projection of a Pi tree into branch points and paths; no I/O (ticket #3)
 lib/waygoal-tree.ts              reads the real Pi tree for a session (live manager, else the file), mtime-cached
-lib/waygoal-types.ts             record / snapshot / patch types
-lib/waygoal-tickets.ts           reads .scratch/<map>/map.md + issues/NN-*.md into tickets; pure, no writes (ticket #7)
+lib/waygoal-types.ts             record / snapshot / patch types, plus the few rules both the reader and the canvas have to agree on (card geometry, needsCheck)
+lib/waygoal-tickets.ts           reads .scratch/<map>/map.md + issues/NN-*.md into tickets; pure, no writes (ticket #7). Dependencies are settled in mergeTicketScan, over what the canvas shows: only a premise read as resolved releases (ticket #9)
 lib/beacon-extension.ts          in-process Pi extension: /skill: feedback (all sessions) + tracker watcher (ticket prototype dirs only)
 lib/beacon-store.ts              local Markdown tracker reader for the ticket prototype
 e2e/waygoal.mjs                  npm run test:waygoal — own server, temp PI_CODING_AGENT_DIR, fake model (e2e/fake-model.mjs)
 e2e/waygoal-branches.mjs         npm run test:waygoal-branches — fork / read-only review / explicit continue (ticket #3)
 e2e/waygoal-tickets.mjs          npm run test:waygoal-tickets — local maps and tickets on the canvas, no model, no Pi session (ticket #7)
 e2e/waygoal-ticket-talks.mjs     npm run test:waygoal-ticket-talks — starting, forking and continuing a discussion under a ticket (ticket #8)
+e2e/waygoal-dependencies.mjs     npm run test:waygoal-dependencies — dependency changes: two premises, unblocking, re-blocking, dropped and unreadable premises, no model (ticket #9)
 e2e/beacon.mjs                   ticket prototype browser check against a running 30142
 ```
 

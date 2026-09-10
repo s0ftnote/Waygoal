@@ -373,3 +373,67 @@ test("associations to sessions of another workspace, or to no ticket, are refuse
     assert.deepEqual(store.readCanvasRecord(s.a, s.agentDir).ticketSessions, {}, "a discussion can be taken back out of a ticket");
   } finally { s.done(); }
 });
+
+const resolvedBody = (title, extra = "") => ticketBody(title, extra).replace("Status: open", "Status: resolved");
+const card = (snapshot, title) => snapshot.maps.flatMap(m => m.tickets).find(t => t.title === title);
+
+test("a ticket that stops waiting is lit once, and the same change is never replayed", () => {
+  const s = sandbox();
+  try {
+    localMap(s.a, "screening", { "01-room.md": ticketBody("场地"), "02-opening.md": ticketBody("开场", "Blocked by: 01\n") });
+    const waiting = card(store.buildTicketSnapshot(s.a, [], s.agentDir), "开场");
+    assert.equal(waiting.state, "waiting");
+    assert.equal(waiting.justUnblocked, false, "waiting is not news");
+
+    writeFileSync(join(s.a, ".scratch/screening/issues/01-room.md"), resolvedBody("场地"));
+    const lit = card(store.buildTicketSnapshot(s.a, [], s.agentDir), "开场");
+    assert.equal(lit.state, "unblocked");
+    assert.equal(lit.justUnblocked, true, "the change itself is worth pointing at once");
+
+    // Every later read, including one by a host that just started, sees the
+    // record on disk: the state still says it can be worked on, the change
+    // does not happen again.
+    for (const again of [store.buildTicketSnapshot(s.a, [], s.agentDir), store.buildTicketSnapshot(s.a, [], s.agentDir)]) {
+      assert.equal(card(again, "开场").state, "unblocked");
+      assert.equal(card(again, "开场").justUnblocked, false, "the same change is not replayed");
+    }
+  } finally { s.done(); }
+});
+
+test("a ticket that was never waiting is not lit, and one blocked again can be lit again", () => {
+  const s = sandbox();
+  try {
+    localMap(s.a, "screening", { "01-room.md": resolvedBody("场地"), "02-opening.md": ticketBody("开场", "Blocked by: 01\n") });
+    const first = card(store.buildTicketSnapshot(s.a, [], s.agentDir), "开场");
+    assert.equal(first.state, "unblocked");
+    assert.equal(first.justUnblocked, false, "seeing it for the first time is not a change");
+
+    // The premise is reopened in the source: waiting again, without the canvas
+    // touching either ticket's own status.
+    writeFileSync(join(s.a, ".scratch/screening/issues/01-room.md"), ticketBody("场地"));
+    const blocked = card(store.buildTicketSnapshot(s.a, [], s.agentDir), "开场");
+    assert.equal(blocked.state, "waiting");
+    assert.equal(blocked.status, "open", "unlocking and re-blocking never write the ticket's own status");
+
+    writeFileSync(join(s.a, ".scratch/screening/issues/01-room.md"), resolvedBody("场地"));
+    assert.equal(card(store.buildTicketSnapshot(s.a, [], s.agentDir), "开场").justUnblocked, true, "letting it through again is a change of its own");
+  } finally { s.done(); }
+});
+
+test("a premise that could not be read once does not light the ticket when the read recovers", () => {
+  const s = sandbox();
+  try {
+    localMap(s.a, "screening", { "01-room.md": resolvedBody("场地"), "02-opening.md": ticketBody("开场", "Blocked by: 01\n") });
+    assert.equal(card(store.buildTicketSnapshot(s.a, [], s.agentDir), "开场").state, "unblocked");
+
+    // One bad scan: the premise holds, because a read that failed says nothing
+    // about whether it was met.
+    rmSync(join(s.a, ".scratch/screening/issues/01-room.md"));
+    assert.equal(card(store.buildTicketSnapshot(s.a, [], s.agentDir), "开场").state, "waiting");
+
+    writeFileSync(join(s.a, ".scratch/screening/issues/01-room.md"), resolvedBody("场地"));
+    const back = card(store.buildTicketSnapshot(s.a, [], s.agentDir), "开场");
+    assert.equal(back.state, "unblocked");
+    assert.equal(back.justUnblocked, false, "reading it again is not the premise being met");
+  } finally { s.done(); }
+});

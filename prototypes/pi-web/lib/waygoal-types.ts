@@ -21,6 +21,10 @@ export interface WaygoalCanvasRecord {
   ticketExpanded: Record<string, boolean>;
   /** Per ticket, the discussion last talked in and the path it was left on. */
   ticketLast: Record<string, WaygoalTicketPlace>;
+  /** Whether each ticket was last seen waiting on a premise. It is kept so a
+   *  ticket that has just stopped waiting can be pointed at once, and so a
+   *  restarted host does not point at the same change again. */
+  ticketWaiting: Record<string, boolean>;
   view?: WaygoalView;
   lastViewed?: string | null;
   /** Read-only viewing position inside `lastViewed`. */
@@ -133,10 +137,10 @@ export interface WaygoalTicketNode {
   answer: string;
   /** The source file, unchanged: the full view shows this, not a retelling. */
   body: string;
-  /** Numbers as the `Blocked by:` line spells them, before they are matched. */
+  /** Numbers as the `Blocked by:` line spells them, before they are matched.
+   *  Settling them needs the whole map as the canvas is showing it, so the
+   *  relations themselves live on the view, not here. */
   rawBlockers: string[];
-  blockers: WaygoalTicketBlocker[];
-  blocked: boolean;
 }
 
 export interface WaygoalTicketBlocker {
@@ -144,9 +148,23 @@ export interface WaygoalTicketBlocker {
   /** The ticket this names; null when the map has no single ticket with it. */
   path: string | null;
   status: string | null;
-  /** Why no relation could be established, instead of calling it unblocked. */
-  unknown: "missing" | "ambiguous" | null;
+  /** Why this premise still holds, or null when the source says it is resolved.
+   *  Only `resolved` releases what waited on it: `waiting` is still being
+   *  worked on, `cancelled` was dropped without an answer, and the last three
+   *  mean the relation itself could not be read. None of them is a premise
+   *  that was met. */
+  holding: "waiting" | "cancelled" | "missing" | "ambiguous" | "unreadable" | null;
 }
+
+/** A relation Waygoal cannot settle by reading: the source has to say what it
+ *  means now, and until it does the ticket keeps waiting. */
+export const needsCheck = (blocker: WaygoalTicketBlocker): boolean =>
+  blocker.holding !== null && blocker.holding !== "waiting";
+
+/** Where a ticket stands, settled over everything the canvas is showing.
+ *  `waiting` is held by a premise, `unblocked` has every premise it named met,
+ *  and the other two are the source's own conclusion about the ticket itself. */
+export type WaygoalTicketState = "waiting" | "unblocked" | "resolved" | "cancelled";
 
 export interface WaygoalTicketMap {
   path: string;
@@ -192,6 +210,10 @@ export interface WaygoalStale {
 
 export interface WaygoalTicketView extends WaygoalTicketNode {
   stale: WaygoalStale | null;
+  /** Each `Blocked by:` reference, settled against this map's own tickets. */
+  blockers: WaygoalTicketBlocker[];
+  blocked: boolean;
+  state: WaygoalTicketState;
 }
 
 export interface WaygoalTicketMapView extends Omit<WaygoalTicketMap, "tickets"> {
@@ -213,6 +235,10 @@ export interface WaygoalTicketDiscussion {
 
 export interface WaygoalTicketCard extends WaygoalTicketView {
   position: WaygoalPoint;
+  /** Set on the one snapshot that first sees this ticket stop waiting, so the
+   *  canvas can light it once. Every later snapshot, and a restarted host,
+   *  leaves it false: the state itself is what keeps saying it can be worked on. */
+  justUnblocked: boolean;
   discussions: WaygoalTicketDiscussion[];
   /** Whether this ticket's discussions are shown under it on the canvas. */
   expanded: boolean;

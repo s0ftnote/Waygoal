@@ -1,0 +1,122 @@
+[
+  {
+    "name": "a ticket with two unmet premises waits",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "both premises are named as the source spells them",
+    "ok": true,
+    "detail": "依赖01 · open02 · open"
+  },
+  {
+    "name": "resolving one premise of two does not let the ticket through",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "a ticket that stops waiting is lit once",
+    "ok": true,
+    "detail": "waygoal-ticket-card selected unblocked"
+  },
+  {
+    "name": "the light passes and the words stay",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "it is not the same as being finished: the source's own status is untouched",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "and it starts nothing",
+    "ok": true,
+    "detail": "[]"
+  },
+  {
+    "name": "the map that was open stays open",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "the layout the user made is not rearranged",
+    "ok": true,
+    "detail": "[{\"x\":198,\"y\":532,\"width\":250,\"height\":140.28125},{\"x\":198,\"y\":532,\"width\":250,\"height\":140.28125}]"
+  },
+  {
+    "name": "a premise reopened in the source puts the ticket back to waiting",
+    "ok": true,
+    "detail": "依赖01 · open02 · resolved"
+  },
+  {
+    "name": "being let through again is a change of its own, and is lit again",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "a dropped premise does not release what waited on it",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "and the canvas says the relation has to be settled in the source",
+    "ok": true,
+    "detail": "依赖01 · cancelled · 取消不等于解决；要放行，请在来源里改掉这条依赖02 · resolved有 1 条依赖要在来源里核对；核对之前，这张票还在等。"
+  },
+  {
+    "name": "a relation the source removes is the way through",
+    "ok": true,
+    "detail": "依赖02 · resolved前提都满足了，这张票可以往下走。"
+  },
+  {
+    "name": "a dependency added in the source is picked up and waits again",
+    "ok": true,
+    "detail": "依赖01 · cancelled · 取消不等于解决；要放行，请在来源里改掉这条依赖02 · resolved有 1 条依赖要在来源里核对；核对之前，这张票还在等。"
+  },
+  {
+    "name": "a premise that cannot be read holds, and is not read as one that was never there",
+    "ok": true,
+    "detail": "依赖01 · resolved02 · resolved · 现在读不到它，读不到就不算解决有 1 条依赖要在来源里核对；核对之前，这张票还在等。"
+  },
+  {
+    "name": "a dependency that names nothing keeps the ticket waiting",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "the source's own conclusion and the relations it still names are both shown",
+    "ok": true,
+    "detail": "票据 03grilling开场怎么说resolved被依赖挡着开场怎么说的正文。正在看"
+  },
+  {
+    "name": "a restarted host does not point at the same change again",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "with reduced motion the state is shown straight away",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "and the card can be opened without waiting for anything to finish",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "two tickets sharing a number leave the dependency undetermined, and the ticket waiting",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "watching dependencies change produced no chat message",
+    "ok": true,
+    "detail": "[]"
+  },
+  {
+    "name": "no page or console errors",
+    "ok": true,
+    "detail": ""
+  }
+]

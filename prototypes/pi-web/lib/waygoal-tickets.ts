@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { parseTicket, safePath } from "./beacon-store";
-import type { WaygoalSavedTickets, WaygoalTicketMap, WaygoalTicketMapView, WaygoalTicketNode, WaygoalTicketScan, WaygoalUnreadable } from "./waygoal-types";
+import type { WaygoalSavedTickets, WaygoalStale, WaygoalTicketMap, WaygoalTicketMapView, WaygoalTicketNode, WaygoalTicketScan, WaygoalTicketState, WaygoalTicketView, WaygoalUnreadable } from "./waygoal-types";
 
 /** The one layout this reads, as the local Markdown tracker documents it:
  *  `.scratch/<effort>/map.md` with one file per ticket under `issues/`. */
@@ -40,11 +40,8 @@ function readMap(cwd: string, dir: string): WaygoalTicketMap {
       answer: parsed.answer,
       body,
       rawBlockers: parsed.blockers,
-      blockers: [],
-      blocked: false,
     }];
   });
-  resolveBlockers(tickets);
   return {
     path: relative(cwd, mapPath),
     title: body.match(/^# (.+)$/m)?.[1] ?? relative(cwd, dir),
@@ -59,20 +56,45 @@ function readMap(cwd: string, dir: string): WaygoalTicketMap {
  *  keep the file's own spelling for display. */
 const sameNumber = (a: string, b: string) => Number(a) === Number(b);
 
-/** A blocker names a ticket in the same map. Anything that does not resolve to
- *  exactly one ticket there is reported as unknown and keeps the ticket
- *  blocked — an unread relation is not an absent one. */
-function resolveBlockers(tickets: WaygoalTicketNode[]): void {
+/** The words a source file uses for a ticket that was dropped rather than
+ *  finished. Only `resolved` releases what waited on a premise; these are
+ *  singled out because a dropped premise is a relation the user has to settle
+ *  in the source, not one that is still being worked on. */
+const CANCELLED = new Set(["cancelled", "canceled", "dropped", "wontfix", "out of scope", "out-of-scope", "已取消", "取消", "移出范围"]);
+
+/** Why one premise still holds. A premise Waygoal could not read this time
+ *  holds too: a read that failed says nothing about whether it was met. */
+function holdingOf(premise: WaygoalTicketView): "waiting" | "cancelled" | "unreadable" | null {
+  if (premise.stale) return "unreadable";
+  if (premise.status === "resolved") return null;
+  return CANCELLED.has(premise.status) ? "cancelled" : "waiting";
+}
+
+/** A ticket's own state. The source's conclusion about the ticket itself comes
+ *  first: resolving or dropping it is not something the canvas overrules, and
+ *  neither one is undone by a relation the file still names. */
+function ticketState(status: string, blocked: boolean): WaygoalTicketState {
+  if (status === "resolved") return "resolved";
+  if (CANCELLED.has(status)) return "cancelled";
+  return blocked ? "waiting" : "unblocked";
+}
+
+/** Settle each `Blocked by:` reference against the tickets of its own map, as
+ *  the canvas is showing them. Anything that does not resolve to exactly one
+ *  ticket there is reported as unknown and keeps the ticket waiting — an
+ *  unread relation is not an absent one. */
+function resolveBlockers(tickets: WaygoalTicketView[]): void {
   for (const ticket of tickets) {
     ticket.blockers = ticket.rawBlockers.map(number => {
       const matches = tickets.filter(t => sameNumber(t.number, number));
-      if (matches.length === 0) return { number, path: null, status: null, unknown: "missing" as const };
-      if (matches.length > 1) return { number, path: null, status: null, unknown: "ambiguous" as const };
+      if (matches.length === 0) return { number, path: null, status: null, holding: "missing" as const };
+      if (matches.length > 1) return { number, path: null, status: null, holding: "ambiguous" as const };
       // Once it is known which ticket this names, show that ticket's own
       // number, so the reference and the card it points at read the same.
-      return { number: matches[0].number, path: matches[0].path, status: matches[0].status, unknown: null };
+      return { number: matches[0].number, path: matches[0].path, status: matches[0].status, holding: holdingOf(matches[0]) };
     });
-    ticket.blocked = ticket.blockers.some(b => b.unknown !== null || b.status !== "resolved");
+    ticket.blocked = ticket.blockers.some(b => b.holding !== null);
+    ticket.state = ticketState(ticket.status, ticket.blocked);
   }
 }
 
@@ -146,10 +168,16 @@ export function mergeTicketScan(
   const checkedAt = now().toISOString();
   const live = new Map(scan.maps.map(map => [map.path, map]));
 
+  /** A ticket as the canvas shows it. Its relations are left unsettled here:
+   *  `resolveBlockers` settles them once every ticket of the map is in place,
+   *  including the ones only the last good read still knows about. */
+  const asView = (ticket: WaygoalTicketNode, stale: WaygoalStale | null): WaygoalTicketView =>
+    ({ ...ticket, stale, blockers: [], blocked: false, state: "unblocked" });
+
   const views: WaygoalTicketMapView[] = scan.maps.map(map => ({
     ...map,
     stale: null,
-    tickets: map.tickets.map(ticket => ({ ...ticket, stale: null })),
+    tickets: map.tickets.map(ticket => asView(ticket, null)),
   }));
 
   // Everything read before that this scan did not produce: keep it, marked.
@@ -157,7 +185,7 @@ export function mergeTicketScan(
     if (live.has(path)) continue;
     const tickets = Object.values(previous.tickets)
       .filter(ticket => ticket.mapPath === path)
-      .map(({ readAt, ...ticket }) => ({ ...ticket, stale: { reason: STALE_REASON, lastReadAt: readAt, checkedAt } }));
+      .map(({ readAt, ...ticket }) => asView(ticket, { reason: STALE_REASON, lastReadAt: readAt, checkedAt }));
     views.push({
       path, title: savedMap.title, body: savedMap.body,
       tickets, unreadable: [], warnings: [],
@@ -170,10 +198,13 @@ export function mergeTicketScan(
     for (const ticket of Object.values(previous.tickets)) {
       if (ticket.mapPath !== view.path || seen.has(ticket.id)) continue;
       const { readAt, ...rest } = ticket;
-      view.tickets.push({ ...rest, stale: { reason: STALE_REASON, lastReadAt: readAt, checkedAt } });
+      view.tickets.push(asView(rest, { reason: STALE_REASON, lastReadAt: readAt, checkedAt }));
     }
     view.tickets.sort((a, b) => a.id.localeCompare(b.id));
   }
+  // Only now: a premise that could not be read this time is on the map too,
+  // and it has to hold what waited on it rather than read as never written.
+  for (const view of views) resolveBlockers(view.tickets);
   views.sort((a, b) => a.path.localeCompare(b.path));
 
   // Keep what was just read; leave everything else at its last good content.
