@@ -27,7 +27,7 @@ const browser = await chromium.launch({ headless: true, channel: "chrome" });
 const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
 const errors = []; page.on("pageerror", error => errors.push(error.message));
 try {
-  await page.goto(`${base}/beacon`);
+  await page.goto(`${base}/beacon/tickets`);
   await page.locator('[data-ticket="04"]').waitFor();
   assert.equal(await page.locator('[data-ticket]').count(), 4);
   await page.screenshot({ path: resolve(output, "map.png") });

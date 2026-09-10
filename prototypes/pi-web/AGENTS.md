@@ -233,6 +233,30 @@ Location: `~/.pi/agent/sessions/<encoded-cwd>/<timestamp>_<uuid>.jsonl`
 --font-mono
 ```
 
+---
+
+## Waygoal additions (this fork)
+
+Files that are not in upstream agegr/pi-web. Keep them narrow; product docs live in the repo root.
+
+```
+app/beacon/page.tsx              /beacon — Waygoal session canvas (ticket #2)
+app/beacon/waygoal.css           Waygoal light theme; remaps ChatWindow CSS vars inside .waygoal-app
+app/beacon/tickets/page.tsx      /beacon/tickets — earlier Pi × Wayfinder ticket prototype (BeaconCanvas)
+app/api/waygoal/route.ts         GET ?cwd=&force=1 snapshot | PATCH { cwd, positions?, view?, lastViewed? }
+app/api/beacon/route.ts          ticket prototype: tracker snapshot and ticket → session binding
+components/WaygoalCanvas.tsx     pan/zoom canvas, draggable session nodes, right panel hosting ChatWindow
+components/BeaconCanvas.tsx      ticket prototype canvas
+lib/waygoal-store.ts             canvas records in <agentDir>/waygoal/workspaces/<id>/canvas.json; snapshot builder
+lib/waygoal-types.ts             record / snapshot / patch types
+lib/beacon-extension.ts          in-process Pi extension: /skill: feedback (all sessions) + tracker watcher (ticket prototype dirs only)
+lib/beacon-store.ts              local Markdown tracker reader for the ticket prototype
+e2e/waygoal.mjs                  npm run test:waygoal — own server, temp PI_CODING_AGENT_DIR, fake model (e2e/fake-model.mjs)
+e2e/beacon.mjs                   ticket prototype browser check against a running 30142
+```
+
+Run with `BEACON_PROTOTYPE=1` (`npm run dev` at the repo root does this on port 30142). `proxy.ts` matches `/beacon/:path*`.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

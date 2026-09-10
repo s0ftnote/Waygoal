@@ -1,0 +1,120 @@
+{
+  "ranAt": "2026-09-10T08:49:13.078Z",
+  "checks": [
+    {
+      "name": "discovery shows both workspace sessions with real titles",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "other workspace session is not shown",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no Wayfinder root entry or workflow tips",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "confirmed light theme background",
+      "ok": true,
+      "detail": "rgb(246, 250, 246)"
+    },
+    {
+      "name": "repeated discovery has no duplicate nodes",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "opening a node loads history without sending to the model",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "new session shows the real model reply",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "new session appears once on the canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "model request went through the fake provider",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "missing skill gives explicit feedback and does not send",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "installed skill content is sent to the model",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "dragging a node persists its position",
+      "ok": true,
+      "detail": "{\"origPos\":{\"x\":0,\"y\":0},\"savedPos\":{\"x\":299,\"y\":299}}"
+    },
+    {
+      "name": "view and last viewed are persisted",
+      "ok": true,
+      "detail": "{\"view\":{\"x\":48,\"y\":262,\"scale\":0.769},\"zoomBefore\":\"77%\"}"
+    },
+    {
+      "name": "other workspace keeps its own record",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "canvas record lives in the Pi data dir, one dir per workspace",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "reload restores zoom and reopens the last viewed session",
+      "ok": true,
+      "detail": "77% vs 77%"
+    },
+    {
+      "name": "reload restores node position",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "restore does not send a message",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "host restart restores canvas and last viewed session without sending",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "arrow keys nudge a focused node",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Enter on a focused node opens its panel",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no page or console errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "narrow screen has a back-to-canvas entry",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

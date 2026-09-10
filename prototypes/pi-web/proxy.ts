@@ -61,4 +61,4 @@ export function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-export const config = { matcher: ["/", "/beacon", "/login", "/api/:path*"] };
+export const config = { matcher: ["/", "/beacon", "/beacon/:path*", "/login", "/api/:path*"] };

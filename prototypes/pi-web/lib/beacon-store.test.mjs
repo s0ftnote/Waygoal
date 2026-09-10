@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createJiti } from "jiti";
 const { beaconSnapshot, parseTicket, section, saveBinding } = await createJiti(import.meta.url).import("./beacon-store.ts");
-const { createBeaconExtension } = await createJiti(import.meta.url).import("./beacon-extension.ts");
+const { createBeaconExtension } = await createJiti(import.meta.url, { alias: { "@": new URL("..", import.meta.url).pathname } }).import("./beacon-extension.ts");
 test("reads sections, scoped dependencies, answers and persistent session bindings", () => {
   const cwd = mkdtempSync(join(tmpdir(), "beacon-test-"));
   try {

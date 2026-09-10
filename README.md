@@ -63,7 +63,9 @@ Waygoal 是通过 Pi extension 接入的本地无限画布会话空间。用户�
 
 已确认的产品规格见 [Spec #1](https://github.com/s0ftnote/Waygoal/issues/1)，实现拆分、阻塞关系及建议顺序见[实现票清单](.scratch/waygoal-tickets/README.md)。
 
-当前是 Pi × Wayfinder 的接入原型：把本地工作目录中的 Markdown 地图和票据变成可浏览的画布，点击节点开始或继续关联的 Pi 对话。上述普通会话画布、手动整理、多分支展开及通用来源通知尚未完整接入；现有固定 Wayfinder 入口不代表最终产品入口。产品工作指引见 [AGENTS.md](AGENTS.md)。
+当前入口 `/beacon` 是真实会话画布（[票 #2](https://github.com/s0ftnote/Waygoal/issues/2)）：从任意普通工作目录开始，已有 Pi 会话按真实身份出现在默认画布上，可以新开独立会话、拖动节点、平移缩放，刷新和宿主重启后回到原来的位置。它复用 pi-web 宿主及其进程内 Pi extension、Pi 登录、模型、工具和会话能力，不要求 Git 仓库、GitHub、Matt skills 或 tracker，也没有固定的 Wayfinder 根入口或自动路由。
+
+更早的 Pi × Wayfinder 票据原型保留在 `/beacon/tickets`：把本地工作目录中的 Markdown 地图和票据变成可浏览的画布，点击节点开始或继续关联的 Pi 对话。票据讨论接入会话画布时再替换它；手动整理、多分支展开及通用来源通知尚未接入。产品工作指引见 [AGENTS.md](AGENTS.md)。
 
 ## 启动
 
@@ -72,25 +74,24 @@ npm --prefix prototypes/pi-web ci --ignore-scripts
 npm run dev
 ```
 
-打开 http://127.0.0.1:30142/beacon 。使用本机已有 Pi 登录与 skills，新节点使用 `openai-codex/gpt-5.6-luna`，不改变 Pi 的全局默认模型。已有的 pi-web 30141 不受影响。
+打开 http://127.0.0.1:30142/beacon 。使用本机已有 Pi 登录、默认模型和 skills；新会话和 Pi 原始界面的新会话行为一致。已有的 pi-web 30141 不受影响。
+
+默认打开 `playground/`；URL 带 `?cwd=/绝对/路径` 可打开任意已有工作目录（切换与记住工作区的界面属于票 #3）。点「新开聊天」写下第一句并明确发送后，这段会话才出现在画布上；打开已有节点只读取历史，不发送消息。输入 `/skill:名称` 使用已安装 skill，名称不存在时会得到明确提示且消息不会发出。
+
+票据原型入口 http://127.0.0.1:30142/beacon/tickets 仍使用 `openai-codex/gpt-5.6-luna` 新建节点会话，默认打开 `playground/` 中虚构的朋友放映会示例。
 
 原型的 `/beacon` 路由、界面名称及内部标识暂时保留，文档中的产品名称统一为 Waygoal。
 
-第一次试用默认打开 `playground/`：这是虚构的朋友放映会示例。点击「希望朋友带走什么感受？」继续 Luna 已经提出的问题，研究节点可以直接读结果。其余节点等待前面的答案。
+## 会话画布的实现范围
 
-也可以在顶部切换到任意已有工作目录。没有地图时，先写想法并开始澄清目的地；Agent 创建地图后会出现在画布中。无需 Git 仓库或导入流程。
+- 发现：合并磁盘上的 Pi 会话与进程内运行中的会话，按工作目录身份过滤，排除子代理会话；同一会话只有一个节点。标题优先用已存会话名称，否则回退到首条消息，再否则标为还没有内容。
+- 新建与发送：复用 pi-web 的 ChatWindow、`/api/agent/new` 和事件流；运行状态来自真实的运行会话集合。
+- 画布记录：保存在 Pi 数据目录 `<agentDir>/waygoal/workspaces/<目录名-身份哈希>/canvas.json`，包含节点位置、视野和最近查看的会话。记录与插件代码分离，按工作目录隔离；读取快照只会在新发现的会话需要位置时写一次记录。
+- 恢复：刷新或宿主重启后恢复视野、位置，并只读地重新打开最近查看的会话；恢复视野和自动定位到选中节点都不回写记录，只有用户拖动、缩放等操作才保存视野。最近查看的会话不在时给出提示而不自动改绑。
+- Skills：进程内 Pi extension 在 `input` 事件按 Pi 自己的解析规则检查 `/skill:` 名称，名单来自该会话自己的 resource loader；缺少时通过 Pi 的通知渠道反馈并拦截这条消息，已安装 skill 按 Pi 原有方式展开。
+- 无障碍：节点是按钮，Tab/Enter 打开，方向键微调位置，画布焦点下方向键平移、`+`/`-` 缩放、`0` 回到全景、Esc 关闭面板；窄屏面板全屏并有「回到画布」。
 
-## 本次实现的范围
-
-- 当前读取 `.scratch/<effort>/map.md` 和 `issues/NN-*.md`；GitHub tracker 的画布适配尚未实现。
-- 目的地、问题类型、问题/结论摘要、状态、依赖关系以及未知方向可见。
-- 拖动画布、缩放、拖动节点；节点位置保存在浏览器中。
-- 首次点击节点创建真实 Pi 会话并调用 Wayfinder；后续点击恢复同一会话。依赖未满足的节点可阅读，不创建新会话。
-- 票据是状态来源。`.beacon-prototype/sessions.json` 只保存节点与 Pi 会话的关联；Pi 自己保存聊天记录。
-- 小型 Pi extension 在实际地图变化时发送事件；浏览器也每 2.5 秒刷新，以接收其他会话或外部编辑。
-- 这个实验进程启用 pi-web 的内置研究子代理；没有更改全局子代理设置。
-
-这是验证接入方式的可运行原型。页面重载后需再次点击节点恢复对话；GitHub、票据重命名后的关联迁移、多进程争抢、自动布局优化尚未处理。节点默认布局根据阻塞关系分层，虚线连接没有前置依赖的票据与目的地，实线表示依赖；它不是 Pi 内部聊天分支树。
+尚未处理：工作区切换界面、多画布、手动分组与连线、真实分叉的呈现、票据挂载、会话重命名入口、多进程同时写同一画布记录。
 
 ## 验证
 
@@ -98,10 +99,13 @@ npm run dev
 
 ```sh
 node_modules/.bin/tsc --noEmit
-node --test lib/beacon-store.test.mjs lib/startup-preferences.test.mjs lib/subagent-settings.test.mjs
+node --test lib/beacon-store.test.mjs lib/waygoal-store.test.mjs lib/startup-preferences.test.mjs lib/subagent-settings.test.mjs
+npm run test:waygoal
 node e2e/beacon.mjs
 ```
 
-浏览器检查需本机 Google Chrome 和已完成真实模型试跑的默认 playground。它恢复已有会话，不向模型追加消息。
+`test:waygoal` 在临时 Pi 数据目录中启动独立宿主和一个可控的 OpenAI 兼容假模型，从真实界面检查发现、新建、明确发送、消息呈现、skill 反馈、拖动与视野持久化、刷新与宿主重启恢复、键盘操作和窄屏返回入口，截图与检查记录写入 `docs/research/prototype-evidence/session-canvas/`。它不使用本机 Pi 登录，也不改动本机 Pi 数据。需要本机有 Playwright 的 Chromium 或 Google Chrome，且该 checkout 没有正在运行的 dev server。
 
-详见 [试跑记录](docs/research/prototype-results.md)。上游是 [agegr/pi-web](https://github.com/agegr/pi-web)，基于提交 `a26cc68df9227cb74253bddd7c59624aa475e61f`，Pi SDK 版本 `0.85.1`。
+`e2e/beacon.mjs` 是票据原型的浏览器检查，需本机 Google Chrome、运行中的 30142 和已完成真实模型试跑的默认 playground。它恢复已有会话，不向模型追加消息。
+
+会话画布的试跑记录见 [session-canvas-results.md](docs/research/session-canvas-results.md)，票据原型见 [prototype-results.md](docs/research/prototype-results.md)。上游是 [agegr/pi-web](https://github.com/agegr/pi-web)，基于提交 `a26cc68df9227cb74253bddd7c59624aa475e61f`，Pi SDK 版本 `0.85.1`。

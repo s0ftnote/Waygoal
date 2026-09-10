@@ -1999,6 +1999,8 @@ export async function startRpcSession(
         ? undefined
         : projectTrustReloadOptions(sessionCwd, agentDir);
     const settingsManager = SettingsManager.create(sessionCwd, agentDir);
+    // Filled once services exist; the Waygoal extension reads it lazily per input.
+    let sessionSkillNames: () => string[] = () => [];
     const services = await createAgentSessionServices({
       cwd: sessionCwd,
       agentDir,
@@ -2022,7 +2024,7 @@ export async function startRpcSession(
           ? CHAT_ONLY_RESOURCE_LOADER_OPTIONS
         : {
             extensionFactories: [
-              createBeaconExtension(sessionCwd),
+              createBeaconExtension(sessionCwd, () => sessionSkillNames()),
               createProjectCommandBashExtension({
                 cwd: sessionCwd,
                 settings: settingsManager,
@@ -2059,6 +2061,7 @@ export async function startRpcSession(
           : {}),
         ...(thinkingLevel ? { thinkingLevel } : {}),
       });
+    sessionSkillNames = () => services.resourceLoader.getSkills().skills.map((skill) => skill.name);
     const { session: inner } = await createAgentSessionFromServices({
       services,
       sessionManager,
