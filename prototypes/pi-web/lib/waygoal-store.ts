@@ -6,7 +6,8 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { writePrivateFileAtomicSync } from "./atomic-file";
 import { projectIdentityKey } from "./project-identity";
 import type { SessionInfo } from "./types";
-import { NODE_HEIGHT, NODE_WIDTH, type WaygoalCanvasPatch, type WaygoalCanvasRecord, type WaygoalNode, type WaygoalNodeOrigin, type WaygoalOriginRecord, type WaygoalPoint, type WaygoalSnapshot, type WaygoalTitleSource, type WaygoalTreeInfo } from "./waygoal-types";
+import { mergeTicketScan, readLocalTickets } from "./waygoal-tickets";
+import { NODE_HEIGHT, NODE_WIDTH, type WaygoalCanvasPatch, type WaygoalCanvasRecord, type WaygoalNode, type WaygoalNodeOrigin, type WaygoalOriginRecord, type WaygoalPoint, type WaygoalSavedTickets, type WaygoalSnapshot, type WaygoalTicketSnapshot, type WaygoalTitleSource, type WaygoalTreeInfo } from "./waygoal-types";
 export { NODE_HEIGHT, NODE_WIDTH };
 
 // Records live under Pi's agent directory, apart from the plugin code, and
@@ -52,7 +53,25 @@ export function resolveWorkspaceCwd(input?: string | null): string {
 }
 
 function emptyRecord(cwd: string): WaygoalCanvasRecord {
-  return { version: 1, cwd, nodes: {}, origins: {}, updatedAt: new Date(0).toISOString() };
+  return { version: 1, cwd, nodes: {}, origins: {}, tickets: emptySavedTickets(), updatedAt: new Date(0).toISOString() };
+}
+
+const emptySavedTickets = (): WaygoalSavedTickets => ({ maps: {}, tickets: {} });
+
+/** The cached reads are only ever a copy of files that were there; anything
+ *  that does not look like one is dropped rather than shown as content. */
+function validSavedTickets(value: unknown): WaygoalSavedTickets {
+  const parsed = value as Partial<WaygoalSavedTickets> | undefined;
+  const saved = emptySavedTickets();
+  for (const [path, map] of Object.entries(parsed?.maps ?? {})) {
+    if (map && typeof map.title === "string" && typeof map.readAt === "string") {
+      saved.maps[path] = { title: map.title, body: String(map.body ?? ""), readAt: map.readAt };
+    }
+  }
+  for (const [path, ticket] of Object.entries(parsed?.tickets ?? {})) {
+    if (ticket && ticket.id === path && typeof ticket.mapPath === "string" && typeof ticket.readAt === "string") saved.tickets[path] = ticket;
+  }
+  return saved;
 }
 
 function isOrigin(value: unknown): value is WaygoalOriginRecord {
@@ -85,6 +104,7 @@ export function readCanvasRecord(cwd: string, agentDir = getAgentDir()): Waygoal
       cwd,
       nodes,
       origins,
+      tickets: validSavedTickets(parsed.tickets),
       ...(view ? { view } : {}),
       lastViewed: typeof parsed.lastViewed === "string" ? parsed.lastViewed : null,
       lastViewedEntry: typeof parsed.lastViewedEntry === "string" ? parsed.lastViewedEntry : null,
@@ -139,6 +159,15 @@ export function applyCanvasPatch(cwd: string, patch: WaygoalCanvasPatch, agentDi
 const GRID_X = NODE_WIDTH + 70;
 const GRID_Y = NODE_HEIGHT + 60;
 const GRID_COLUMNS = 3;
+
+/** Give one card a place on the canvas, keeping the one it already has.
+ *  Returns null when nothing had to be assigned, so callers know whether the
+ *  record needs writing. */
+function placeOnCanvas(record: WaygoalCanvasRecord, id: string): WaygoalPoint | null {
+  if (record.nodes[id]) return null;
+  record.nodes[id] = nextFreePosition(Object.values(record.nodes));
+  return record.nodes[id];
+}
 
 /** First free grid cell that does not overlap a saved node. */
 export function nextFreePosition(taken: Iterable<WaygoalPoint>): WaygoalPoint {
@@ -209,12 +238,7 @@ export function buildSnapshot(
   const titles = new Map(owned.map(session => [session.id, sessionTitle(session).title]));
   let changed = false;
   const nodes: WaygoalNode[] = owned.map(session => {
-    let position = record.nodes[session.id];
-    if (!position) {
-      position = nextFreePosition(Object.values(record.nodes));
-      record.nodes[session.id] = position;
-      changed = true;
-    }
+    if (placeOnCanvas(record, session.id)) changed = true;
     return {
       id: session.id,
       ...sessionTitle(session),
@@ -223,7 +247,7 @@ export function buildSnapshot(
       modified: session.modified,
       running: running.has(session.id),
       transient: Boolean(session.transient),
-      position,
+      position: record.nodes[session.id],
       origin: nodeOrigin(session, record, titles),
       branchPointCount: trees.get(session.id)?.branchPointCount ?? 0,
       activeLeafId: trees.get(session.id)?.activeLeafId ?? null,
@@ -245,4 +269,29 @@ export function buildSnapshot(
     lastViewedEntry: lastViewedMissing ? null : record.lastViewedEntry ?? null,
     lastViewedMissing,
   };
+}
+
+/** One workspace's local tickets, ready to draw: what the source files say
+ *  right now, plus where each card sits and anything that could not be read
+ *  this time. Reading is all it does — no Pi session is opened or touched. */
+export function buildTicketSnapshot(cwd: string, agentDir = getAgentDir()): WaygoalTicketSnapshot {
+  const scan = readLocalTickets(cwd);
+  const record = readCanvasRecord(cwd, agentDir);
+  const merged = mergeTicketScan(scan, record.tickets);
+  let changed = JSON.stringify(record.tickets) !== JSON.stringify(merged.saved);
+  const place = (id: string): WaygoalPoint => {
+    if (placeOnCanvas(record, id)) changed = true;
+    return record.nodes[id];
+  };
+  const maps = merged.maps.map(map => ({
+    ...map,
+    position: place(map.path),
+    tickets: map.tickets.map(ticket => ({ ...ticket, position: place(ticket.id) })),
+  }));
+  if (changed) {
+    record.tickets = merged.saved;
+    record.updatedAt = new Date().toISOString();
+    writeCanvasRecord(record, agentDir);
+  }
+  return { maps, unsupported: scan.unsupported, unreadable: scan.unreadable, readAt: scan.readAt };
 }

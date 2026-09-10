@@ -9,7 +9,7 @@ export function beaconCwd(input?: string): string {
   if (!statSync(cwd).isDirectory()) throw new Error("请选择一个工作目录");
   return cwd;
 }
-function safePath(cwd: string, path: string): string {
+export function safePath(cwd: string, path: string): string {
   const resolved = realpathSync(path);
   const rel = relative(realpathSync(cwd), resolved);
   if (rel.startsWith("..") || isAbsolute(rel)) throw new Error("地图文件必须位于工作目录内");

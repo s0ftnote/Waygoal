@@ -1,0 +1,82 @@
+[
+  {
+    "name": "the map and its tickets come from the workspace's own files",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "reading local files starts no Pi session",
+    "ok": true,
+    "detail": "[]"
+  },
+  {
+    "name": "the full view shows the file itself, structure and all",
+    "ok": true,
+    "detail": "# 这部短片适合怎样的开场\n\nType: grilling\nStatus: open\nBlocked by: 01\n\n## Question\n\n这部短片适合怎样的开场的正文。\n"
+  },
+  {
+    "name": "a known dependency reads as the ticket it names",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "an edit outside Waygoal is picked up without anyone republishing it",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "repeated reads add no card",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "a retitled ticket is the same card, not a new one",
+    "ok": true,
+    "detail": "[[\".scratch/screening/issues/01-feeling.md\",\"希望朋友带走什么感受\"],[\".scratch/screening/issues/02-film.md\",\"这部短片的开场该怎么定\"]]"
+  },
+  {
+    "name": "a dependency that names nothing is reported, not treated as satisfied",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "two tickets sharing a number leave the dependency undetermined",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "a directory without map.md is explained, not silently ignored",
+    "ok": true,
+    "detail": "[{\"path\":\".scratch/notes\",\"reason\":\"这里没有 map.md，Waygoal 只读 .scratch/<地图>/map.md 这一种本地布局。\"}]"
+  },
+  {
+    "name": "and it says so on the canvas, not only in the snapshot",
+    "ok": true,
+    "detail": "1 个目录没有读成地图：.scratch/notes"
+  },
+  {
+    "name": "layout and what was read survive a host restart",
+    "ok": true,
+    "detail": "[{\"x\":500,\"y\":120},{\"x\":500,\"y\":120}]"
+  },
+  {
+    "name": "a file that cannot be read shows what was last read, and says it is not current",
+    "ok": true,
+    "detail": "# 希望朋友带走什么感受\n\nType: grilling\nStatus: resolved\n\n## Question\n\n希望朋友带走什么感受的正文。\n"
+  },
+  {
+    "name": "it is not quietly dropped from the canvas",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "still no Pi session was started",
+    "ok": true,
+    "detail": "[]"
+  },
+  {
+    "name": "no page or console errors",
+    "ok": true,
+    "detail": ""
+  }
+]

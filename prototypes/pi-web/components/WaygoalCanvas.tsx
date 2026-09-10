@@ -3,10 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import type { SessionInfo } from "@/lib/types";
 import type { WaygoalBranchChoice, WaygoalBranchPoint, WaygoalSessionTreeResponse } from "@/lib/waygoal-branches";
-import { NODE_HEIGHT, NODE_WIDTH, type WaygoalCanvasPatch, type WaygoalNode, type WaygoalPoint, type WaygoalSnapshot, type WaygoalView } from "@/lib/waygoal-types";
+import { NODE_HEIGHT, NODE_WIDTH, type WaygoalCanvasPatch, type WaygoalNode, type WaygoalPoint, type WaygoalSnapshotResponse, type WaygoalView } from "@/lib/waygoal-types";
 import { ChatWindow } from "./ChatWindow";
 import { WaygoalPaths } from "./WaygoalPaths";
 import { WaygoalPathView } from "./WaygoalPathView";
+import { statusClass, WaygoalTicketPanel } from "./WaygoalTicketPanel";
 
 const NODE_W = NODE_WIDTH;
 const NODE_H = NODE_HEIGHT;
@@ -87,7 +88,10 @@ export function WaygoalCanvas() {
     if (typeof window === "undefined") return "";
     return new URLSearchParams(window.location.search).get("cwd") ?? "";
   });
-  const [snapshot, setSnapshot] = useState<WaygoalSnapshot | null>(null);
+  const [snapshot, setSnapshot] = useState<WaygoalSnapshotResponse | null>(null);
+  // The local ticket the panel is showing, by source path; a map's own path
+  // when the map itself is open. Tickets are files, never Pi sessions.
+  const [openTicket, setOpenTicket] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [view, setView] = useState<WaygoalView>(DEFAULT_VIEW);
@@ -130,7 +134,7 @@ export function WaygoalCanvas() {
       const res = await fetch(`/api/waygoal${params.size ? `?${params}` : ""}`, { cache: "no-store" });
       const next = await res.json();
       if (!res.ok) throw new Error(next.error);
-      setSnapshot(next as WaygoalSnapshot);
+      setSnapshot(next as WaygoalSnapshotResponse);
       setError("");
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   }, [cwd]);
@@ -249,10 +253,23 @@ export function WaygoalCanvas() {
   }, [selectedId, snapshot]);
 
   const nodes = useMemo(() => (snapshot?.nodes ?? []).map(node => ({ ...node, position: dragging[node.id] ?? node.position })), [snapshot, dragging]);
+  // Map and ticket cards, laid out from the same record as the session cards
+  // and dragged by the same handlers.
+  const ticketMaps = useMemo(() => (snapshot?.tickets.maps ?? []).map(map => ({
+    ...map,
+    position: dragging[map.path] ?? map.position,
+    tickets: map.tickets.map(ticket => ({ ...ticket, position: dragging[ticket.id] ?? ticket.position })),
+  })), [snapshot, dragging]);
+  const ticketCount = ticketMaps.reduce((total, map) => total + map.tickets.length, 0);
+  // Directories under .scratch/ that were not read as maps. Saying so on the
+  // canvas is the point: a silently skipped directory looks like an empty one.
+  const skipped = [...(snapshot?.tickets.unsupported ?? []), ...(snapshot?.tickets.unreadable ?? [])];
+  const openTicketMap = openTicket ? ticketMaps.find(map => map.path === openTicket || map.tickets.some(t => t.id === openTicket)) ?? null : null;
+  const openTicketCard = openTicketMap?.tickets.find(t => t.id === openTicket) ?? null;
   const nodeById = useMemo(() => new Map(nodes.map(node => [node.id, node])), [nodes]);
   const selectedNode = nodes.find(n => n.id === selectedId) ?? null;
   const panelSession: SessionInfo | null = selectedNode ? nodeToSession(selectedNode, snapshot!.cwd) : createdSession;
-  const panelOpen = Boolean(panelSession || draftKey);
+  const panelOpen = Boolean(panelSession || draftKey || openTicketMap);
 
   // Kept in a ref, not read from the closure: ChatWindow reports a fork
   // asynchronously, and the panel may already show something else by then.
@@ -289,12 +306,21 @@ export function WaygoalCanvas() {
     : null;
 
   const openNode = useCallback((node: WaygoalNode) => {
-    setDraftKey(null); setCreatedSession(null); setViewing(null);
+    setDraftKey(null); setCreatedSession(null); setViewing(null); setOpenTicket(null);
     setSelectedId(node.id);
     setPanelKey(k => k + 1);
     setNotice("");
     void patch({ lastViewed: node.id, lastViewedEntry: null });
   }, [patch]);
+
+  /** Open one local map or ticket: a file this workspace already has. Reading
+   *  it starts nothing — it is not a Pi session and has none of its own. */
+  const openLocalTicket = useCallback((path: string) => {
+    setDraftKey(null); setCreatedSession(null); setViewing(null);
+    setSelectedId(null);
+    setOpenTicket(path);
+    setNotice("");
+  }, []);
 
   /** Open a read-only reading position. Display only — no navigation.
    *  `leafId` is where a message sent from here would land, null when this
@@ -317,14 +343,14 @@ export function WaygoalCanvas() {
 
   const startNewChat = useCallback(() => {
     if (!snapshot) return;
-    setSelectedId(null); setCreatedSession(null); setViewing(null);
+    setSelectedId(null); setCreatedSession(null); setViewing(null); setOpenTicket(null);
     setDraftKey(`waygoal-new:${crypto.randomUUID()}:${snapshot.cwd}`);
     setPanelKey(k => k + 1);
     setNotice("");
   }, [snapshot]);
 
   const closePanel = useCallback(() => {
-    setSelectedId(null); setDraftKey(null); setCreatedSession(null); setViewing(null);
+    setSelectedId(null); setDraftKey(null); setCreatedSession(null); setViewing(null); setOpenTicket(null);
     viewportRef.current?.focus();
   }, []);
 
@@ -488,7 +514,10 @@ export function WaygoalCanvas() {
       <section className="waygoal-canvas-area" aria-label="会话画布区域">
         <div className="waygoal-toolbar">
           <h1>{cwdName || "会话画布"}</h1>
-          <span className="waygoal-count">{snapshot ? `${nodes.length} 段会话${branchNodeCount ? ` · ${branchNodeCount} 段有会话内分叉` : ""}${runningCount ? ` · ${runningCount} 段正在运行` : ""}` : "正在读取…"}</span>
+          <span className="waygoal-count">{snapshot ? `${nodes.length} 段会话${ticketCount ? ` · ${ticketCount} 张本地票据` : ""}${branchNodeCount ? ` · ${branchNodeCount} 段有会话内分叉` : ""}${runningCount ? ` · ${runningCount} 段正在运行` : ""}` : "正在读取…"}</span>
+          {skipped.length > 0 && <span className="waygoal-count waygoal-skipped" title={skipped.map(s => `${s.path}：${s.reason}`).join("\n")}>
+            {skipped.length} 个目录没有读成地图：{skipped.map(s => s.path).join("、")}
+          </span>}
           <div className="waygoal-zoom" role="group" aria-label="缩放">
             <button type="button" aria-label="缩小" onClick={() => zoomBy(1 / 1.15)}>−</button>
             <span aria-live="polite">{Math.round(view.scale * 100)}%</span>
@@ -541,6 +570,37 @@ export function WaygoalCanvas() {
               </span>}
               <span className="waygoal-node-foot"><span>{node.messageCount ? `${node.messageCount} 条消息` : "还没有消息"}</span><span aria-hidden="true">{node.id === selectedId ? "正在查看" : "打开 →"}</span></span>
             </button>)}
+            {/* Local maps and their tickets, read from this workspace's own
+                files. Opening one only reads it: no Pi session is started. */}
+            {ticketMaps.map(map => <div key={map.path} className="waygoal-ticket-group">
+              {[{ id: map.path, title: map.title, position: map.position, stale: map.stale, kind: "本地地图",
+                  extra: " map", label: "本地地图", state: "", marks: null, foot: `${map.tickets.length} 张票据` },
+                ...map.tickets.map(ticket => ({
+                  id: ticket.id, title: ticket.title, position: ticket.position, stale: ticket.stale, kind: "本地票据",
+                  extra: "", label: `票据 ${ticket.number}`, state: ticket.type,
+                  marks: <>
+                    <span className={`waygoal-tag ${statusClass(ticket.status)}`}>{ticket.status}</span>
+                    {ticket.blocked && <span className="waygoal-tag waiting">{ticket.blockers.some(b => b.unknown) ? "依赖未知" : "被依赖挡着"}</span>}
+                  </>,
+                  foot: ticket.question.slice(0, 28) || "还没写下要解决的问题",
+                }))]
+                .map(card => <button key={card.id} type="button" data-node={card.id}
+                  className={`waygoal-ticket-card${card.extra}${openTicket === card.id ? " selected" : ""}${card.stale ? " stale" : ""}`}
+                  style={{ left: card.position.x, top: card.position.y }}
+                  aria-pressed={openTicket === card.id}
+                  aria-label={`${card.kind}：${card.title}${card.stale ? "，读不到来源文件" : ""}`}
+                  onPointerDown={e => { e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); drag.current = { id: card.id, start: { x: e.clientX, y: e.clientY }, origin: card.position, moved: false, pointerId: e.pointerId }; }}
+                  onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
+                  onClick={() => { if (!drag.current?.moved) openLocalTicket(card.id); }}>
+                  <span className="waygoal-node-meta">
+                    <span>{card.label}</span>
+                    <span className="waygoal-node-state">{card.stale ? "读不到来源" : card.state}</span>
+                  </span>
+                  <strong>{card.title}</strong>
+                  {card.marks && <span className="waygoal-node-marks">{card.marks}</span>}
+                  <span className="waygoal-node-foot"><span>{card.foot}</span><span aria-hidden="true">{openTicket === card.id ? "正在看" : "打开 →"}</span></span>
+                </button>)}
+            </div>)}
             {/* In-session paths of the open node, so branches stay findable on the
                 canvas and not only inside the chat panel. Clicking one reads it. */}
             {selectedNode && selectedChoices.map(({ choice, order }, index) => <button key={`chip-${choice.entryId}`} type="button" data-chip={choice.entryId}
@@ -554,7 +614,9 @@ export function WaygoalCanvas() {
               {viewing?.entryId === choice.entryId && <span className="waygoal-tag reading">正在看</span>}
               {choice.active && <span className="waygoal-tag continuing">在聊这条</span>}
             </button>)}
-            {snapshot && nodes.length === 0 && <div className="waygoal-empty" style={{ left: 0, top: 0 }}>
+            {/* Only when there is nothing at all to look at: with tickets on the
+                canvas this box would sit on top of them. */}
+            {snapshot && nodes.length === 0 && ticketMaps.length === 0 && <div className="waygoal-empty" style={{ left: 0, top: 0 }}>
               <strong>这个目录还没有 Pi 会话。</strong>
               <p>点「新开聊天」开始一段讨论；已有的 Pi 会话会按真实身份出现在这里。不需要 Git 仓库、票据或特定 skill。</p>
             </div>}
@@ -566,12 +628,13 @@ export function WaygoalCanvas() {
         <div className="waygoal-panel-head">
           {isMobile && <button type="button" className="waygoal-button outlined small" onClick={closePanel}>← 回到画布</button>}
           <div className="waygoal-panel-title">
-            <span className="waygoal-eyebrow">{viewing ? "正在看这条路径" : panelSession ? (selectedNode?.running ? "正在运行" : "已有会话") : "新的会话"}</span>
-            <strong>{panelSession ? (selectedNode?.title ?? createdSession?.firstMessage ?? "会话") : "先写下第一句，发送后这段会话才会出现在画布上"}</strong>
+            <span className="waygoal-eyebrow">{openTicketMap ? (openTicketCard ? "本地票据" : "本地地图") : viewing ? "正在看这条路径" : panelSession ? (selectedNode?.running ? "正在运行" : "已有会话") : "新的会话"}</span>
+            <strong>{openTicketMap ? (openTicketCard?.title ?? openTicketMap.title) : panelSession ? (selectedNode?.title ?? createdSession?.firstMessage ?? "会话") : "先写下第一句，发送后这段会话才会出现在画布上"}</strong>
           </div>
           {viewing && <button type="button" className="waygoal-button outlined small" onClick={stopViewing}>回到在聊的那条</button>}
           {!isMobile && <button type="button" className="waygoal-icon" aria-label="关闭面板" onClick={closePanel}>×</button>}
         </div>
+        {openTicketMap && <WaygoalTicketPanel map={openTicketMap} ticket={openTicketCard} readAt={snapshot.tickets.readAt} />}
         {panelSession && <WaygoalPaths
           origin={panelOrigin}
           branchPoints={tree?.sessionId === panelSession.id ? tree.branchPoints : []}
@@ -587,7 +650,7 @@ export function WaygoalCanvas() {
           }}
           onView={choice => panelSession && viewPath(panelSession.id, choice.entryId, "这条路径", choice.leafId)}
         />}
-        <div className="waygoal-panel-body">
+        {!openTicketMap && <div className="waygoal-panel-body">
           {viewing
             ? <WaygoalPathView key={`${viewing.sessionId}:${viewing.entryId}`} sessionId={viewing.sessionId}
                 // Read the whole path, down to its deepest entry: what is on
@@ -607,7 +670,7 @@ export function WaygoalCanvas() {
                 forkLabel="从这里分叉"
                 onAgentEnd={() => { void refresh(true); if (openSessionId) void loadTree(openSessionId); }} soundEnabled={false}
                 onOpenSession={id => { const node = snapshot.nodes.find(n => n.id === id); if (node) openNode(node); }} />}
-        </div>
+        </div>}
       </aside>}
     </div>
   </main>;

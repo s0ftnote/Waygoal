@@ -190,3 +190,68 @@ test("branch counts and the active leaf come from the real tree, not from the re
     assert.equal(byId.two.branchPointCount, 0); assert.equal(byId.two.activeLeafId, null);
   } finally { s.done(); }
 });
+
+/** Real files in the layout the local Markdown tracker documents. */
+function localMap(cwd, dir, tickets, map = "# 放映会\n\n## Destination\n\n定下方案。\n") {
+  mkdirSync(join(cwd, ".scratch", dir, "issues"), { recursive: true });
+  writeFileSync(join(cwd, ".scratch", dir, "map.md"), map);
+  for (const [name, body] of Object.entries(tickets)) writeFileSync(join(cwd, ".scratch", dir, "issues", name), body);
+}
+const ticketBody = (title, extra = "") => `# ${title}\n\nType: grilling\nStatus: open\n${extra}\n## Question\n\n${title}的正文。\n`;
+
+test("local tickets become canvas cards whose layout is kept per workspace", () => {
+  const s = sandbox();
+  try {
+    localMap(s.a, "screening", { "01-feeling.md": ticketBody("感受"), "02-film.md": ticketBody("影片") });
+    const first = store.buildTicketSnapshot(s.a, s.agentDir);
+    assert.deepEqual(first.maps.map(m => m.path), [".scratch/screening/map.md"]);
+    const cards = first.maps[0].tickets;
+    assert.deepEqual(cards.map(t => t.title), ["感受", "影片"]);
+    assert.ok(cards.every(t => Number.isFinite(t.position.x) && Number.isFinite(t.position.y)), "every card has a place");
+    assert.notDeepEqual(cards[0].position, cards[1].position, "cards do not stack on one spot");
+
+    store.applyCanvasPatch(s.a, { positions: { ".scratch/screening/issues/01-feeling.md": { x: 640, y: 320 } } }, s.agentDir);
+    const again = store.buildTicketSnapshot(s.a, s.agentDir);
+    assert.deepEqual(again.maps[0].tickets[0].position, { x: 640, y: 320 }, "a moved card stays where it was put");
+    assert.equal(again.maps[0].tickets.length, 2, "rescanning adds no card");
+    // Another workspace must not see this one's tickets.
+    assert.deepEqual(store.buildTicketSnapshot(s.b, s.agentDir).maps, []);
+
+    // The canvas polls; a read that found nothing new must leave the record alone.
+    const record = join(store.workspaceDir(s.a, s.agentDir), "canvas.json");
+    const before = readFileSync(record, "utf8");
+    store.buildTicketSnapshot(s.a, s.agentDir);
+    assert.equal(readFileSync(record, "utf8"), before, "an unchanged read rewrites nothing");
+  } finally { s.done(); }
+});
+
+test("what was read survives a restart, and a file that vanishes is shown stale, not dropped", () => {
+  const s = sandbox();
+  try {
+    localMap(s.a, "screening", { "01-feeling.md": ticketBody("感受") });
+    const first = store.buildTicketSnapshot(s.a, s.agentDir);
+    assert.equal(first.maps[0].tickets[0].stale, null);
+
+    // A new process reads the same workspace: the record is on disk, not in memory.
+    rmSync(join(s.a, ".scratch/screening/issues/01-feeling.md"));
+    const after = store.buildTicketSnapshot(s.a, s.agentDir);
+    const card = after.maps[0].tickets[0];
+    assert.equal(card.id, ".scratch/screening/issues/01-feeling.md");
+    assert.match(card.question, /感受的正文/, "the last content read is what it shows");
+    assert.ok(card.stale, "and it says so");
+    assert.equal(card.stale.lastReadAt, first.readAt);
+  } finally { s.done(); }
+});
+
+test("reading local tickets never touches Pi sessions or the session snapshot", () => {
+  const s = sandbox();
+  try {
+    localMap(s.a, "screening", { "01-feeling.md": ticketBody("感受") });
+    store.buildTicketSnapshot(s.a, s.agentDir);
+    const snap = store.buildSnapshot(s.a, [session("one", s.a)], [], s.agentDir);
+    assert.deepEqual(snap.nodes.map(n => n.id), ["one"], "tickets are not sessions and do not appear as nodes");
+    const record = store.readCanvasRecord(s.a, s.agentDir);
+    assert.ok(record.tickets.tickets[".scratch/screening/issues/01-feeling.md"], "the read is cached in the canvas record");
+    assert.equal(record.origins.one, undefined);
+  } finally { s.done(); }
+});

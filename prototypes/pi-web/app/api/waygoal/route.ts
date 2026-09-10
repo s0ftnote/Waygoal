@@ -2,16 +2,17 @@ import { NextResponse } from "next/server";
 import { allowFileRoot } from "@/lib/file-access";
 import { getRpcSessionInfos, getRunningRpcSessionIds } from "@/lib/rpc-manager";
 import { attachSessionProjectInfo, listAllSessions, mergeSessionLists } from "@/lib/session-reader";
-import { applyCanvasPatch, buildSnapshot, resolveWorkspaceCwd, workspaceSessions } from "@/lib/waygoal-store";
+import { applyCanvasPatch, buildSnapshot, buildTicketSnapshot, resolveWorkspaceCwd, workspaceSessions } from "@/lib/waygoal-store";
 import { readTreeInfos } from "@/lib/waygoal-tree";
-import type { WaygoalCanvasPatch } from "@/lib/waygoal-types";
+import type { WaygoalCanvasPatch, WaygoalSnapshotResponse } from "@/lib/waygoal-types";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/waygoal?cwd=<dir>&force=1
-// Reads existing Pi sessions for one workspace and the local canvas record.
-// It never touches Pi: no sessions created, no prompts sent. The only write is
-// the canvas record itself, when a newly discovered session needs a position.
+// Reads existing Pi sessions for one workspace, the local canvas record, and
+// the workspace's own local Markdown tracker files. It never touches Pi: no
+// sessions created, no prompts sent. The only write is the canvas record
+// itself, when a newly discovered session or ticket needs a position.
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
@@ -26,7 +27,10 @@ export async function GET(req: Request) {
     // canvas record never stores them.
     const trees = await readTreeInfos(workspaceSessions(cwd, sessions).map(session => session.id));
     const snapshot = buildSnapshot(cwd, sessions, getRunningRpcSessionIds(), undefined, trees);
-    return NextResponse.json(snapshot, { headers: { "Cache-Control": "no-store" } });
+    // Tickets come straight from the workspace's files on every read, so a file
+    // created or edited outside Waygoal shows up on the next refresh.
+    const response: WaygoalSnapshotResponse = { ...snapshot, tickets: buildTicketSnapshot(cwd) };
+    return NextResponse.json(response, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400 });
   }

@@ -41,7 +41,10 @@
   font: 15px/1.65 Geist, -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", sans-serif;
 }
 .waygoal-app button, .waygoal-app input { font: inherit; color: inherit; }
-.waygoal-app button { cursor: pointer; border: 0; background: none; }
+/* :where keeps the reset at zero specificity, so a card that paints its own
+   background wins: without it cards render transparent and, once dragged over
+   one another, show each other's text through. */
+.waygoal-app :where(button) { cursor: pointer; border: 0; background: none; }
 .waygoal-app button:disabled { opacity: .45; cursor: default; }
 .waygoal-app button:focus-visible, .waygoal-app input:focus-visible, .waygoal-app a:focus-visible, .waygoal-viewport:focus-visible { outline: 2px solid var(--wg-ink); outline-offset: 3px; }
 .waygoal-app button:active:not(:disabled) { translate: 0 1px; }
@@ -73,6 +76,7 @@
 .waygoal-toolbar { display: flex; align-items: center; gap: 14px; padding: 16px 30px; flex-shrink: 0; }
 .waygoal-toolbar h1 { font-size: 18px; margin: 0; letter-spacing: -.4px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .waygoal-count { font-size: 12px; color: var(--wg-muted); white-space: nowrap; }
+.waygoal-skipped { overflow: hidden; text-overflow: ellipsis; max-width: 40%; }
 .waygoal-zoom { margin-left: auto; display: flex; align-items: center; gap: 2px; background: var(--wg-surface); border: 1px solid var(--wg-border); border-radius: 23px; padding: 2px; font-size: 12px; }
 .waygoal-zoom button { min-width: 40px; height: 36px; border-radius: 20px; padding: 0 12px; }
 .waygoal-zoom button:hover { background: var(--wg-accent-soft); }
@@ -84,13 +88,33 @@
 .waygoal-world.dragging { transition: none; }
 .waygoal-node { position: absolute; width: 250px; min-height: 140px; background: var(--wg-surface); border: 1px solid var(--wg-border); border-radius: 21px; text-align: left; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--wg-shadow); cursor: grab; transition: border-color 140ms ease-out, box-shadow 140ms ease-out; touch-action: none; }
 .waygoal-node:hover { border-color: var(--wg-path); }
-.waygoal-node.selected { border: 2px solid var(--wg-ink); padding: 17px 19px; box-shadow: 0 0 0 5px rgb(169 219 220 / 45%); }
+.waygoal-node.selected { border: 2px solid var(--wg-ink); padding: 17px 19px; box-shadow: 0 0 0 5px rgb(169 219 220 / 45%); z-index: 1; }
 .waygoal-node strong { font-size: 16px; font-weight: 650; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .waygoal-node-meta, .waygoal-node-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 11px; color: var(--wg-muted); }
 .waygoal-node-foot { margin-top: auto; }
 .waygoal-node-state { display: inline-flex; align-items: center; gap: 6px; }
 .waygoal-node.running .waygoal-node-state { color: var(--wg-ink); font-weight: 600; }
 .waygoal-node-state i { width: 8px; height: 8px; border-radius: 50%; background: var(--wg-accent); box-shadow: 0 0 0 3px rgb(169 219 220 / 40%); animation: waygoal-pulse 1.4s ease-in-out infinite; }
+/* Local maps and tickets: the workspace's own files, drawn beside the sessions
+   but never mistaken for them — square corners, dashed for a map. */
+.waygoal-ticket-card { position: absolute; width: 250px; min-height: 118px; background: var(--wg-surface); border: 1px solid var(--wg-path); border-radius: 8px; text-align: left; padding: 16px 18px; display: flex; flex-direction: column; gap: 9px; box-shadow: var(--wg-shadow); cursor: grab; transition: border-color 140ms ease-out, box-shadow 140ms ease-out; touch-action: none; }
+.waygoal-ticket-card.map { border-style: dashed; background: var(--wg-canvas); }
+.waygoal-ticket-card:hover { border-color: var(--wg-ink); }
+.waygoal-ticket-card.selected { border: 2px solid var(--wg-ink); padding: 15px 17px; box-shadow: 0 0 0 5px rgb(169 219 220 / 45%); z-index: 1; }
+.waygoal-ticket-card.stale { border-style: dotted; }
+.waygoal-ticket-card.stale strong { color: var(--wg-muted); }
+.waygoal-ticket-card strong { font-size: 15px; font-weight: 650; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.waygoal-ticket-card .waygoal-node-foot span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; }
+
+.waygoal-ticket-panel { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.waygoal-ticket-head { padding: 16px 24px 12px; border-bottom: 1px solid var(--wg-border); display: flex; flex-direction: column; gap: 8px; }
+.waygoal-ticket-head h2 { margin: 0; font-size: 18px; line-height: 1.4; }
+.waygoal-ticket-meta, .waygoal-ticket-source, .waygoal-ticket-blockers { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: var(--wg-muted); }
+.waygoal-ticket-source code { font-size: 11px; background: var(--wg-canvas); border: 1px solid var(--wg-border); border-radius: 6px; padding: 1px 6px; }
+.waygoal-ticket-label { font-size: 11px; color: var(--wg-muted); }
+.waygoal-ticket-stale { margin: 0; padding: 8px 10px; font-size: 12px; line-height: 1.6; color: var(--wg-ink); background: var(--wg-canvas); border: 1px dotted var(--wg-path); border-radius: 8px; }
+.waygoal-ticket-body { margin: 0; padding: 16px 24px 28px; font: inherit; font-size: 13px; line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
+
 .waygoal-empty { position: absolute; width: 420px; max-width: 80vw; background: var(--wg-surface); border: 1px dashed var(--wg-path); border-radius: 21px; padding: 24px 26px; }
 .waygoal-empty strong { display: block; font-size: 17px; margin-bottom: 8px; }
 .waygoal-empty p { margin: 0; font-size: 13px; color: var(--wg-muted); }
@@ -119,6 +143,9 @@
 .waygoal-tag.branch { background: var(--wg-accent-soft); border-color: var(--wg-accent); color: var(--wg-ink); }
 .waygoal-tag.continuing { background: var(--wg-ink); border-color: var(--wg-ink); color: var(--wg-canvas); font-weight: 600; }
 .waygoal-tag.reading { background: var(--wg-action); border-color: var(--wg-action); color: #fff; font-weight: 600; }
+.waygoal-tag.done { background: var(--wg-accent-soft); border-color: var(--wg-accent); color: var(--wg-ink); }
+.waygoal-tag.waiting { border-style: dashed; }
+.waygoal-tag.unknown { border-style: dotted; color: var(--wg-danger); border-color: var(--wg-danger); }
 
 .waygoal-node-marks { display: flex; flex-wrap: wrap; gap: 6px; }
 .waygoal-node-marks .waygoal-tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: block; }
@@ -186,6 +213,7 @@
   .waygoal-panel-title { flex-basis: 100%; }
   .waygoal-paths { padding: 10px 14px; max-height: 40vh; }
   .waygoal-readonly-bar, .waygoal-readonly-note, .waygoal-readonly-composer { padding-left: 14px; padding-right: 14px; }
+  .waygoal-ticket-head, .waygoal-ticket-body { padding-left: 14px; padding-right: 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .waygoal-app *, .waygoal-app *::before, .waygoal-app *::after { animation: none !important; transition: none !important; }
