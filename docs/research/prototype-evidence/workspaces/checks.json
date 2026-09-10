@@ -1,0 +1,105 @@
+{
+  "ranAt": "2026-09-10T20:28:27.541Z",
+  "checks": [
+    {
+      "name": "a working directory opens on its one canvas",
+      "ok": true,
+      "detail": "[\"主画布\"]"
+    },
+    {
+      "name": "and the directory it says it is on is the one asked for",
+      "ok": true,
+      "detail": "/private/var/folders/91/xkj5dqrd45xg8jp31lj5zjnw0000gn/T/waygoal-workspaces-e2e-9SMwOU/work/one/放映会"
+    },
+    {
+      "name": "a chat started from a canvas appears on it",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "making a canvas sends no message and starts no session",
+      "ok": true,
+      "detail": "{\"requests\":0}"
+    },
+    {
+      "name": "a new canvas has no chats of its own, and the chat already here stays where it was",
+      "ok": true,
+      "detail": "{\"chats\":0,\"onSecond\":[],\"onFirst\":[\"01a08d01-a749-7603-8e6f-4f94934577c5\"]}"
+    },
+    {
+      "name": "the working directory's own tickets are on the new canvas too, laid out by it",
+      "ok": true,
+      "detail": "2"
+    },
+    {
+      "name": "a chat started on the second canvas is on that one only",
+      "ok": true,
+      "detail": "{\"second\":[\"01a08d01-bc86-7603-8e6f-4f9720d92a0e\"],\"first\":[\"01a08d01-a749-7603-8e6f-4f94934577c5\"]}"
+    },
+    {
+      "name": "going back shows the first canvas's chat and not the other's",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "zooming one canvas leaves the other's view alone",
+      "ok": true,
+      "detail": "{\"zoomed\":{\"x\":-365,\"y\":289,\"scale\":1.322},\"first\":null}"
+    },
+    {
+      "name": "each canvas has its own record file",
+      "ok": true,
+      "detail": "canvas-c-2ad49c5c64e2.json,canvas.json,workspace.json"
+    },
+    {
+      "name": "a reload comes back to the canvas that was open, not to the first one",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "switching directory shows the other one, with its own single canvas and nothing on it",
+      "ok": true,
+      "detail": "{\"canvases\":[\"主画布\"],\"chats\":0,\"tickets\":0}"
+    },
+    {
+      "name": "switching directory sends no message",
+      "ok": true,
+      "detail": "0"
+    },
+    {
+      "name": "and it does not move the sessions of the directory left behind",
+      "ok": true,
+      "detail": "[\"01a08d01-a749-7603-8e6f-4f94934577c5\"]"
+    },
+    {
+      "name": "a directory that is not there is named, and no other one is shown in its place",
+      "ok": true,
+      "detail": "{\"alert\":\"这个目录不存在：/var/folders/91/xkj5dqrd45xg8jp31lj5zjnw0000gn/T/waygoal-workspaces-e2e-9SMwOU/work/没有这个目录\\n×\",\"shown\":\"/private/var/folders/91/xkj5dqrd45xg8jp31lj5zjnw0000gn/T/waygoal-workspaces-e2e-9SMwOU/work/two/放映会\"}"
+    },
+    {
+      "name": "a restart comes back to the directory and the canvas last opened, without being told which",
+      "ok": true,
+      "detail": "工作目录\n/private/var/folders/91/xkj5dqrd45xg8jp31lj5zjnw0000gn/T/waygoal-workspaces-e2e-9SMwOU/work/one/放映会\n换一个目录\n画布\n主画布\n选片\n新建画布"
+    },
+    {
+      "name": "both chats are still there, each on its own canvas, after the restart",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "the only refused request was the directory that was deliberately not there",
+      "ok": true,
+      "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+    },
+    {
+      "name": "no page or console errors",
+      "ok": true,
+      "detail": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+    },
+    {
+      "name": "a remembered directory that is gone is named rather than swapped for another",
+      "ok": true,
+      "detail": "{\"error\":\"上次打开的工作目录现在不在了：/private/var/folders/91/xkj5dqrd45xg8jp31lj5zjnw0000gn/T/waygoal-workspaces-e2e-9SMwOU/work/one/放映会。请另选一个目录。\"}"
+    }
+  ]
+}

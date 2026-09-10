@@ -11,6 +11,7 @@ import { WaygoalPaths } from "./WaygoalPaths";
 import { WaygoalFind } from "./WaygoalFind";
 import { WaygoalPathView } from "./WaygoalPathView";
 import { WaygoalRename } from "./WaygoalRename";
+import { WaygoalWorkspaceBar } from "./WaygoalWorkspaceBar";
 import { stateClass, WaygoalTicketPanel } from "./WaygoalTicketPanel";
 
 const NODE_W = NODE_WIDTH;
@@ -95,9 +96,15 @@ function flattenChoices(branchPoints: WaygoalBranchPoint[]): { choice: WaygoalBr
 
 export function WaygoalCanvas() {
   const isMobile = useIsMobile();
-  const [cwd] = useState<string>(() => {
+  const [cwd, setCwd] = useState<string>(() => {
     if (typeof window === "undefined") return "";
     return new URLSearchParams(window.location.search).get("cwd") ?? "";
+  });
+  // The canvas being shown. Null means the one this working directory was
+  // left on, which is what the record remembers.
+  const [canvasId, setCanvasId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("canvas");
   });
   const [snapshot, setSnapshot] = useState<WaygoalSnapshotResponse | null>(null);
   // The local ticket the panel is showing, by source path; a map's own path
@@ -132,27 +139,35 @@ export function WaygoalCanvas() {
   // The session ChatWindow is showing, so a fork it reports can be attributed.
   const chatSessionId = useRef<string | null>(null);
   const pendingRestoreEntry = useRef<string | null>(null);
+  // Whether the error on screen came from reading the canvas.
+  const readError = useRef(false);
 
   const patch = useCallback(async (body: WaygoalCanvasPatch) => {
     if (!snapshot?.cwd) return;
     try {
-      const res = await fetch("/api/waygoal", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cwd: snapshot.cwd, ...body }) });
+      // The canvas comes from the snapshot, not from the URL: a patch belongs
+      // to the canvas that is actually on screen.
+      const res = await fetch("/api/waygoal", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cwd: snapshot.cwd, canvas: snapshot.workspace.canvasId, ...body }) });
       if (!res.ok) throw new Error((await res.json()).error);
     } catch (e) { setError(`画布记录没有保存：${e instanceof Error ? e.message : String(e)}`); }
-  }, [snapshot?.cwd]);
+  }, [snapshot?.cwd, snapshot?.workspace.canvasId]);
 
   const refresh = useCallback(async (force = false) => {
     try {
       const params = new URLSearchParams();
       if (cwd) params.set("cwd", cwd);
+      if (canvasId) params.set("canvas", canvasId);
       if (force) params.set("force", "1");
       const res = await fetch(`/api/waygoal${params.size ? `?${params}` : ""}`, { cache: "no-store" });
       const next = await res.json();
       if (!res.ok) throw new Error(next.error);
       setSnapshot(next as WaygoalSnapshotResponse);
-      setError("");
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-  }, [cwd]);
+      // Only what reading the canvas reported is taken back by reading it
+      // again; something the user was told about their own last action stays
+      // on screen until they close it.
+      if (readError.current) { readError.current = false; setError(""); }
+    } catch (e) { readError.current = true; setError(e instanceof Error ? e.message : String(e)); }
+  }, [canvasId, cwd]);
 
   useEffect(() => {
     void refresh(true);
@@ -162,15 +177,56 @@ export function WaygoalCanvas() {
     return () => { clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
   }, [refresh]);
 
-  // Keep the URL on the real workspace so a reload lands in the same place.
+  // Keep the URL on the real workspace and canvas so a reload lands in the
+  // same place.
   useEffect(() => {
     if (!snapshot) return;
     const url = new URL(window.location.href);
-    if (url.searchParams.get("cwd") !== snapshot.cwd) {
-      url.searchParams.set("cwd", snapshot.cwd);
-      window.history.replaceState(null, "", url);
-    }
+    if (url.searchParams.get("cwd") === snapshot.cwd && url.searchParams.get("canvas") === snapshot.workspace.canvasId) return;
+    url.searchParams.set("cwd", snapshot.cwd);
+    url.searchParams.set("canvas", snapshot.workspace.canvasId);
+    window.history.replaceState(null, "", url);
   }, [snapshot]);
+
+  /** Leave the canvas on screen: nothing of it stays open over the next one.
+   *  Only the display is put down — no Pi session is closed or stopped. A
+   *  view moved just before leaving is saved on the way out rather than
+   *  dropped with the timer that was still waiting to save it. */
+  const leaveCanvas = useCallback(async () => {
+    if (viewSaveTimer.current) {
+      clearTimeout(viewSaveTimer.current);
+      viewSaveTimer.current = null;
+      await patch({ view });
+    }
+    setSnapshot(null);
+    setSelectedId(null); setOpenTicket(null); setPendingTicket(null);
+    setDraftKey(null); setCreatedSession(null); setViewing(null); setTree(null);
+    setPanelKey(k => k + 1);
+    setError(""); setNotice("");
+  }, [patch, view]);
+
+  /** Open another working directory. Which canvas it shows is that
+   *  directory's own business: it comes back to the one it was left on. The
+   *  directory is read before anything moves, so a path that is not there
+   *  says so and leaves the canvas on screen where it was. */
+  const openWorkspace = useCallback(async (next: string) => {
+    try {
+      const res = await fetch(`/api/waygoal?cwd=${encodeURIComponent(next)}&force=1`, { cache: "no-store" });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+      await leaveCanvas();
+      setCwd(next);
+      setCanvasId(null);
+      setSnapshot(body as WaygoalSnapshotResponse);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [leaveCanvas]);
+
+  const switchCanvas = useCallback(async (next: string) => {
+    await leaveCanvas();
+    setCanvasId(next);
+  }, [leaveCanvas]);
 
   useEffect(() => {
     if (!snapshot?.cwd) return;
@@ -183,8 +239,10 @@ export function WaygoalCanvas() {
   // Restore view, the last viewed session and the position inside it, once per
   // workspace. Reading only: opening a panel loads history and never sends.
   useEffect(() => {
-    if (!snapshot || restoredFor.current === snapshot.cwd) return;
-    restoredFor.current = snapshot.cwd;
+    if (!snapshot) return;
+    const place = `${snapshot.cwd}|${snapshot.workspace.canvasId}`;
+    if (restoredFor.current === place) return;
+    restoredFor.current = place;
     viewDirty.current = false;
     setView(snapshot.view ?? DEFAULT_VIEW);
     setDraftKey(null); setCreatedSession(null); setViewing(null); setTree(null);
@@ -460,6 +518,8 @@ export function WaygoalCanvas() {
     const ticket = pendingTicket;
     setPendingTicket(null);
     void patch({
+      // A chat started here belongs to this canvas and no other.
+      registerSession: session.id,
       lastViewed: session.id, lastViewedEntry: null,
       ...(ticket ? { ticketSession: { sessionId: session.id, ticket }, ticketLast: { ticket, sessionId: session.id, entryId: null } } : {}),
     });
@@ -472,8 +532,11 @@ export function WaygoalCanvas() {
     // carries it over with the origin, and without one it is said outright, so
     // a fork Pi can only trace back to the session does not leave the ticket.
     const ticket = ticketOfSession.get(originSessionId);
-    if (originEntryId) await patch({ origin: { sessionId: newSessionId, originSessionId, originEntryId } });
-    else if (ticket) await patch({ ticketSession: { sessionId: newSessionId, ticket } });
+    await patch({
+      registerSession: newSessionId,
+      ...(originEntryId ? { origin: { sessionId: newSessionId, originSessionId, originEntryId } }
+        : ticket ? { ticketSession: { sessionId: newSessionId, ticket } } : {}),
+    });
     setViewing(null); setDraftKey(null); setCreatedSession(null);
     setSelectedId(newSessionId);
     setPanelKey(k => k + 1);
@@ -632,10 +695,7 @@ export function WaygoalCanvas() {
   return <main className="waygoal-app" data-panel-open={panelOpen || undefined}>
     <header className="waygoal-top">
       <div className="waygoal-brand">waygoal<span>.</span></div>
-      <div className="waygoal-workspace" title={snapshot?.cwd}>
-        <span>工作目录</span>
-        <code>{snapshot?.cwd ?? "…"}</code>
-      </div>
+      <WaygoalWorkspaceBar workspace={snapshot?.workspace ?? null} onOpen={openWorkspace} onSwitchCanvas={switchCanvas} onError={setError} />
       <div className="waygoal-top-right">
         <button type="button" className="waygoal-button action" onClick={startNewChat} disabled={!snapshot}>新开聊天</button>
       </div>

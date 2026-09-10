@@ -100,6 +100,9 @@ export interface WaygoalCanvasPatch {
   ticketSession?: { sessionId: string; ticket: string | null };
   ticketExpanded?: { ticket: string; expanded: boolean };
   ticketLast?: { ticket: string; sessionId: string; entryId: string | null };
+  /** Put this session on the canvas the patch is addressed to. A session
+   *  started from a canvas belongs to that canvas and no other. */
+  registerSession?: string;
 }
 
 /** Node card size in canvas units; waygoal.css mirrors these for `.waygoal-node`. */
@@ -252,8 +255,24 @@ export interface WaygoalTicketMapCard extends Omit<WaygoalTicketMapView, "ticket
 /** What `GET /api/waygoal` answers: the sessions of one workspace and the
  *  local tickets read from its own files, in one read so the canvas lays both
  *  out together. */
+/** A working directory that was opened before, and whether it is still there. */
+export interface WaygoalRecentWorkspace {
+  cwd: string;
+  missing: boolean;
+}
+
+/** The working directory this canvas is in, and the canvases it has. */
+export interface WaygoalWorkspaceView {
+  cwd: string;
+  canvasId: string;
+  canvases: WaygoalCanvasInfo[];
+  /** Working directories opened before, most recent first. */
+  recent: WaygoalRecentWorkspace[];
+}
+
 export interface WaygoalSnapshotResponse extends WaygoalSnapshot {
   tickets: WaygoalTicketSnapshot;
+  workspace: WaygoalWorkspaceView;
 }
 
 export interface WaygoalTicketSnapshot {
@@ -262,3 +281,36 @@ export interface WaygoalTicketSnapshot {
   unreadable: WaygoalUnreadable[];
   readAt: string;
 }
+
+/** One board inside a working directory. The id is what everything else
+ *  points at; the name is only what it is called. */
+export interface WaygoalCanvasInfo {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
+/** What a working directory has: its canvases, the one it was left on, and
+ *  which canvas each session belongs to. */
+export interface WaygoalWorkspaceRecord {
+  version: 1;
+  cwd: string;
+  canvases: WaygoalCanvasInfo[];
+  current: string;
+  /** Session id → canvas id. A session is on exactly one canvas. */
+  sessionCanvas: Record<string, string>;
+  updatedAt: string;
+}
+
+/** One working directory and one canvas in it: what a read or a write is
+ *  about. */
+export interface WaygoalScope {
+  cwd: string;
+  canvasId: string;
+  agentDir: string;
+}
+
+/** The canvas every working directory starts with. Its id is fixed, so the
+ *  record written before there was more than one canvas is still that
+ *  canvas's record and there is nothing to migrate. */
+export const DEFAULT_CANVAS_ID = "main";

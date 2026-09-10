@@ -52,8 +52,8 @@
 .waygoal-top { height: 72px; display: flex; align-items: center; padding: 0 30px; gap: 28px; border-bottom: 1px solid var(--wg-border); flex-shrink: 0; background: var(--wg-canvas); }
 .waygoal-brand { font-weight: 850; font-size: 25px; letter-spacing: -1.3px; }
 .waygoal-brand span { color: var(--wg-action); }
-.waygoal-workspace { display: flex; align-items: center; gap: 10px; border-left: 1px solid var(--wg-border); padding-left: 25px; flex: 1; min-width: 0; font-size: 13px; }
-.waygoal-workspace label { color: var(--wg-muted); white-space: nowrap; }
+.waygoal-workspace { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border-left: 1px solid var(--wg-border); padding-left: 25px; flex: 1; min-width: 0; font-size: 13px; }
+.waygoal-workspace > span { color: var(--wg-muted); white-space: nowrap; }
 .waygoal-workspace code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; color: var(--wg-ink); }
 .waygoal-top-right { display: flex; align-items: center; gap: 12px; }
 .waygoal-link { font-size: 12px; color: var(--wg-muted); text-decoration: none; white-space: nowrap; }
@@ -266,3 +266,13 @@
 @media (prefers-reduced-motion: reduce) {
   .waygoal-app *, .waygoal-app *::before, .waygoal-app *::after { animation: none !important; transition: none !important; }
 }
+
+/* Switching working directory, and the canvases of the one that is open. */
+.waygoal-switch-box { position: relative; flex-shrink: 0; }
+.waygoal-switch { position: absolute; top: calc(100% + 6px); left: 0; z-index: 6; width: 330px; max-height: 320px; overflow: auto; background: var(--wg-surface); border: 1px solid var(--wg-border); border-radius: 14px; box-shadow: var(--wg-shadow); padding: 10px; }
+.waygoal-switch form { display: flex; gap: 6px; }
+.waygoal-switch input { flex: 1; min-width: 0; border: 1px solid var(--wg-border); border-radius: 10px; padding: 7px 10px; font: inherit; font-size: 13px; background: var(--wg-surface); color: inherit; }
+.waygoal-switch ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.waygoal-switch li button { display: block; width: 100%; text-align: left; border-radius: 9px; padding: 7px 9px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.waygoal-switch li button:hover { background: var(--wg-accent-soft); }
+.waygoal-canvas-list { display: flex; gap: 6px; flex-wrap: wrap; min-width: 0; }

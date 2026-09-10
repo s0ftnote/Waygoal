@@ -1,50 +1,31 @@
-import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { homedir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { writePrivateFileAtomicSync } from "./atomic-file";
 import { projectIdentityKey } from "./project-identity";
+import { normalizeWorkspaceInput, workspaceDir, workspaceId } from "./waygoal-paths";
+import { claimSessionsOn, registerSession, rememberedWorkspace } from "./waygoal-workspaces";
 import type { SessionInfo } from "./types";
 import { mergeTicketScan, readLocalTickets } from "./waygoal-tickets";
-import { NODE_HEIGHT, NODE_WIDTH, TICKET_CARD_HEIGHT, type WaygoalCanvasPatch, type WaygoalCanvasRecord, type WaygoalNode, type WaygoalNodeOrigin, type WaygoalOriginRecord, type WaygoalPoint, type WaygoalSavedTickets, type WaygoalSnapshot, type WaygoalTicketDiscussion, type WaygoalTicketSnapshot, type WaygoalTicketView, type WaygoalTitleSource, type WaygoalTreeInfo } from "./waygoal-types";
+import { DEFAULT_CANVAS_ID, NODE_HEIGHT, NODE_WIDTH, TICKET_CARD_HEIGHT, type WaygoalScope, type WaygoalCanvasPatch, type WaygoalCanvasRecord, type WaygoalNode, type WaygoalNodeOrigin, type WaygoalOriginRecord, type WaygoalPoint, type WaygoalSavedTickets, type WaygoalSnapshot, type WaygoalTicketDiscussion, type WaygoalTicketSnapshot, type WaygoalTicketView, type WaygoalTitleSource, type WaygoalTreeInfo } from "./waygoal-types";
 export { NODE_HEIGHT, NODE_WIDTH };
 
-// Records live under Pi's agent directory, apart from the plugin code, and
-// are split per workspace from the start (ADR 0001). Nothing here sends
-// messages or touches Pi session files.
-export function waygoalRoot(agentDir = getAgentDir()): string {
-  return join(agentDir, "waygoal");
+/** One file per canvas. The first canvas keeps the name the record had when
+ *  a working directory could only have one, so nothing needs migrating. */
+function recordPath(scope: WaygoalScope): string {
+  const file = scope.canvasId === DEFAULT_CANVAS_ID ? "canvas.json" : `canvas-${scope.canvasId}.json`;
+  return join(workspaceDir(scope.cwd, scope.agentDir), file);
 }
 
-export function workspaceId(cwd: string): string {
-  const key = projectIdentityKey(cwd);
-  const hash = createHash("sha1").update(key).digest("hex").slice(0, 12);
-  const label = basename(key).replace(/[^\p{L}\p{N}_-]+/gu, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "workspace";
-  return `${label}-${hash}`;
-}
-
-export function workspaceDir(cwd: string, agentDir = getAgentDir()): string {
-  return join(waygoalRoot(agentDir), "workspaces", workspaceId(cwd));
-}
-
-function recordPath(cwd: string, agentDir: string): string {
-  return join(workspaceDir(cwd, agentDir), "canvas.json");
-}
-
-export function normalizeWorkspaceInput(input: string): string {
-  const trimmed = input.trim();
-  if (trimmed === "~") return homedir();
-  if (trimmed.startsWith("~/")) return resolve(homedir(), trimmed.slice(2));
-  return resolve(trimmed);
-}
-
-/** Resolve the workspace to show: an explicit `cwd`, else the playground
- *  sample directory shipped with the repository. Remembering and switching
- *  workspaces belongs to a later ticket. */
-export function resolveWorkspaceCwd(input?: string | null): string {
+/** Resolve the working directory to show: the one asked for, else the one
+ *  this browser was last on, else the playground sample shipped with the
+ *  repository. A remembered directory that is no longer there is said so by
+ *  name — swapping in another one would show the wrong work without saying. */
+export function resolveWorkspaceCwd(input?: string | null, agentDir = getAgentDir()): string {
   const explicit = input?.trim() ? normalizeWorkspaceInput(input) : null;
-  const candidate = explicit ?? resolve(process.cwd(), "../../playground");
+  const remembered = explicit ? null : rememberedWorkspace(agentDir);
+  if (remembered?.missing) throw new Error(`上次打开的工作目录现在不在了：${remembered.cwd}。请另选一个目录。`);
+  const candidate = explicit ?? remembered?.cwd ?? resolve(process.cwd(), "../../playground");
   try {
     const real = realpathSync(candidate);
     if (statSync(real).isDirectory()) return real;
@@ -91,8 +72,9 @@ function isPoint(value: unknown): value is WaygoalPoint {
     && Number.isFinite((value as WaygoalPoint).x) && Number.isFinite((value as WaygoalPoint).y);
 }
 
-export function readCanvasRecord(cwd: string, agentDir = getAgentDir()): WaygoalCanvasRecord {
-  const path = recordPath(cwd, agentDir);
+export function readCanvasRecord(scope: WaygoalScope): WaygoalCanvasRecord {
+  const { cwd } = scope;
+  const path = recordPath(scope);
   if (!existsSync(path)) return emptyRecord(cwd);
   try {
     const parsed = JSON.parse(readFileSync(path, "utf8")) as Partial<WaygoalCanvasRecord>;
@@ -127,14 +109,19 @@ export function readCanvasRecord(cwd: string, agentDir = getAgentDir()): Waygoal
   }
 }
 
-export function writeCanvasRecord(record: WaygoalCanvasRecord, agentDir = getAgentDir()): void {
-  mkdirSync(workspaceDir(record.cwd, agentDir), { recursive: true });
-  writePrivateFileAtomicSync(recordPath(record.cwd, agentDir), JSON.stringify(record, null, 2));
+export function writeCanvasRecord(record: WaygoalCanvasRecord, scope: WaygoalScope): void {
+  mkdirSync(workspaceDir(scope.cwd, scope.agentDir), { recursive: true });
+  writePrivateFileAtomicSync(recordPath(scope), JSON.stringify(record, null, 2));
 }
 
-export function applyCanvasPatch(cwd: string, patch: WaygoalCanvasPatch, agentDir = getAgentDir()): WaygoalCanvasRecord {
-  const record = readCanvasRecord(cwd, agentDir);
+export function applyCanvasPatch(scope: WaygoalScope, patch: WaygoalCanvasPatch): WaygoalCanvasRecord {
+  const record = readCanvasRecord(scope);
   let changed = false;
+  // Which canvas a session is on is the workspace's business, not this
+  // canvas's record: a session must not end up on two of them.
+  // It is written to the workspace record, so it leaves this canvas's own
+  // record unchanged and does not mark it as changed.
+  if (typeof patch.registerSession === "string" && patch.registerSession) registerSession(scope, patch.registerSession);
   for (const [id, point] of Object.entries(patch.positions ?? {})) {
     if (!isPoint(point) || typeof id !== "string" || !id) continue;
     record.nodes[id] = { x: Math.round(point.x), y: Math.round(point.y) };
@@ -180,7 +167,7 @@ export function applyCanvasPatch(cwd: string, patch: WaygoalCanvasPatch, agentDi
   }
   if (changed) {
     record.updatedAt = new Date().toISOString();
-    writeCanvasRecord(record, agentDir);
+    writeCanvasRecord(record, scope);
   }
   return record;
 }
@@ -249,9 +236,17 @@ export function workspaceSessions(cwd: string, sessions: SessionInfo[]): Session
   return [...byId.values()];
 }
 
+/** The sessions of this working directory that belong to this canvas. */
+export function canvasSessions(scope: WaygoalScope, sessions: SessionInfo[]): SessionInfo[] {
+  const owned = workspaceSessions(scope.cwd, sessions);
+  const here = new Set(claimSessionsOn(scope, owned.map(session => session.id)));
+  return owned.filter(session => here.has(session.id));
+}
+
 /** The source a fork came from: our own record first, else Pi's header, which
  *  knows the source session but never the message. Missing stays missing —
  *  a similar title is not evidence of the same history. */
+
 function nodeOrigin(session: SessionInfo, record: WaygoalCanvasRecord, titles: Map<string, string>): WaygoalNodeOrigin | null {
   const recorded = record.origins[session.id];
   const headerOrigin = session.relation?.kind === "fork" ? session.relation.originSessionId ?? session.parentSessionId : undefined;
@@ -266,15 +261,15 @@ function nodeOrigin(session: SessionInfo, record: WaygoalCanvasRecord, titles: M
 }
 
 export function buildSnapshot(
-  cwd: string,
+  scope: WaygoalScope,
   sessions: SessionInfo[],
   runningIds: Iterable<string>,
-  agentDir = getAgentDir(),
   trees: ReadonlyMap<string, WaygoalTreeInfo> = new Map(),
 ): WaygoalSnapshot {
+  const { cwd } = scope;
   const running = new Set(runningIds);
-  const record = readCanvasRecord(cwd, agentDir);
-  const owned = workspaceSessions(cwd, sessions).sort((a, b) => a.created.localeCompare(b.created));
+  const record = readCanvasRecord(scope);
+  const owned = canvasSessions(scope, sessions).sort((a, b) => a.created.localeCompare(b.created));
   const titles = new Map(owned.map(session => [session.id, sessionTitle(session).title]));
   let changed = false;
   const nodes: WaygoalNode[] = owned.map(session => {
@@ -295,7 +290,7 @@ export function buildSnapshot(
   });
   if (changed) {
     record.updatedAt = new Date().toISOString();
-    writeCanvasRecord(record, agentDir);
+    writeCanvasRecord(record, scope);
   }
   const lastViewed = record.lastViewed ?? null;
   const lastViewedMissing = Boolean(lastViewed) && !nodes.some(n => n.id === lastViewed);
@@ -314,9 +309,9 @@ export function buildSnapshot(
 /** One workspace's local tickets, ready to draw: what the source files say
  *  right now, plus where each card sits and anything that could not be read
  *  this time. Reading is all it does — no Pi session is opened or touched. */
-export function buildTicketSnapshot(cwd: string, nodes: WaygoalNode[] = [], agentDir = getAgentDir()): WaygoalTicketSnapshot {
-  const scan = readLocalTickets(cwd);
-  const record = readCanvasRecord(cwd, agentDir);
+export function buildTicketSnapshot(scope: WaygoalScope, nodes: WaygoalNode[] = []): WaygoalTicketSnapshot {
+  const scan = readLocalTickets(scope.cwd);
+  const record = readCanvasRecord(scope);
   const merged = mergeTicketScan(scan, record.tickets);
   let changed = JSON.stringify(record.tickets) !== JSON.stringify(merged.saved);
   const place = (id: string, height: number): WaygoalPoint => {
@@ -370,7 +365,7 @@ export function buildTicketSnapshot(cwd: string, nodes: WaygoalNode[] = [], agen
     // on are one record; a snapshot that learned any of them writes it once.
     record.tickets = merged.saved;
     record.updatedAt = new Date().toISOString();
-    writeCanvasRecord(record, agentDir);
+    writeCanvasRecord(record, scope);
   }
   return { maps, unsupported: scan.unsupported, unreadable: scan.unreadable, readAt: scan.readAt };
 }
