@@ -157,6 +157,10 @@
 .waygoal-readonly-note { margin: 0; padding: 12px 24px; font-size: 12px; color: var(--wg-muted); }
 .waygoal-readonly-note.error { color: var(--wg-danger); }
 .waygoal-readonly-body { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 24px; }
+.waygoal-readonly-composer { flex-shrink: 0; display: flex; align-items: flex-end; gap: 10px; padding: 12px 20px 14px 24px; border-top: 1px solid var(--wg-border); background: var(--wg-surface); }
+.waygoal-readonly-composer textarea { flex: 1; resize: none; border: 1px solid var(--wg-border); border-radius: 12px; padding: 9px 12px; font: inherit; font-size: 13px; line-height: 1.5; color: var(--wg-ink); background: var(--wg-canvas); }
+.waygoal-readonly-composer textarea:focus-visible { outline: 2px solid var(--wg-accent); outline-offset: 1px; }
+.waygoal-readonly-composer textarea:disabled { color: var(--wg-muted); }
 
 @keyframes waygoal-panel-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
 @keyframes waygoal-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
@@ -181,7 +185,7 @@
   .waygoal-panel-head { padding: 10px 14px; flex-wrap: wrap; }
   .waygoal-panel-title { flex-basis: 100%; }
   .waygoal-paths { padding: 10px 14px; max-height: 40vh; }
-  .waygoal-readonly-bar, .waygoal-readonly-note { padding-left: 14px; padding-right: 14px; }
+  .waygoal-readonly-bar, .waygoal-readonly-note, .waygoal-readonly-composer { padding-left: 14px; padding-right: 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .waygoal-app *, .waygoal-app *::before, .waygoal-app *::after { animation: none !important; transition: none !important; }

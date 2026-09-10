@@ -2,8 +2,9 @@
 // Starts its own pi-web on a free loopback port with an isolated Pi data
 // directory and a fake OpenAI-compatible model, then drives one real round
 // trip: explore two directions from the same message, read the other path
-// without moving anything, continue from an explicit position, fork a new
-// session, and come back after a reload and a host restart.
+// without moving anything, send from it so that the send itself is what moves
+// the session onto it, fork a new session, and come back after a reload and a
+// host restart.
 //
 // Every state claim is checked against Pi's own session files, never against
 // what the model answered.
@@ -147,6 +148,20 @@ try {
     await delay(600);
   };
 
+  // Sending from a path being read. This is the only way to continue there:
+  // there is no separate confirm step, so the send has to both move the
+  // session onto the path and land the message on it.
+  const readonlyComposer = () => panel().locator(".waygoal-readonly-composer");
+  const sendFromPath = async (text) => {
+    const before = model.requests.length;
+    await readonlyComposer().locator("textarea").fill(text);
+    await readonlyComposer().getByRole("button", { name: "发送" }).click();
+    await waitFor(() => model.requests.length > before, `model request for ${text}`);
+    await panel().getByText(`回复: ${text}`, { exact: true }).waitFor({ timeout: 60_000 });
+    await delay(600);
+  };
+  const userEntries = (id) => sessionEntries(id).filter((e) => e.type === "message" && e.message?.role === "user");
+
   // 1. A discussion with a shared origin message and a first direction.
   await page.goto(canvasUrl, { waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: "新开聊天" }).click();
@@ -183,7 +198,7 @@ try {
   const beforeRead = model.requests.length;
   const entriesBeforeRead = sessionEntries(sessionId).length;
   await page.locator(".waygoal-chip").first().click();
-  await panel().getByText("只读回看，这里不会发送消息").waitFor();
+  await panel().getByText("只读回看，发送时才接到这条路径上").waitFor();
   await panel().getByText("回复: 先说观影", { exact: true }).waitFor();
   await delay(1500);
   check("reading a sibling path sends nothing and adds no entry",
@@ -195,20 +210,25 @@ try {
 
   // 4. A reload keeps the reading position, still without sending.
   await page.reload({ waitUntil: "domcontentloaded" });
-  await panel().getByText("只读回看，这里不会发送消息").waitFor();
+  await panel().getByText("只读回看，发送时才接到这条路径上").waitFor();
   await delay(1500);
   check("a reload comes back to the same reading position without sending",
     model.requests.length === beforeRead && sessionEntries(sessionId).length === entriesBeforeRead);
 
-  // 5. Continuing is the explicit action that moves the active path.
-  await panel().getByRole("button", { name: "从这里继续" }).first().click();
-  await page.getByText(/继续位置已切到这条路径/).waitFor();
-  await waitFor(async () => (await branchView(sessionId)).branchPoints[0].choices[0].active === true, "the first path becomes active");
-  check("continuing moves the active path and still adds no message",
-    sessionEntries(sessionId).length === entriesBeforeRead && model.requests.length === beforeRead);
-
-  await send("再多说说观影");
-  const lastUser = sessionEntries(sessionId).filter((e) => e.type === "message" && e.message?.role === "user").at(-1);
+  // 5. Sending is the explicit action, and the only one: it moves the session
+  // onto the path being read and puts the message there.
+  const usersBeforeSend = userEntries(sessionId).length;
+  await sendFromPath("再多说说观影");
+  const afterSend = await waitFor(async () => {
+    const view = await branchView(sessionId);
+    return view.branchPoints[0].choices[0].active ? view : null;
+  }, "the read path becomes the one that continues");
+  check("sending from a path being read is what moves the active path",
+    afterSend.branchPoints[0].choices[1].active === false && afterSend.activeLeafId !== pathB.leafId,
+    JSON.stringify(afterSend.branchPoints[0].choices.map((c) => [c.preview, c.active])));
+  check("the switch adds nothing of its own: one send, one message",
+    userEntries(sessionId).length === usersBeforeSend + 1, String(userEntries(sessionId).length - usersBeforeSend));
+  const lastUser = userEntries(sessionId).at(-1);
   const ancestors = ancestorsOf(sessionId, lastUser.id);
   check("the next message really lands on the chosen path", ancestors.includes(pathA.leafId), JSON.stringify({ ancestors, chosen: pathA.leafId }));
   check("it did not land on the other path", !ancestors.includes(pathB.entryId), JSON.stringify({ ancestors, other: pathB.entryId }));
@@ -218,27 +238,28 @@ try {
     lastRequest.includes("先说观影") && !lastRequest.includes("换成桌游"), lastRequest.slice(0, 400));
   await page.screenshot({ animations: "disabled", path: join(evidence, "03-after-continue.png") });
 
-  // 5b. The same action from the read-only banner must land on the path's leaf.
-  // Pi moves the leaf to a USER entry's parent and puts its text in the editor,
-  // so continuing has to use the path's leaf, never the entry on display.
-  const continueFromBanner = async (chipIndex) => {
+  // 5b. A send has to follow the path's leaf, not the entry on display. Pi
+  // moves the leaf to a USER entry's parent and puts its text back in the
+  // editor, so a send that used the displayed entry would land before the path
+  // instead of after it — and would overwrite the message with that entry's.
+  const openPath = async (chipIndex) => {
     await page.locator(".waygoal-chip").nth(chipIndex).click();
-    await panel().getByText("只读回看，这里不会发送消息").waitFor();
-    await panel().locator(".waygoal-readonly-bar").getByRole("button", { name: "从这里继续" }).click();
-    await page.getByText(/继续位置已切到这条路径/).waitFor();
+    await panel().getByText("只读回看，发送时才接到这条路径上").waitFor();
   };
-  const entriesBeforeBanner = sessionEntries(sessionId).length;
-  await continueFromBanner(1);
-  await waitFor(async () => (await branchView(sessionId)).activeLeafId === pathB.leafId, "the banner continues onto path B's leaf");
-  check("continuing from the read-only banner lands on the path's leaf, not the message before it",
-    (await branchView(sessionId)).activeLeafId === pathB.leafId && sessionEntries(sessionId).length === entriesBeforeBanner);
-  await continueFromBanner(0);
-  await waitFor(async () => (await branchView(sessionId)).branchPoints[0].choices[0].active === true, "path A is active again");
+  await openPath(1);
+  await sendFromPath("桌游那边再想想");
+  const afterOther = userEntries(sessionId).at(-1);
+  check("a send from the other path follows its leaf, not the message on display",
+    ancestorsOf(sessionId, afterOther.id).includes(pathB.leafId), JSON.stringify({ ancestors: ancestorsOf(sessionId, afterOther.id), leaf: pathB.leafId }));
+  check("the message kept the text that was typed", userTexts(sessionId).includes("桌游那边再想想"));
+  await openPath(0);
+  await sendFromPath("观影这边也再想想");
+  await waitFor(async () => (await branchView(sessionId)).branchPoints[0].choices[0].active === true, "path A is where the session continues again");
 
   // 6. A real fork: a separate session that remembers the message it came from.
   const originEntry = sessionEntries(sessionId).find((e) => e.type === "message" && e.message?.role === "user" && String(JSON.stringify(e.message.content)).includes("先说观影"));
   await page.locator(".waygoal-chip").first().click();
-  await panel().getByText("只读回看，这里不会发送消息").waitFor();
+  await panel().getByText("只读回看，发送时才接到这条路径上").waitFor();
   await clickOnHover("先说观影", "从这里分叉");
   const forkedId = await waitFor(async () => (await snapshot()).nodes.find((n) => n.id !== sessionId)?.id, "a second canvas node");
   const forkedNode = (await snapshot()).nodes.find((n) => n.id === forkedId);

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AgentMessage, SessionContext, ToolResultMessage } from "@/lib/types";
 import { MessageView } from "./MessageView";
 
@@ -14,18 +14,33 @@ interface Props {
   /** Continuing or forking is refused while Pi is working on this session. */
   busyReason: string | null;
   forkingEntryId: string | null;
-  /** Null when there is no position to continue from — an unrecorded origin. */
-  onContinue: (() => void) | null;
+  /** Send from here: the path becomes the continue position and the message
+    *  goes into it. Null when this position is not one to continue from — an
+    *  origin whose message was never recorded. */
+  onSend: ((text: string) => void) | null;
   onFork: (entryId: string) => void;
 }
 
 /** Read-only history of one path. It calls the existing history reader with an
  *  explicit leaf and nothing else — no navigation, so looking here cannot move
- *  the agent's active path or add a message. Continuing is a separate,
- *  explicit action the user takes from the banner. */
-export function WaygoalPathView({ sessionId, leafId, cwd, label, busyReason, forkingEntryId, onContinue, onFork }: Props) {
+ *  the agent's active path or add a message. Sending is what commits: the act
+ *  of sending is the explicit choice, so there is no separate confirm step. */
+export function WaygoalPathView({ sessionId, leafId, cwd, label, busyReason, forkingEntryId, onSend, onFork }: Props) {
   const [context, setContext] = useState<SessionContext | null>(null);
   const [error, setError] = useState("");
+  const [draft, setDraft] = useState("");
+  const composer = useRef<HTMLTextAreaElement>(null);
+
+  const send = () => {
+    const text = draft.trim();
+    if (!text || !onSend || busyReason) return;
+    setDraft("");
+    onSend(text);
+  };
+
+  // Opening a path is meant to be one click away from talking, so the composer
+  // takes focus. preventScroll: the history above must stay where it was read.
+  useEffect(() => { composer.current?.focus({ preventScroll: true }); }, [leafId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -53,9 +68,7 @@ export function WaygoalPathView({ sessionId, leafId, cwd, label, busyReason, for
     <div className="waygoal-readonly-bar">
       <span className="waygoal-tag reading">正在查看</span>
       <span className="waygoal-readonly-label">{label}</span>
-      <span className="waygoal-readonly-hint">只读回看，这里不会发送消息</span>
-      {onContinue && <button type="button" className="waygoal-button action small" onClick={onContinue} disabled={Boolean(busyReason)}
-        title={busyReason ?? "把这段设为继续位置，下一次发送进入这条路径"}>从这里继续</button>}
+      <span className="waygoal-readonly-hint">{onSend ? "只读回看，发送时才接到这条路径上" : "只读回看，这里不会发送消息"}</span>
     </div>
     {busyReason && <p className="waygoal-readonly-note">{busyReason}</p>}
     <div className="waygoal-readonly-body">
@@ -74,5 +87,13 @@ export function WaygoalPathView({ sessionId, leafId, cwd, label, busyReason, for
         forkLabel="从这里分叉"
       />)}
     </div>
+    {onSend && <div className="waygoal-readonly-composer">
+      <textarea ref={composer} value={draft} onChange={e => setDraft(e.target.value)} rows={2}
+        placeholder={busyReason ?? "在这条路径上继续说…发送时才切过来"}
+        disabled={Boolean(busyReason)} aria-label="在这条路径上继续"
+        onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} />
+      <button type="button" className="waygoal-button action small" onClick={send} disabled={Boolean(busyReason) || !draft.trim()}
+        title={busyReason ?? "发送并把继续位置切到这条路径"}>发送</button>
+    </div>}
   </div>;
 }

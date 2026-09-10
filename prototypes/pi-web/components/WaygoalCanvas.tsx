@@ -98,6 +98,9 @@ export function WaygoalCanvas() {
   const [panelKey, setPanelKey] = useState(0);
   const [trust, setTrust] = useState<{ requiresTrust: boolean; trusted: boolean } | null>(null);
   const [tree, setTree] = useState<WaygoalSessionTreeResponse | null>(null);
+  // Text typed while reading a path: sending it is what moves the session onto
+  // that path, so ChatWindow sends it once it has reopened there.
+  const [pending, setPending] = useState<string | undefined>(undefined);
   const [viewing, setViewing] = useState<Viewing | null>(null);
   const [forkingEntryId, setForkingEntryId] = useState<string | null>(null);
   const restoredFor = useRef<string | null>(null);
@@ -294,8 +297,8 @@ export function WaygoalCanvas() {
   }, [patch]);
 
   /** Open a read-only reading position. Display only — no navigation.
-   *  `leafId` is where 「从这里继续」 would move the active path, null when this
-   *  position is not something to continue from. */
+   *  `leafId` is where a message sent from here would land, null when this
+   *  position is not one to send from. */
   const viewPath = useCallback((sessionId: string, entryId: string | null, label: string, leafId: string | null) => {
     setNotice("");
     if (sessionId !== selectedId) {
@@ -364,7 +367,7 @@ export function WaygoalCanvas() {
   }, [landOnFork]);
 
   /** The one action that moves the agent: continue from an explicit position. */
-  const continueAt = useCallback(async (sessionId: string, entryId: string) => {
+  const continueAt = useCallback(async (sessionId: string, entryId: string): Promise<boolean> => {
     try {
       const res = await fetch(`/api/agent/${encodeURIComponent(sessionId)}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -373,18 +376,28 @@ export function WaygoalCanvas() {
       const body = await res.json() as { error?: string; data?: { cancelled?: boolean } };
       if (!res.ok) throw new Error(body.error);
       // Pi can refuse the move (an extension cancelled it, a summary aborted).
-      if (body.data?.cancelled) { setNotice("继续位置没有切换，Pi 取消了这次导航。"); return; }
+      if (body.data?.cancelled) { setNotice("没有接到这条路径上，Pi 取消了这次切换。"); return false; }
       setViewing(null);
       setSelectedId(sessionId);
       setPanelKey(k => k + 1);
-      setNotice("继续位置已切到这条路径，下一次发送进入这里。其他路径仍然保留。");
+      setNotice("已经接到这条路径上，其他路径仍然保留。");
       await patch({ lastViewed: sessionId, lastViewedEntry: null });
       await loadTree(sessionId);
       await refresh(true);
+      return true;
     } catch (e) {
-      setError(`没有切换继续位置：${e instanceof Error ? e.message : String(e)}`);
+      setError(`没有接到这条路径上：${e instanceof Error ? e.message : String(e)}`);
+      return false;
     }
   }, [loadTree, patch, refresh]);
+
+  /** Sending from a path being read is the explicit choice: move the session
+   *  onto it, then let ChatWindow send the message there. Nothing is sent if
+   *  the move fails, so a message cannot land on the path the user left. */
+  const continueAndSend = useCallback(async (sessionId: string, leafId: string, text: string) => {
+    if (!(await continueAt(sessionId, leafId))) return;
+    setPending(text);
+  }, [continueAt]);
 
   const zoomBy = useCallback((factor: number, center?: WaygoalPoint) => {
     viewDirty.current = true;
@@ -535,7 +548,7 @@ export function WaygoalCanvas() {
               style={{ left: selectedNode.position.x, top: selectedNode.position.y + chipTop + index * CHIP_HEIGHT, width: NODE_W }}
               onPointerDown={e => e.stopPropagation()}
               onClick={e => { e.stopPropagation(); viewPath(selectedNode.id, choice.entryId, `会话内路径 ${order + 1}`, choice.leafId); }}
-              title="只看这段：显示这条路径的历史，不改变继续位置">
+              title="打开这段：显示这条路径的历史，发送时才接到它后面">
               <span className="waygoal-chip-label">路径 {order + 1}</span>
               <span className="waygoal-chip-preview">{choice.preview}</span>
               {viewing?.entryId === choice.entryId && <span className="waygoal-tag reading">正在查看</span>}
@@ -547,7 +560,7 @@ export function WaygoalCanvas() {
             </div>}
           </div>
         </div>
-        <div className="waygoal-statusline"><span>拖动卡片摆放 · 拖动空白处平移 · 滚轮缩放 · 只看这段不改变继续位置</span><span className="waygoal-id">{snapshot?.workspaceId}</span></div>
+        <div className="waygoal-statusline"><span>拖动卡片摆放 · 拖动空白处平移 · 滚轮缩放 · 打开路径只是回看，发送时才切过去</span><span className="waygoal-id">{snapshot?.workspaceId}</span></div>
       </section>
       {panelOpen && snapshot && <aside className="waygoal-panel" aria-label="讨论面板">
         <div className="waygoal-panel-head">
@@ -573,15 +586,18 @@ export function WaygoalCanvas() {
             viewPath(panelOrigin.sessionId, panelOrigin.entryId, panelOrigin.entryId ? "来源讨论的这条消息" : "来源讨论", null);
           }}
           onView={choice => panelSession && viewPath(panelSession.id, choice.entryId, "这条路径", choice.leafId)}
-          onContinue={leafId => panelSession && void continueAt(panelSession.id, leafId)}
         />}
         <div className="waygoal-panel-body">
           {viewing
-            ? <WaygoalPathView key={`${viewing.sessionId}:${viewing.entryId}`} sessionId={viewing.sessionId} leafId={viewing.entryId} cwd={snapshot.cwd}
+            ? <WaygoalPathView key={`${viewing.sessionId}:${viewing.entryId}`} sessionId={viewing.sessionId}
+                // Read the whole path, down to its deepest entry: what is on
+                // display has to be what a message sent from here follows.
+                leafId={viewing.leafId ?? viewing.entryId} cwd={snapshot.cwd}
                 label={viewing.label} busyReason={busyReason} forkingEntryId={forkingEntryId}
-                onContinue={viewing.leafId ? () => void continueAt(viewing.sessionId, viewing.leafId!) : null}
+                onSend={viewing.leafId ? text => void continueAndSend(viewing.sessionId, viewing.leafId!, text) : null}
                 onFork={entryId => void forkFrom(viewing.sessionId, entryId)} />
             : <ChatWindow key={panelKey} session={panelSession} sessionRunning={selectedNode?.running ?? false}
+                initialPrompt={pending} onInitialPromptConsumed={() => setPending(undefined)}
                 newSessionCwd={panelSession ? null : snapshot.cwd} newSessionDraftKey={panelSession ? null : draftKey}
                 onSessionCreated={onSessionCreated}
                 onSessionForked={(newSessionId, originEntryId) => {

@@ -247,7 +247,7 @@ app/api/waygoal/route.ts         GET ?cwd=&force=1 snapshot | PATCH { cwd, posit
 app/api/waygoal/session/[id]/route.ts  GET ?entry= — one session's real branch points and active leaf; read-only, never navigates (ticket #3)
 app/api/beacon/route.ts          ticket prototype: tracker snapshot and ticket → session binding
 components/WaygoalCanvas.tsx     pan/zoom canvas, draggable session nodes, right panel hosting ChatWindow
-components/WaygoalPaths.tsx      panel header: fork origin, branch points, 只看这段 / 从这里继续 (ticket #3)
+components/WaygoalPaths.tsx      panel header: fork origin, branch points, 打开这段 (ticket #3)
 components/WaygoalPathView.tsx   read-only history of one path; reuses GET /api/sessions/[id]/context (ticket #3)
 components/BeaconCanvas.tsx      ticket prototype canvas
 lib/waygoal-store.ts             canvas records in <agentDir>/waygoal/workspaces/<id>/canvas.json; snapshot builder

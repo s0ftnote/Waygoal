@@ -12,7 +12,6 @@ interface Props {
   loading: boolean;
   onViewOrigin: () => void;
   onView: (choice: WaygoalBranchChoice) => void;
-  onContinue: (entryId: string) => void;
 }
 
 function OriginRow({ origin, onViewOrigin }: { origin: WaygoalNodeOrigin; onViewOrigin: () => void }) {
@@ -32,10 +31,10 @@ function OriginRow({ origin, onViewOrigin }: { origin: WaygoalNodeOrigin; onView
   </p>;
 }
 
-/** Where this discussion came from and which paths it splits into. Every row
- *  separates the two actions the design asks for: 只看这段 changes only what is
- *  displayed, 从这里继续 changes the path the next message goes into. */
-export function WaygoalPaths({ origin, branchPoints, viewingEntryId, busyReason, loading, onViewOrigin, onView, onContinue }: Props) {
+/** Where this discussion came from and which paths it splits into. Opening a
+ *  path only displays it; sending from it is what makes it the path the next
+ *  message goes into, so there is no separate switch action here. */
+export function WaygoalPaths({ origin, branchPoints, viewingEntryId, busyReason, loading, onViewOrigin, onView }: Props) {
   if (!origin && branchPoints.length === 0) {
     return loading ? null : <div className="waygoal-paths"><p className="waygoal-path-note">这段讨论还没有分叉。把鼠标停在自己发过的消息上，点「从这里分叉」，就会分出一条保留来源、可以独立继续的路径。</p></div>;
   }
@@ -50,12 +49,8 @@ export function WaygoalPaths({ origin, branchPoints, viewingEntryId, busyReason,
           <span className="waygoal-path-steps">{choice.steps > 0 ? `+${choice.steps} 条` : "路径末端"}</span>
           {choice.active && <span className="waygoal-tag continuing">继续位置</span>}
           {viewingEntryId === choice.entryId && <span className="waygoal-tag reading">正在查看</span>}
-          <button type="button" className="waygoal-button outlined small" onClick={() => onView(choice)}>只看这段</button>
-          <button type="button" className="waygoal-button outlined small" onClick={() => onContinue(choice.leafId)}
-            disabled={Boolean(busyReason) || choice.active}
-            title={busyReason ?? (choice.active ? "已经是当前的继续位置" : "下一次发送进入这条路径")}>
-            {choice.active ? "已在这里继续" : "从这里继续"}
-          </button>
+          <button type="button" className="waygoal-button outlined small" onClick={() => onView(choice)}
+            title="打开这条路径的历史；发送时才接到它后面">打开这段</button>
         </li>)}
       </ul>
     </section>)}

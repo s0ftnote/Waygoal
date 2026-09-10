@@ -1,5 +1,5 @@
 {
-  "ranAt": "2026-09-10T14:28:32.674Z",
+  "ranAt": "2026-09-10T16:31:03.568Z",
   "checks": [
     {
       "name": "a plain session starts with no branches",
@@ -14,7 +14,7 @@
     {
       "name": "the shared origin message is the branch point",
       "ok": true,
-      "detail": "1334b132"
+      "detail": "a180ca05"
     },
     {
       "name": "both paths are kept and the newest one is where the session continues",
@@ -52,19 +52,24 @@
       "detail": ""
     },
     {
-      "name": "continuing moves the active path and still adds no message",
+      "name": "sending from a path being read is what moves the active path",
       "ok": true,
-      "detail": ""
+      "detail": "[[\"先说观影\",true],[\"换成桌游\",false]]"
+    },
+    {
+      "name": "the switch adds nothing of its own: one send, one message",
+      "ok": true,
+      "detail": "1"
     },
     {
       "name": "the next message really lands on the chosen path",
       "ok": true,
-      "detail": "{\"ancestors\":[\"563776a7\",\"ed2ded23\",\"070d8a48\",\"7f011124\",\"1334b132\",\"4c70b660\",\"01225729\",\"da6f902b\"],\"chosen\":\"01225729\"}"
+      "detail": "{\"ancestors\":[\"c2ef4b2b\",\"6a81eaa4\",\"676864a0\",\"cfa154ce\",\"a180ca05\",\"a0a168ac\",\"d0726953\",\"bfbdf84b\"],\"chosen\":\"d0726953\"}"
     },
     {
       "name": "it did not land on the other path",
       "ok": true,
-      "detail": "{\"ancestors\":[\"563776a7\",\"ed2ded23\",\"070d8a48\",\"7f011124\",\"1334b132\",\"4c70b660\",\"01225729\",\"da6f902b\"],\"other\":\"b84babbb\"}"
+      "detail": "{\"ancestors\":[\"c2ef4b2b\",\"6a81eaa4\",\"676864a0\",\"cfa154ce\",\"a180ca05\",\"a0a168ac\",\"d0726953\",\"bfbdf84b\"],\"other\":\"228f69c7\"}"
     },
     {
       "name": "the abandoned path is still stored",
@@ -77,7 +82,12 @@
       "detail": "[{\"role\":\"system\",\"content\":\"You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.\\n\\nAvailable tools:\\n- read: Read file contents\\n- bash: Execute bash commands (ls, grep, find, etc.)\\n- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in "
     },
     {
-      "name": "continuing from the read-only banner lands on the path's leaf, not the message before it",
+      "name": "a send from the other path follows its leaf, not the message on display",
+      "ok": true,
+      "detail": "{\"ancestors\":[\"c2ef4b2b\",\"6a81eaa4\",\"676864a0\",\"cfa154ce\",\"a180ca05\",\"9ae8f69c\",\"228f69c7\",\"081dc047\"],\"leaf\":\"228f69c7\"}"
+    },
+    {
+      "name": "the message kept the text that was typed",
       "ok": true,
       "detail": ""
     },
@@ -89,7 +99,7 @@
     {
       "name": "the fork records the session AND the message it came from",
       "ok": true,
-      "detail": "{\"sessionId\":\"01a08bb7-b737-70e3-a08f-84f6139fc82d\",\"entryId\":\"4c70b660\",\"inWorkspace\":true,\"title\":\"周末聚会做什么\"}"
+      "detail": "{\"sessionId\":\"01a08c28-1f7f-7443-977c-be240d621f15\",\"entryId\":\"a0a168ac\",\"inWorkspace\":true,\"title\":\"周末聚会做什么\"}"
     },
     {
       "name": "the original path is untouched by the fork",
