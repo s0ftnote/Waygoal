@@ -308,3 +308,104 @@ test("a ticket the source already resolved reads as resolved, whatever it waited
     assert.equal(opening.blocked, true, "and the relation it still names is reported as it reads");
   } finally { w.done(); }
 });
+
+// 来源自己写明的去处：能打开的打开，取不到的照实说，谁也不靠猜。
+const refs = (merged, path) => merged.maps.flatMap(m => [m, ...m.tickets]).find(x => (x.path ?? x.id) === path).references;
+
+test("地图里写明的链接：指到本图票据的认成票据，指到目录里文件的认成产物", () => {
+  const w = workspace({ screening: {
+    "map.md": `# 放映会
+
+## Decisions so far
+
+- [开场怎么说](issues/02-film.md) — 简短交代片名。
+- 客厅平面见 [平面图](../../notes/客厅.md)。
+`,
+    "01-feeling.md": TICKET("感受"), "02-film.md": TICKET("开场"),
+  } });
+  try {
+    mkdirSync(join(w.cwd, "notes"), { recursive: true });
+    writeFileSync(join(w.cwd, "notes/客厅.md"), "# 客厅\n");
+    assert.deepEqual(refs(view(w), ".scratch/screening/map.md").map(r => [r.kind, r.path, r.label]), [
+      ["ticket", ".scratch/screening/issues/02-film.md", "开场怎么说"],
+      ["file", "notes/客厅.md", "平面图"],
+    ]);
+  } finally { w.done(); }
+});
+
+test("来源写了但取不到的产物照实标出来，不换一个相像的顶上", () => {
+  const w = workspace({ screening: {
+    "map.md": `# 放映会
+
+## Decisions so far
+
+- 方案写在 [活动方案](plan.md) 里。
+`,
+    "01-feeling.md": TICKET("感受"),
+  } });
+  try {
+    writeFileSync(join(w.cwd, ".scratch/screening/plans.md"), "# 差一个字的另一个文件\n");
+    assert.deepEqual(refs(view(w), ".scratch/screening/map.md").map(r => [r.kind, r.path, r.target]),
+      [["missing", null, "plan.md"]]);
+  } finally { w.done(); }
+});
+
+test("票据结论里写明的去处跟着这张票据走，外部地址照原样留着", () => {
+  const w = workspace({ screening: {
+    "map.md": MAP,
+    "01-feeling.md": `# 感受
+
+Type: grilling
+Status: resolved
+
+## Question
+
+想让朋友带走什么感受。
+
+## Answer
+
+轻松聊几句。依据见 [那次讨论的记录](notes/记录.md) 和 [片子介绍](https://example.com/film)。
+`,
+  } });
+  try {
+    mkdirSync(join(w.cwd, ".scratch/screening/issues/notes"), { recursive: true });
+    writeFileSync(join(w.cwd, ".scratch/screening/issues/notes/记录.md"), "# 记录\n");
+    assert.deepEqual(refs(view(w), ".scratch/screening/issues/01-feeling.md").map(r => [r.kind, r.path]), [
+      ["file", ".scratch/screening/issues/notes/记录.md"],
+      ["external", null],
+    ]);
+  } finally { w.done(); }
+});
+
+test("指到工作目录之外的去处不打开，也照实说取不到", () => {
+  const w = workspace({ screening: {
+    "map.md": "# 放映会\n\n## Decisions so far\n\n- 见 [别处](../../../etc/passwd)。\n",
+    "01-feeling.md": TICKET("感受"),
+  } });
+  try {
+    assert.deepEqual(refs(view(w), ".scratch/screening/map.md").map(r => [r.kind, r.path]), [["missing", null]]);
+  } finally { w.done(); }
+});
+
+test("指到另一张地图的票据，认的还是票据——地图之间本来就会互相指", () => {
+  const w = workspace({
+    screening: { "map.md": "# 放映会\n\n## Decisions so far\n\n- 吃的另说，见 [吃什么](../food/issues/01-menu.md)。\n", "01-feeling.md": TICKET("感受") },
+    food: { "map.md": "# 吃什么\n\n## Destination\n\n定下菜单。\n", "01-menu.md": TICKET("菜单") },
+  });
+  try {
+    assert.deepEqual(refs(view(w), ".scratch/screening/map.md").map(r => [r.kind, r.path]),
+      [["ticket", ".scratch/food/issues/01-menu.md"]]);
+  } finally { w.done(); }
+});
+
+test("第一个 `##` 之前的开场白单独交出来，不塞进任何一个小节", () => {
+  const w = workspace({ screening: {
+    "map.md": "# 放映会\n\n只办一场，在客厅。\n\n## Destination\n\n定下方案。\n",
+    "01-feeling.md": TICKET("感受"),
+  } });
+  try {
+    const map = view(w).maps[0];
+    assert.equal(map.lead, "# 放映会\n\n只办一场，在客厅。");
+    assert.deepEqual(map.sections.map(s => s.heading), ["Destination"]);
+  } finally { w.done(); }
+});

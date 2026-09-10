@@ -98,8 +98,9 @@ npm run dev
 - 工作目录与多画布：一个工作目录打开就有一张画布。「新建画布」和「换一个目录」是分开的两个按钮，都不建票、不调用 skill、不发消息；新画布上没有会话，已有会话留在原来那张上，一段会话只属于一张画布，在哪张画布上开始就归哪张；本地票据是工作目录的文件，每张画布都看得到，各摆各的位置。工作目录的身份是路径不是文件夹名，同名的两个目录各记各的。切换目录不把新目录套到已有 Pi 会话上。刷新回到刚才那张画布，重启后不带参数打开回到上次的目录和画布；上次的目录被移走或路径打错都照实说出这个路径，不换一个目录顶上。
 - 手动分组与手动关联：按住 ⌘/Ctrl 点卡片是挑不是打开，挑好起个名字就建成一个分组——不建会话，不合并上下文，成员还是各自的会话。收起是一张写着组名的卡片，展开还是原来那几张卡片和原来的位置；收起时成员仍按自己的标题被查找到，跳过去落在那张分组卡片上，连到成员的手动关联也画到那张卡片上，照样看得见说明、删得掉。一张卡片同时只属于一个分组，解散分组只去掉分组。挑两张卡片可以连一条带说明的手动关联，同两张之间只留一条，再连一次是改说明。手动关联画成实线两端各一个点，和分叉的虚线、票据依赖各是各的；连或删只改画布记录，不动 Pi 历史、活动叶子和票据文件。改会话标题不影响分组成员和关联说明；组名、成员、布局和说明都存进画布记录，宿主重启后仍在。
 - 票据下的讨论：从票据开始聊只是打开一个草稿，草稿按「票据 + 工作目录」记住，关掉面板再点还是同一份，发送才真正建立会话并挂到这张票据下。一张票据可以带多段讨论；从某段讨论分叉出去的那段沿用同一张票据，不复制票据也不新增依赖。票据下记着上次在聊哪一段，也记着这张票据的讨论是摊开还是收起，都存进同一份画布记录，宿主重启后仍在。收起只是不在画布上摊开，票据里照样能接着聊；被挡住的票据和已解决的票据都还能讨论，聊天本身不改票据状态。关联指向的会话不在了就照实说「打不开」，不按标题换一段顶上。票据卡片下的操作提示是写死的一句话，可关可再开，不读聊天内容也不调用模型。
+- 地图结论与产物：地图按它自己的 `##` 小节、自己的顺序和原话显示，不另外生成一份结论摘要；只有来源自己写成 Markdown 链接的去处才会出现在「来源指向」里，指到票据的能打开票，指到工作目录里文件的用现成的只读查看器读，指不到的写「打不开」，站外地址原样列出不替你打开，都不按措辞或相近标题猜。从票据结论进它下面真开的那段讨论、再回到来源，都不发消息也不动活动叶子。一张地图完整的票集合非空且全部关闭时，旁边出现一条可关闭的检查提示，问剩下的问题和通往目的地的路，不宣布地图完成；取消的票算进时机但会照实说出有几张。地图或票据显示的是上次读到的内容、有文件读不到、有同号多份、或者是空地图，都不触发。提示不抢焦点，「查看地图」只读，关掉后刷新和宿主重启都不再弹，可从地图面板重新打开。
 
-尚未处理：把已有会话搬到另一张画布、画布改名与删除、分组改名与嵌套、跨画布的分组、成员或关联端点不在时的说明、分支标题、跨画布与跨工作目录查找、按会话正文搜索、远程来源、多进程同时写同一画布记录。
+尚未处理：把已有会话搬到另一张画布、画布改名与删除、分组改名与嵌套、跨画布的分组、成员或关联端点不在时的说明、分支标题、跨画布与跨工作目录查找、按会话正文搜索、远程来源、多进程同时写同一画布记录、窄屏下检查提示的摆放。
 
 ## 验证
 
@@ -113,6 +114,7 @@ npm run test:waygoal-tickets
 npm run test:waygoal-ticket-talks
 npm run test:waygoal-workspaces
 npm run test:waygoal-groups
+npm run test:waygoal-map
 node e2e/beacon.mjs
 ```
 
@@ -122,6 +124,8 @@ node e2e/beacon.mjs
 
 `test:waygoal-ticket-talks` 在同样隔离的宿主里配一个假模型，把真实的地图与票据文件写进临时工作目录，从界面检查：空票据开始聊只开草稿不建会话、重复点击回到同一份草稿、发送后讨论挂在票据下、真实分叉仍属这张票据、一票多段讨论、收起后从票据里接着聊、被挡住和已解决的票据照样能讨论、宿主重启后关联与位置都在、会话文件被删后照实说「打不开」，截图写入 `docs/research/prototype-evidence/ticket-talks/`。
 
+`test:waygoal-map` 在隔离宿主里配一个假模型，工作目录里放一份自己写着票据、产物、缺失去处和站外地址链接的真实地图，从界面检查：地图按自己的小节原样显示、四种去处各自落地、跟着链接进票据与产物再返回、从票据结论进讨论再回来、票全部关闭时的检查提示文案与不抢焦点、取消票的说法、关掉后刷新与宿主重启都不再弹与主动重开、读不到与同号多份时安静、空地图不触发，检查记录写入 `docs/research/prototype-evidence/map/`。
+
 `e2e/beacon.mjs` 是票据原型的浏览器检查，需本机 Google Chrome、运行中的 30142 和已完成真实模型试跑的默认 playground。它恢复已有会话，不向模型追加消息。
 
-会话画布的试跑记录见 [session-canvas-results.md](docs/research/session-canvas-results.md)，分叉与回看的试跑记录见 [branch-navigation-results.md](docs/research/branch-navigation-results.md)，本地票据见 [local-tickets-results.md](docs/research/local-tickets-results.md)，票据下的讨论见 [ticket-talks-results.md](docs/research/ticket-talks-results.md)，依赖变动见 [dependency-changes-results.md](docs/research/dependency-changes-results.md)，起名字与找回讨论见 [find-and-rename-results.md](docs/research/find-and-rename-results.md)，切换工作目录与多画布见 [workspaces-and-canvases-results.md](docs/research/workspaces-and-canvases-results.md)，手动分组与关联见 [groups-and-links-results.md](docs/research/groups-and-links-results.md)，票据原型见 [prototype-results.md](docs/research/prototype-results.md)。上游是 [agegr/pi-web](https://github.com/agegr/pi-web)，基于提交 `a26cc68df9227cb74253bddd7c59624aa475e61f`，Pi SDK 版本 `0.85.1`。
+会话画布的试跑记录见 [session-canvas-results.md](docs/research/session-canvas-results.md)，分叉与回看的试跑记录见 [branch-navigation-results.md](docs/research/branch-navigation-results.md)，本地票据见 [local-tickets-results.md](docs/research/local-tickets-results.md)，票据下的讨论见 [ticket-talks-results.md](docs/research/ticket-talks-results.md)，依赖变动见 [dependency-changes-results.md](docs/research/dependency-changes-results.md)，起名字与找回讨论见 [find-and-rename-results.md](docs/research/find-and-rename-results.md)，切换工作目录与多画布见 [workspaces-and-canvases-results.md](docs/research/workspaces-and-canvases-results.md)，手动分组与关联见 [groups-and-links-results.md](docs/research/groups-and-links-results.md)，地图结论与产物见 [map-conclusions-results.md](docs/research/map-conclusions-results.md)，票据原型见 [prototype-results.md](docs/research/prototype-results.md)。上游是 [agegr/pi-web](https://github.com/agegr/pi-web)，基于提交 `a26cc68df9227cb74253bddd7c59624aa475e61f`，Pi SDK 版本 `0.85.1`。

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { needsCheck, type WaygoalTicketBlocker, type WaygoalTicketCard, type WaygoalTicketMapCard, type WaygoalTicketState } from "@/lib/waygoal-types";
+import { canOpen, needsCheck, type WaygoalReference, type WaygoalTicketBlocker, type WaygoalTicketCard, type WaygoalTicketMapCard, type WaygoalTicketState } from "@/lib/waygoal-types";
 
 interface Props {
   map: WaygoalTicketMapCard;
@@ -12,6 +12,10 @@ interface Props {
    *  user sends: this only opens a chat with the ticket remembered. */
   onStart: (ticket: WaygoalTicketCard) => void;
   onOpenDiscussion: (sessionId: string) => void;
+  /** Go where the source says to go. Only a place it can reach is passed in. */
+  onOpenReference: (reference: WaygoalReference) => void;
+  /** Show this map's check note again after it was put away. */
+  onReopenCheck: () => void;
 }
 
 /** Where a ticket stands, coloured the same way everywhere it is shown. */
@@ -58,6 +62,51 @@ function Blockers({ ticket }: { ticket: WaygoalTicketCard }) {
     {unsettled > 0 && <p className="waygoal-ticket-check" role="status">
       有 {unsettled} 条依赖要在来源里核对；核对之前，这张票还在等。
     </p>}
+  </div>;
+}
+
+/** What each kind of place the source names can be done with, said in the
+ *  words the situation deserves: a place Waygoal cannot reach is named as
+ *  unreachable rather than swapped for something with a similar name. */
+const REFERENCE_NOTE = {
+  ticket: "这张地图里的票据",
+  file: "这个工作目录里的文件",
+  missing: "按来源写的地址找不到，没有替你换成相近的东西",
+  external: "站外地址，原样列出，没有替你打开",
+} as const;
+
+/** Everywhere this file explicitly points at, as it wrote it. Nothing here is
+ *  guessed from wording or from a similar title: a place is listed only
+ *  because the source wrote it as a link. */
+function References({ references, onOpen }: { references: WaygoalReference[]; onOpen: Props["onOpenReference"] }) {
+  if (references.length === 0) return null;
+  return <div className="waygoal-ticket-refs">
+    <p className="waygoal-ticket-label">来源指向</p>
+    <ul>
+      {references.map(reference => <li key={reference.target} data-reference={reference.target} data-reference-kind={reference.kind}>
+        {canOpen(reference)
+          ? <button type="button" className="waygoal-button outlined small" data-reference-open={reference.target}
+              onClick={() => onOpen(reference)}>打开</button>
+          : <span className={`waygoal-tag ${reference.kind === "missing" ? "unknown" : ""}`}>{reference.kind === "missing" ? "打不开" : "站外"}</span>}
+        <span className="waygoal-ref-label">{reference.label}</span>
+        <code>{reference.target}</code>
+        <span className="waygoal-ref-note">{REFERENCE_NOTE[reference.kind]}</span>
+      </li>)}
+    </ul>
+  </div>;
+}
+
+/** The map's own text, in its own order and its own headings. The file is
+ *  shown, not retold: no summary of what it decided is produced here. */
+function MapBody({ map }: { map: WaygoalTicketMapCard }) {
+  if (map.sections.length === 0) return <pre className="waygoal-ticket-body">{map.body}</pre>;
+  return <div className="waygoal-map-sections">
+    {map.lead && <pre className="waygoal-ticket-body">{map.lead}</pre>}
+    {/* A file may write the same heading twice; each block stays its own. */}
+    {map.sections.map((section, index) => <section key={`${index}-${section.heading}`} data-section={section.heading}>
+      <h3>{section.heading}</h3>
+      <pre className="waygoal-ticket-body">{section.body}</pre>
+    </section>)}
   </div>;
 }
 
@@ -113,10 +162,9 @@ function Discussions({ ticket, onStart, onOpenDiscussion }: { ticket: WaygoalTic
 /** The full view of one local ticket or map: what the source file says, where
  *  it came from and when it was read. It shows the file's own text rather than
  *  a retelling, and opening it starts no Pi session. */
-export function WaygoalTicketPanel({ map, ticket, readAt, onStart, onOpenDiscussion }: Props) {
+export function WaygoalTicketPanel({ map, ticket, readAt, onStart, onOpenDiscussion, onOpenReference, onReopenCheck }: Props) {
   const stale = ticket ? ticket.stale : map.stale;
   const path = ticket ? ticket.path : map.path;
-  const body = ticket ? ticket.body : map.body;
   return <div className="waygoal-ticket-panel">
     <div className="waygoal-ticket-head">
       {/* The panel header already names it; this is what the file says about it. */}
@@ -134,11 +182,18 @@ export function WaygoalTicketPanel({ map, ticket, readAt, onStart, onOpenDiscuss
         这张地图下有读不出来的文件：{map.unreadable.map(u => u.path).join("、")}。
       </p>}
       {!ticket && map.warnings.map(warning => <p key={warning} role="status" className="waygoal-ticket-stale">{warning}</p>)}
+      {/* Put away on the canvas, it can be asked for again here — nothing is
+          re-sent and nothing about the map changes by asking. */}
+      {!ticket && map.check?.dismissed && <p className="waygoal-ticket-check">
+        <button type="button" className="waygoal-button outlined small" data-map-check-reopen={map.path}
+          onClick={onReopenCheck}>重新显示检查提示</button>
+      </p>}
     </div>
     {/* Blocked or resolved, a ticket can still be talked about: talking is how
         a question gets answered, and it changes no status by itself. */}
     {ticket && <Discussions ticket={ticket} onStart={onStart} onOpenDiscussion={onOpenDiscussion} />}
+    <References references={ticket ? ticket.references : map.references} onOpen={onOpenReference} />
     {/* The file itself, unchanged: structure, answers and scope as written. */}
-    <pre className="waygoal-ticket-body">{body}</pre>
+    {ticket ? <pre className="waygoal-ticket-body">{ticket.body}</pre> : <MapBody map={map} />}
   </div>;
 }

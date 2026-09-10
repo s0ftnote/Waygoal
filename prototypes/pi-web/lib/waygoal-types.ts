@@ -21,6 +21,10 @@ export interface WaygoalCanvasRecord {
   ticketExpanded: Record<string, boolean>;
   /** Per ticket, the discussion last talked in and the path it was left on. */
   ticketLast: Record<string, WaygoalTicketPlace>;
+  /** Maps whose "everything is closed, go check the destination" note the
+   *  user has put away, keyed by map path. It stays away across reads and
+   *  across a restart, and the user can ask for it back. */
+  mapCheckDismissed: Record<string, boolean>;
   /** Whether each ticket was last seen waiting on a premise. It is kept so a
    *  ticket that has just stopped waiting can be pointed at once, and so a
    *  restarted host does not point at the same change again. */
@@ -143,6 +147,8 @@ export interface WaygoalCanvasPatch {
   addGroup?: { name: string; members: string[] };
   /** Show this group as one card, or spread its members out again. */
   groupCollapsed?: { group: string; collapsed: boolean };
+  /** Put that map's check note away, or ask for it back. */
+  mapCheck?: { map: string; dismissed: boolean };
   /** Take the grouping away. The members themselves are untouched. */
   removeGroup?: string;
   /** Draw a relation between two cards by hand. Between the same two cards
@@ -210,6 +216,11 @@ export interface WaygoalTicketBlocker {
 export const needsCheck = (blocker: WaygoalTicketBlocker): boolean =>
   blocker.holding !== null && blocker.holding !== "waiting";
 
+/** Whether Waygoal can actually take the user to the place a source names.
+ *  Only these two become a way in; the rest are said and left as said. */
+export const canOpen = (reference: WaygoalReference): boolean =>
+  reference.kind === "ticket" || reference.kind === "file";
+
 /** Where a ticket stands, settled over everything the canvas is showing.
  *  `waiting` is held by a premise, `unblocked` has every premise it named met,
  *  and the other two are the source's own conclusion about the ticket itself. */
@@ -232,6 +243,9 @@ export interface WaygoalUnreadable {
 }
 
 export interface WaygoalTicketScan {
+  /** The working directory this was read from; the references are settled
+   *  against it, so it travels with the scan. */
+  cwd: string;
   maps: WaygoalTicketMap[];
   /** Directories under `.scratch/` that are not the supported layout. */
   unsupported: WaygoalUnreadable[];
@@ -263,11 +277,43 @@ export interface WaygoalTicketView extends WaygoalTicketNode {
   blockers: WaygoalTicketBlocker[];
   blocked: boolean;
   state: WaygoalTicketState;
+  /** Where this ticket says to go, settled against this working directory. */
+  references: WaygoalReference[];
+}
+
+/** One `##` section of a source file, as that file wrote it. */
+export interface WaygoalMapSection {
+  heading: string;
+  body: string;
+}
+
+/** A place a source file explicitly points at, as it wrote it. */
+export interface WaygoalSourceLink {
+  label: string;
+  target: string;
+  /** A URL. It is shown as written and never fetched. */
+  external: boolean;
+}
+
+/** One of those places, settled against this working directory. `ticket` and
+ *  `file` can be opened; `missing` is a place the source names that cannot be
+ *  reached — said so rather than swapped for something that looks like it. */
+export interface WaygoalReference extends WaygoalSourceLink {
+  kind: "ticket" | "file" | "missing" | "external";
+  /** Workspace-relative, for `ticket` and `file`; null otherwise. */
+  path: string | null;
 }
 
 export interface WaygoalTicketMapView extends Omit<WaygoalTicketMap, "tickets"> {
   tickets: WaygoalTicketView[];
   stale: WaygoalStale | null;
+  /** What the file says before its first `##`, kept out of the sections
+   *  rather than filed under a heading the source never wrote. */
+  lead: string;
+  /** The map's own `##` sections, as the file wrote them. */
+  sections: WaygoalMapSection[];
+  /** Where this file says to go, settled against this working directory. */
+  references: WaygoalReference[];
 }
 
 /** One discussion held under a ticket: a real Pi session, named as the canvas
@@ -296,6 +342,18 @@ export interface WaygoalTicketCard extends WaygoalTicketView {
 export interface WaygoalTicketMapCard extends Omit<WaygoalTicketMapView, "tickets"> {
   tickets: WaygoalTicketCard[];
   position: WaygoalPoint;
+  /** Set when this map's whole ticket set was read complete and is now closed.
+   *  Null the rest of the time, including when the read was not complete. */
+  check: WaygoalMapCheck | null;
+}
+
+/** The moment a map's tickets are all closed: a prompt to check the map
+ *  against its own Destination, not a claim that the map is finished.
+ *  Cancelled tickets count towards the timing and towards nothing else, so
+ *  how many there are is said rather than folded in. */
+export interface WaygoalMapCheck {
+  cancelled: number;
+  dismissed: boolean;
 }
 
 /** What `GET /api/waygoal` answers: the sessions of one workspace and the

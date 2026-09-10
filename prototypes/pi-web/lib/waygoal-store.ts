@@ -8,7 +8,7 @@ import { normalizeWorkspaceInput, workspaceDir, workspaceId } from "./waygoal-pa
 import { claimSessionsOn, registerSession, rememberedWorkspace } from "./waygoal-workspaces";
 import type { SessionInfo } from "./types";
 import { mergeTicketScan, readLocalTickets } from "./waygoal-tickets";
-import { DEFAULT_CANVAS_ID, NODE_HEIGHT, NODE_WIDTH, TICKET_CARD_HEIGHT, type WaygoalScope, type WaygoalCanvasPatch, type WaygoalCanvasRecord, type WaygoalGroup, type WaygoalGroupView, type WaygoalManualLink, type WaygoalNode, type WaygoalNodeOrigin, type WaygoalOriginRecord, type WaygoalPoint, type WaygoalSavedTickets, type WaygoalSnapshot, type WaygoalTicketDiscussion, type WaygoalTicketSnapshot, type WaygoalTicketView, type WaygoalTitleSource, type WaygoalTreeInfo } from "./waygoal-types";
+import { DEFAULT_CANVAS_ID, NODE_HEIGHT, NODE_WIDTH, TICKET_CARD_HEIGHT, type WaygoalScope, type WaygoalCanvasPatch, type WaygoalCanvasRecord, type WaygoalGroup, type WaygoalGroupView, type WaygoalManualLink, type WaygoalNode, type WaygoalNodeOrigin, type WaygoalOriginRecord, type WaygoalPoint, type WaygoalSavedTickets, needsCheck, type WaygoalMapCheck, type WaygoalSnapshot, type WaygoalTicketDiscussion, type WaygoalTicketMapView, type WaygoalTicketState, type WaygoalTicketSnapshot, type WaygoalTicketView, type WaygoalTitleSource, type WaygoalTreeInfo } from "./waygoal-types";
 export { NODE_HEIGHT, NODE_WIDTH };
 
 /** One file per canvas. The first canvas keeps the name the record had when
@@ -35,7 +35,7 @@ export function resolveWorkspaceCwd(input?: string | null, agentDir = getAgentDi
 }
 
 function emptyRecord(cwd: string): WaygoalCanvasRecord {
-  return { version: 1, cwd, nodes: {}, origins: {}, tickets: emptySavedTickets(), ticketSessions: {}, ticketExpanded: {}, ticketLast: {}, ticketWaiting: {}, groups: [], links: [], updatedAt: new Date(0).toISOString() };
+  return { version: 1, cwd, nodes: {}, origins: {}, tickets: emptySavedTickets(), ticketSessions: {}, ticketExpanded: {}, ticketLast: {}, ticketWaiting: {}, mapCheckDismissed: {}, groups: [], links: [], updatedAt: new Date(0).toISOString() };
 }
 
 const emptySavedTickets = (): WaygoalSavedTickets => ({ maps: {}, tickets: {} });
@@ -115,6 +115,7 @@ export function readCanvasRecord(scope: WaygoalScope): WaygoalCanvasRecord {
       tickets: validSavedTickets(parsed.tickets),
       ticketSessions: Object.fromEntries(Object.entries(parsed.ticketSessions ?? {}).filter(([id, ticket]) => id && isTicketPath(ticket))),
       ticketExpanded: Object.fromEntries(Object.entries(parsed.ticketExpanded ?? {}).filter(([t, open]) => isTicketPath(t) && typeof open === "boolean")),
+      mapCheckDismissed: Object.fromEntries(Object.entries(parsed.mapCheckDismissed ?? {}).filter(([map, dismissed]) => isTicketPath(map) && typeof dismissed === "boolean")),
       ticketWaiting: Object.fromEntries(Object.entries(parsed.ticketWaiting ?? {}).filter(([t, waiting]) => isTicketPath(t) && typeof waiting === "boolean")),
       ticketLast: Object.fromEntries(Object.entries(parsed.ticketLast ?? {}).filter(([t, place]) => isTicketPath(t) && place && typeof place.sessionId === "string" && Boolean(place.sessionId))
         .map(([t, place]) => [t, { sessionId: place.sessionId, entryId: typeof place.entryId === "string" && place.entryId ? place.entryId : null }])),
@@ -220,6 +221,10 @@ export function applyCanvasPatch(scope: WaygoalScope, patch: WaygoalCanvasPatch)
   }
   if (isNonEmptyString(patch.removeLink)) {
     record.links = record.links.filter(l => l.id !== patch.removeLink);
+    changed = true;
+  }
+  if (patch.mapCheck && isTicketPath(patch.mapCheck.map) && typeof patch.mapCheck.dismissed === "boolean") {
+    record.mapCheckDismissed[patch.mapCheck.map] = patch.mapCheck.dismissed;
     changed = true;
   }
   if (patch.ticketExpanded && isTicketPath(patch.ticketExpanded.ticket) && typeof patch.ticketExpanded.expanded === "boolean") {
@@ -380,6 +385,25 @@ export function buildSnapshot(
   };
 }
 
+/** A ticket nobody is going to work on any further, whichever way it ended. */
+const isClosed = (state: WaygoalTicketState) => state === "resolved" || state === "cancelled";
+
+/** Whether this is the moment to check a map against its own Destination.
+ *  It asks about the map's complete set of tickets, not the visible or the
+ *  leaf ones, and it needs that set to have been read whole: a map or ticket
+ *  showing what it last was, a file that could not be read, a number written
+ *  twice, or a premise nobody can settle by reading all mean the set is not
+ *  known, and an unknown set says nothing. An empty map has nothing to have
+ *  finished. Cancelled tickets are closed for the timing only, so how many
+ *  there are is carried out to be said rather than folded in. */
+function mapCheck(map: WaygoalTicketMapView, dismissed: boolean): WaygoalMapCheck | null {
+  const known = map.stale === null && map.unreadable.length === 0 && map.warnings.length === 0
+    && map.tickets.length > 0
+    && map.tickets.every(ticket => ticket.stale === null && !ticket.blockers.some(needsCheck));
+  if (!known || !map.tickets.every(ticket => isClosed(ticket.state))) return null;
+  return { cancelled: map.tickets.filter(ticket => ticket.state === "cancelled").length, dismissed };
+}
+
 /** One workspace's local tickets, ready to draw: what the source files say
  *  right now, plus where each card sits and anything that could not be read
  *  this time. Reading is all it does — no Pi session is opened or touched. */
@@ -425,6 +449,7 @@ export function buildTicketSnapshot(scope: WaygoalScope, nodes: WaygoalNode[] = 
   const maps = merged.maps.map(map => ({
     ...map,
     position: place(map.path, NODE_HEIGHT),
+    check: mapCheck(map, record.mapCheckDismissed[map.path] ?? false),
     tickets: map.tickets.map(ticket => ({
       ...ticket,
       position: place(ticket.id, TICKET_CARD_HEIGHT),

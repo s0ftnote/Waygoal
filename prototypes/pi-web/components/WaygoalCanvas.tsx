@@ -5,8 +5,9 @@ import { rekeyDraft } from "@/lib/draft-store";
 import { cardBounds, cardCenter, thumbnail, viewCenteredOn, worldPoint, type WaygoalCard } from "@/lib/waygoal-locate";
 import type { SessionInfo } from "@/lib/types";
 import type { WaygoalBranchChoice, WaygoalBranchPoint, WaygoalSessionTreeResponse } from "@/lib/waygoal-branches";
-import { CHIP_HEIGHT, NODE_HEIGHT, NODE_WIDTH, needsCheck, ticketCardHeight, ticketChipTop, type WaygoalCanvasPatch, type WaygoalNode, type WaygoalPoint, type WaygoalSnapshotResponse, type WaygoalView } from "@/lib/waygoal-types";
+import { CHIP_HEIGHT, NODE_HEIGHT, NODE_WIDTH, canOpen, needsCheck, ticketCardHeight, ticketChipTop, type WaygoalCanvasPatch, type WaygoalNode, type WaygoalReference, type WaygoalPoint, type WaygoalSnapshotResponse, type WaygoalView } from "@/lib/waygoal-types";
 import { ChatWindow } from "./ChatWindow";
+import { FileViewer } from "./FileViewer";
 import { WaygoalPaths } from "./WaygoalPaths";
 import { WaygoalArrange } from "./WaygoalArrange";
 import { WaygoalFind } from "./WaygoalFind";
@@ -111,6 +112,10 @@ export function WaygoalCanvas() {
   // The local ticket the panel is showing, by source path; a map's own path
   // when the map itself is open. Tickets are files, never Pi sessions.
   const [openTicket, setOpenTicket] = useState<string | null>(null);
+  // A file the open ticket or map points at, read inside the same panel. It is
+  // shown with the viewer the app already has, read-only: nothing is edited
+  // here and no session is touched by looking.
+  const [openFile, setOpenFile] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [view, setView] = useState<WaygoalView>(DEFAULT_VIEW);
@@ -493,6 +498,7 @@ export function WaygoalCanvas() {
     setDraftKey(null); setCreatedSession(null); setViewing(null); setPendingTicket(null);
     setSelectedId(null);
     setOpenTicket(path);
+    setOpenFile(null);
     setNotice("");
   }, []);
 
@@ -554,7 +560,7 @@ export function WaygoalCanvas() {
   }, [patch]);
 
   const closePanel = useCallback(() => {
-    setSelectedId(null); setDraftKey(null); setCreatedSession(null); setViewing(null); setOpenTicket(null); setPendingTicket(null);
+    setSelectedId(null); setDraftKey(null); setCreatedSession(null); setViewing(null); setOpenTicket(null); setOpenFile(null); setPendingTicket(null);
     viewportRef.current?.focus();
   }, []);
 
@@ -719,6 +725,16 @@ export function WaygoalCanvas() {
     setPicked([]);
     await refresh(true);
   }, [patch, picked, refresh]);
+  /** Go where the source itself says to go. A ticket in this map opens its own
+   *  card; a file in this working directory is read in the panel. Nothing is
+   *  looked up by name or by likeness: only what the source wrote as a link
+   *  gets here, and a place that cannot be reached never becomes a button. */
+  const openReference = useCallback((reference: WaygoalReference) => {
+    if (!canOpen(reference) || !reference.path) return;
+    if (reference.kind === "ticket") openLocalTicket(reference.path);
+    else if (snapshot?.cwd) setOpenFile(`${snapshot.cwd}/${reference.path}`);
+  }, [openLocalTicket, snapshot?.cwd]);
+
   /** Everything a group frame or a manual link offers is one patch and a read;
    *  Pi's history, the active leaf and the tracker files are never touched. */
   const arrange = useCallback(async (body: WaygoalCanvasPatch) => {
@@ -944,6 +960,25 @@ export function WaygoalCanvas() {
                   {card.marks && <span className="waygoal-node-marks">{card.marks}</span>}
                   <span className="waygoal-node-foot"><span>{card.foot}</span><span aria-hidden="true">{openTicket === card.id ? "正在看" : "打开 →"}</span></span>
                 </button>)}
+              {/* Every ticket of this map has been read and closed. That is a
+                  moment to check the map against its own destination, not proof
+                  that the map is done: the note asks, opens nothing by itself,
+                  sends nothing and writes nothing to the source. */}
+              {map.check && !map.check.dismissed && !tucked.has(map.path) && <div className="waygoal-map-check" role="note"
+                data-map-check={map.path} style={{ left: map.position.x + NODE_W + 16, top: map.position.y }}
+                onPointerDown={e => e.stopPropagation()}>
+                <p>这张地图的决策票都已关闭。可以检查一下：还有未澄清的问题吗？通往目的地的路是否已经清楚？</p>
+                <p className="waygoal-map-check-note">如果目的地是形成方案，可以主动使用 /to-spec；也可以确认决策，或按原定目的地选择下一步。</p>
+                {map.check.cancelled > 0 && <p className="waygoal-map-check-note">
+                  其中 {map.check.cancelled} 张是取消或移出范围的。全部关闭只是检查的时机，取消不算做成的结论。
+                </p>}
+                <div className="waygoal-map-check-acts">
+                  <button type="button" className="waygoal-button outlined small" data-map-check-view={map.path}
+                    onClick={e => { e.stopPropagation(); openLocalTicket(map.path); }}>查看地图</button>
+                  <button type="button" className="waygoal-button outlined small" data-map-check-dismiss={map.path}
+                    onClick={e => { e.stopPropagation(); void arrange({ mapCheck: { map: map.path, dismissed: true } }); }}>知道了</button>
+                </div>
+              </div>}
               {/* The discussions held under each ticket, right below it: the
                   tickets stay laid out flat, no container wraps them. */}
               {map.tickets.filter(ticket => !tucked.has(ticket.id)).map(ticket => <Fragment key={`talks-${ticket.id}`}>
@@ -1033,9 +1068,16 @@ export function WaygoalCanvas() {
           {viewing && <button type="button" className="waygoal-button outlined small" onClick={stopViewing}>回到在聊的那条</button>}
           {!isMobile && <button type="button" className="waygoal-icon" aria-label="关闭面板" onClick={closePanel}>×</button>}
         </div>
-        {openTicketMap && <WaygoalTicketPanel map={openTicketMap} ticket={openTicketCard} readAt={snapshot.tickets.readAt}
+        {openTicketMap && openFile && <div className="waygoal-file-view">
+          <button type="button" className="waygoal-button outlined small" data-file-back
+            onClick={() => setOpenFile(null)}>← 回到{openTicketCard ? "这张票" : "这张地图"}</button>
+          <FileViewer filePath={openFile} cwd={snapshot.cwd} initialDisplayMode="preview" />
+        </div>}
+        {openTicketMap && !openFile && <WaygoalTicketPanel map={openTicketMap} ticket={openTicketCard} readAt={snapshot.tickets.readAt}
           onStart={ticket => startTicketChat(ticket.id)}
-          onOpenDiscussion={id => { const node = nodes.find(n => n.id === id); if (node) openNode(node); }} />}
+          onOpenDiscussion={id => { const node = nodes.find(n => n.id === id); if (node) openNode(node); }}
+          onOpenReference={openReference}
+          onReopenCheck={() => void arrange({ mapCheck: { map: openTicketMap.path, dismissed: false } })} />}
         {panelSession && <WaygoalPaths
           origin={panelOrigin}
           branchPoints={tree?.sessionId === panelSession.id ? tree.branchPoints : []}

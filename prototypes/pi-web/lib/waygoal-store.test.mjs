@@ -628,3 +628,72 @@ test("解散分组把它占的地方还回去", () => {
     assert.equal(store.readCanvasRecord(s.sa).nodes[id], undefined, "解散之后它不该还占着一块画布");
   } finally { s.done(); }
 });
+
+// 一张地图的决策票全部关闭，是「该检查一下了」的时机，不是「地图完成了」的结论。
+const mapOf = (scope, title = "放映会") => store.buildTicketSnapshot(scope, []).maps.find(m => m.title === title);
+const cancelledBody = (title) => ticketBody(title).replace("Status: open", "Status: cancelled");
+
+test("完整读到、票不为空、且全部关闭，才出现检查提示", () => {
+  const s = sandbox();
+  try {
+    localMap(s.a, "screening", { "01-room.md": resolvedBody("场地"), "02-opening.md": ticketBody("开场") });
+    assert.equal(mapOf(s.sa).check, null, "还有票没关闭，就不是检查的时机");
+
+    writeFileSync(join(s.a, ".scratch/screening/issues/02-opening.md"), resolvedBody("开场"));
+    const check = mapOf(s.sa).check;
+    assert.ok(check, "全部关闭了，提示一次「去核对目的地」");
+    assert.equal(check.cancelled, 0);
+    assert.equal(check.dismissed, false);
+  } finally { s.done(); }
+});
+
+test("空地图不触发，读得不完整也不触发", () => {
+  const s = sandbox();
+  try {
+    // 一张票都没有的地图：没有「全部关闭」这回事。
+    localMap(s.a, "empty", {}, "# 空地图\n\n## Destination\n\n还没想好。\n");
+    assert.equal(mapOf(s.sa, "空地图").check, null);
+
+    // 同号多份：这张地图的票集合说不清，就不是完整读到。
+    localMap(s.a, "screening", { "01-room.md": resolvedBody("场地"), "01-dup.md": resolvedBody("场地二") });
+    assert.equal(mapOf(s.sa).check, null, "来源不完整时不宣告任何时机");
+  } finally { s.done(); }
+});
+
+test("有取消的票也到检查时机，但取消的数目照实说出来", () => {
+  const s = sandbox();
+  try {
+    localMap(s.a, "screening", { "01-room.md": resolvedBody("场地"), "02-opening.md": cancelledBody("开场") });
+    const check = mapOf(s.sa).check;
+    assert.ok(check);
+    assert.equal(check.cancelled, 1, "取消不算成功结论，界面得说得出有几张是取消的");
+  } finally { s.done(); }
+});
+
+test("关掉检查提示记在记录里，重复读取和重启都不再弹，也能重新打开", () => {
+  const s = sandbox();
+  try {
+    localMap(s.a, "screening", { "01-room.md": resolvedBody("场地") });
+    const map = ".scratch/screening/map.md";
+    assert.equal(mapOf(s.sa).check.dismissed, false);
+
+    store.applyCanvasPatch(s.sa, { mapCheck: { map, dismissed: true } });
+    // 又读了两次，包括刚起来的宿主读的那次：记录说关掉了，就一直是关掉的。
+    for (const again of [mapOf(s.sa), mapOf(s.sa)]) assert.equal(again.check.dismissed, true);
+
+    store.applyCanvasPatch(s.sa, { mapCheck: { map, dismissed: false } });
+    assert.equal(mapOf(s.sa).check.dismissed, false, "可以主动重开");
+  } finally { s.done(); }
+});
+
+test("有一条读不清的依赖，这张地图的票集合就不算读明白，什么都不宣布", () => {
+  const s = sandbox();
+  try {
+    // 关闭了，但它自己写着的前提在这张地图里根本找不到：这条关系要在来源里核对。
+    localMap(s.a, "screening", { "01-room.md": resolvedBody("场地", "Blocked by: 09\n") });
+    assert.equal(mapOf(s.sa).check, null);
+
+    localMap(s.a, "screening", { "01-room.md": resolvedBody("场地") });
+    assert.ok(mapOf(s.sa).check, "关系读得清了，才轮到检查时机");
+  } finally { s.done(); }
+});

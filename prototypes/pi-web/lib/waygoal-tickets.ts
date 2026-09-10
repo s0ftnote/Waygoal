@@ -1,7 +1,8 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join, relative } from "node:path";
+import { dirname, isAbsolute, join, normalize, relative } from "node:path";
 import { parseTicket, safePath } from "./beacon-store";
-import type { WaygoalSavedTickets, WaygoalStale, WaygoalTicketMap, WaygoalTicketMapView, WaygoalTicketNode, WaygoalTicketScan, WaygoalTicketState, WaygoalTicketView, WaygoalUnreadable } from "./waygoal-types";
+import { mapLead, mapSections, sourceLinks } from "./waygoal-map";
+import type { WaygoalReference, WaygoalSavedTickets, WaygoalStale, WaygoalTicketMap, WaygoalTicketMapView, WaygoalTicketNode, WaygoalTicketScan, WaygoalTicketState, WaygoalTicketView, WaygoalUnreadable } from "./waygoal-types";
 
 /** The one layout this reads, as the local Markdown tracker documents it:
  *  `.scratch/<effort>/map.md` with one file per ticket under `issues/`. */
@@ -132,7 +133,32 @@ export function readLocalTickets(cwd: string, now: () => Date = () => new Date()
   maps.sort((a, b) => a.path.localeCompare(b.path));
   unsupported.sort((a, b) => a.path.localeCompare(b.path));
   unreadable.sort((a, b) => a.path.localeCompare(b.path));
-  return { maps, unsupported, unreadable, readAt: now().toISOString() };
+  return { cwd, maps, unsupported, unreadable, readAt: now().toISOString() };
+}
+
+/** Whether this working directory really has that file. `safePath` is the one
+ *  place that answers it: it resolves the path for real, so a name that is not
+ *  there and a name that leads back out of the directory both come back no. */
+function readable(cwd: string, path: string): boolean {
+  try { safePath(cwd, join(cwd, path)); return true; } catch { return false; }
+}
+
+/** Settle every place a source file points at against this working directory:
+ *  a ticket this workspace has, a file that is there, a URL left as written,
+ *  or a place that cannot be reached. Nothing is guessed — a name that
+ *  resolves to nothing is reported as such rather than bound to a
+ *  similar-looking file. */
+function referencesFor(cwd: string, from: string, body: string, ticketIds: Set<string>): WaygoalReference[] {
+  return sourceLinks(body).map(link => {
+    if (link.external) return { ...link, kind: "external" as const, path: null };
+    // Relative to the file that wrote it, and only ever inside this directory.
+    const path = normalize(join(dirname(from), link.target.split("#")[0]));
+    if (isAbsolute(link.target) || path.startsWith("..")) return { ...link, kind: "missing" as const, path: null };
+    if (ticketIds.has(path)) return { ...link, kind: "ticket" as const, path };
+    return readable(cwd, path)
+      ? { ...link, kind: "file" as const, path }
+      : { ...link, kind: "missing" as const, path: null };
+  });
 }
 
 const STALE_REASON = "现在读不到这个文件了，下面是上一次成功读到的内容。";
@@ -172,11 +198,14 @@ export function mergeTicketScan(
    *  `resolveBlockers` settles them once every ticket of the map is in place,
    *  including the ones only the last good read still knows about. */
   const asView = (ticket: WaygoalTicketNode, stale: WaygoalStale | null): WaygoalTicketView =>
-    ({ ...ticket, stale, blockers: [], blocked: false, state: "unblocked" });
+    ({ ...ticket, stale, blockers: [], blocked: false, state: "unblocked", references: [] });
 
   const views: WaygoalTicketMapView[] = scan.maps.map(map => ({
     ...map,
     stale: null,
+    lead: mapLead(map.body),
+    sections: mapSections(map.body),
+    references: [],
     tickets: map.tickets.map(ticket => asView(ticket, null)),
   }));
 
@@ -188,6 +217,7 @@ export function mergeTicketScan(
       .map(({ readAt, ...ticket }) => asView(ticket, { reason: STALE_REASON, lastReadAt: readAt, checkedAt }));
     views.push({
       path, title: savedMap.title, body: savedMap.body,
+      lead: mapLead(savedMap.body), sections: mapSections(savedMap.body), references: [],
       tickets, unreadable: [], warnings: [],
       stale: { reason: STALE_REASON, lastReadAt: savedMap.readAt, checkedAt },
     });
@@ -205,6 +235,14 @@ export function mergeTicketScan(
   // Only now: a premise that could not be read this time is on the map too,
   // and it has to hold what waited on it rather than read as never written.
   for (const view of views) resolveBlockers(view.tickets);
+  // Where each file says to go, settled once every ticket is in place: a link
+  // reads as a ticket when this workspace has that ticket, whichever map it
+  // belongs to — maps do point at each other's tickets.
+  const ticketIds = new Set(views.flatMap(view => view.tickets.map(ticket => ticket.id)));
+  for (const view of views) {
+    view.references = referencesFor(scan.cwd, view.path, view.body, ticketIds);
+    for (const ticket of view.tickets) ticket.references = referencesFor(scan.cwd, ticket.path, ticket.body, ticketIds);
+  }
   views.sort((a, b) => a.path.localeCompare(b.path));
 
   // Keep what was just read; leave everything else at its last good content.

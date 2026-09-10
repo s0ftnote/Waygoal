@@ -1,0 +1,165 @@
+{
+  "ranAt": "2026-09-10T21:55:19.145Z",
+  "checks": [
+    {
+      "name": "the map is shown by its own sections, in its own order",
+      "ok": true,
+      "detail": "[\"Destination\",\"Decisions so far\",\"Not yet specified\"]"
+    },
+    {
+      "name": "a section shows the file's own words, not a summary of them",
+      "ok": true,
+      "detail": "定下一个能照着做的方案。"
+    },
+    {
+      "name": "what the file says before its first heading is shown too, under no invented heading",
+      "ok": true,
+      "detail": "# 给朋友办一场小型放映会\n\n只办一场，在客厅，不租场地。"
+    },
+    {
+      "name": "each link is settled against the real files: a ticket, an artifact, one that is not there, one off-site",
+      "ok": true,
+      "detail": "{\"issues/01-room.md\":\"ticket\",\"../../产物/方案.md\":\"file\",\"issues/09-food.md\":\"missing\",\"https://example.invalid/notes\":\"external\"}"
+    },
+    {
+      "name": "a place that cannot be reached is marked and offers no way in, rather than being swapped for a lookalike",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "an off-site address is listed as written and is not opened for you",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "following the map's own link lands on that ticket",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a ticket's conclusion opens the artifact it points at, with the viewer the app already has",
+      "ok": true,
+      "detail": "← 回到这张票\n产物/方案.md\nmarkdown · 4 lines · 53 B\nSource\nPreview\n方案草稿\n\n客厅，六个人，八点开始。"
+    },
+    {
+      "name": "and coming back lands on the ticket it was opened from, unchanged",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "reading the map, its links and the artifact sent nothing and wrote nothing to the source",
+      "ok": true,
+      "detail": "{\"requests\":0,\"now\":0}"
+    },
+    {
+      "name": "from the ticket, the discussion actually held under it opens — the real session, not one that looks like it",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "and the source is still one click away from the discussion",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "going between them left the active leaf where it was",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "while a ticket is still open, nothing says this map is done",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "closing the last ticket brings up the check note, in the words the design settled on",
+      "ok": true,
+      "detail": "这张地图的决策票都已关闭。可以检查一下：还有未澄清的问题吗？通往目的地的路是否已经清楚？\n\n如果目的地是形成方案，可以主动使用 /to-spec；也可以确认决策，或按原定目的地选择下一步。\n\n查看地图\n知道了"
+    },
+    {
+      "name": "it asks; it does not announce that the map is finished",
+      "ok": true,
+      "detail": "这张地图的决策票都已关闭。可以检查一下：还有未澄清的问题吗？通往目的地的路是否已经清楚？\n\n如果目的地是形成方案，可以主动使用 /to-spec；也可以确认决策，或按原定目的地选择下一步。\n\n查看地图\n知道了"
+    },
+    {
+      "name": "it does not take the focus away from what the user was doing",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "nothing was sent and nothing was written to the source when it appeared",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "「查看地图」 只是打开这张地图来读：目的地和未明确方向都在，没有发消息，也没有动 tracker",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a cancelled ticket is counted out loud, and is not passed off as a result",
+      "ok": true,
+      "detail": "这张地图的决策票都已关闭。可以检查一下：还有未澄清的问题吗？通往目的地的路是否已经清楚？\n\n如果目的地是形成方案，可以主动使用 /to-spec；也可以确认决策，或按原定目的地选择下一步。\n\n其中 1 张是取消或移出范围的。全部关闭只是检查的时机，取消不算做成的结论。\n\n查看地图\n知道了"
+    },
+    {
+      "name": "once put away it does not come back, however many times the page is refreshed",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "nor after the host is restarted",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "after the restart the ticket, the artifact and the discussion under the ticket are all still reachable",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "and it can be asked for again from the map itself",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a ticket that cannot be read this time leaves the set unknown, and an unknown set declares nothing",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "and it comes back once the source reads clean again",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "two tickets sharing a number mean the set is not known either, so nothing is declared",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a map whose destination is a decision already made gets the very same note, word for word",
+      "ok": true,
+      "detail": "这张地图的决策票都已关闭。可以检查一下：还有未澄清的问题吗？通往目的地的路是否已经清楚？\n\n如果目的地是形成方案，可以主动使用 /to-spec；也可以确认决策，或按原定目的地选择下一步。\n\n查看地图\n知道了"
+    },
+    {
+      "name": "and /to-spec stays inside its if-clause: nothing tells this map to go write one",
+      "ok": true,
+      "detail": "这张地图的决策票都已关闭。可以检查一下：还有未澄清的问题吗？通往目的地的路是否已经清楚？\n\n如果目的地是形成方案，可以主动使用 /to-spec；也可以确认决策，或按原定目的地选择下一步。\n\n查看地图\n知道了"
+    },
+    {
+      "name": "a map with no tickets never has an 'all closed' about it",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "nothing on this map was sent, and every tracker file still says exactly what this test wrote",
+      "ok": true,
+      "detail": "{\"requests\":1,\"now\":1}"
+    },
+    {
+      "name": "no page or console errors",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}
