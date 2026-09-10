@@ -86,7 +86,7 @@ npm run dev
 
 - 发现：合并磁盘上的 Pi 会话与进程内运行中的会话，按工作目录身份过滤，排除子代理会话；同一会话只有一个节点。标题优先用已存会话名称，否则回退到首条消息，再否则标为还没有内容。
 - 新建与发送：复用 pi-web 的 ChatWindow、`/api/agent/new` 和事件流；运行状态来自真实的运行会话集合。
-- 画布记录：保存在 Pi 数据目录 `<agentDir>/waygoal/workspaces/<目录名-身份哈希>/` 下，一张画布一份（第一张是 `canvas.json`，后建的是 `canvas-<画布 id>.json`），包含节点位置、视野和最近查看的会话；同目录下的 `workspace.json` 记着这个目录有哪几张画布、上次停在哪张、每段会话属于哪张。记录与插件代码分离，按工作目录和画布隔离；读取快照只会在新发现的会话需要位置时写一次记录。
+- 画布记录：保存在 Pi 数据目录 `<agentDir>/waygoal/workspaces/<目录名-身份哈希>/` 下，一张画布一份（第一张是 `canvas.json`，后建的是 `canvas-<画布 id>.json`），包含节点位置、视野、最近查看的会话，以及用户自己圈的分组和自己连的关联；同目录下的 `workspace.json` 记着这个目录有哪几张画布、上次停在哪张、每段会话属于哪张。记录与插件代码分离，按工作目录和画布隔离；读取快照只会在新发现的会话需要位置时写一次记录。
 - 恢复：刷新或宿主重启后恢复视野、位置，并只读地重新打开最近查看的会话；恢复视野和自动定位到选中节点都不回写记录，只有用户拖动、缩放等操作才保存视野。最近查看的会话不在时给出提示而不自动改绑。
 - Skills：进程内 Pi extension 在 `input` 事件按 Pi 自己的解析规则检查 `/skill:` 名称，名单来自该会话自己的 resource loader；缺少时通过 Pi 的通知渠道反馈并拦截这条消息，已安装 skill 按 Pi 原有方式展开。
 - 无障碍：节点是按钮，Tab/Enter 打开，方向键微调位置，画布焦点下方向键平移、`+`/`-` 缩放、`0` 回到全景、Esc 关闭面板；窄屏面板全屏并有「回到画布」。
@@ -96,9 +96,10 @@ npm run dev
 - 依赖变动：只有来源写着 resolved 的前置才算满足；取消、读不到、指不到、同号多份都保持等待，并说明这条依赖要在来源里核对。票据自己被取消不等于解决，也不会因此放行下游。前置重新打开或来源新增一条依赖，票据就回到等待。刚从等待变为可推进的票据点亮一次，记在画布记录里，重复读取和宿主重启都不重放；减少动态效果时直接显示状态。解锁只是状态变化：不完成下游、不启动会话、不关闭地图，也不重排用户摆好的布局。
 - 起名字与找回来：改名走宿主自己的会话改名，起标题走宿主自己的标题生成，两者都由用户主动触发，没有第二套命名服务，也不在后台自行改名。没起名字时卡片显示第一句话并标明这是回退，不会被写成正式名字；改名不动会话身份、位置、消息和既有关联。查找按标题在这张画布的卡片上找，匹配到的全部列出，找不到就照实说，不推荐相近的一条；空着输入框列的是最近聊过的讨论，不列票据。缩略图画出所有卡片和当前视野，点一下只移动视野。票据的名字仍来自它的来源文件，会话内的多条路径也没有另起一套命名。
 - 工作目录与多画布：一个工作目录打开就有一张画布。「新建画布」和「换一个目录」是分开的两个按钮，都不建票、不调用 skill、不发消息；新画布上没有会话，已有会话留在原来那张上，一段会话只属于一张画布，在哪张画布上开始就归哪张；本地票据是工作目录的文件，每张画布都看得到，各摆各的位置。工作目录的身份是路径不是文件夹名，同名的两个目录各记各的。切换目录不把新目录套到已有 Pi 会话上。刷新回到刚才那张画布，重启后不带参数打开回到上次的目录和画布；上次的目录被移走或路径打错都照实说出这个路径，不换一个目录顶上。
+- 手动分组与手动关联：按住 ⌘/Ctrl 点卡片是挑不是打开，挑好起个名字就建成一个分组——不建会话，不合并上下文，成员还是各自的会话。收起是一张写着组名的卡片，展开还是原来那几张卡片和原来的位置；收起时成员仍按自己的标题被查找到，跳过去落在那张分组卡片上，连到成员的手动关联也画到那张卡片上，照样看得见说明、删得掉。一张卡片同时只属于一个分组，解散分组只去掉分组。挑两张卡片可以连一条带说明的手动关联，同两张之间只留一条，再连一次是改说明。手动关联画成实线两端各一个点，和分叉的虚线、票据依赖各是各的；连或删只改画布记录，不动 Pi 历史、活动叶子和票据文件。改会话标题不影响分组成员和关联说明；组名、成员、布局和说明都存进画布记录，宿主重启后仍在。
 - 票据下的讨论：从票据开始聊只是打开一个草稿，草稿按「票据 + 工作目录」记住，关掉面板再点还是同一份，发送才真正建立会话并挂到这张票据下。一张票据可以带多段讨论；从某段讨论分叉出去的那段沿用同一张票据，不复制票据也不新增依赖。票据下记着上次在聊哪一段，也记着这张票据的讨论是摊开还是收起，都存进同一份画布记录，宿主重启后仍在。收起只是不在画布上摊开，票据里照样能接着聊；被挡住的票据和已解决的票据都还能讨论，聊天本身不改票据状态。关联指向的会话不在了就照实说「打不开」，不按标题换一段顶上。票据卡片下的操作提示是写死的一句话，可关可再开，不读聊天内容也不调用模型。
 
-尚未处理：把已有会话搬到另一张画布、画布改名与删除、手动分组与连线、分支标题、跨画布与跨工作目录查找、按会话正文搜索、远程来源、多进程同时写同一画布记录。
+尚未处理：把已有会话搬到另一张画布、画布改名与删除、分组改名与嵌套、跨画布的分组、成员或关联端点不在时的说明、分支标题、跨画布与跨工作目录查找、按会话正文搜索、远程来源、多进程同时写同一画布记录。
 
 ## 验证
 
@@ -111,6 +112,7 @@ npm run test:waygoal
 npm run test:waygoal-tickets
 npm run test:waygoal-ticket-talks
 npm run test:waygoal-workspaces
+npm run test:waygoal-groups
 node e2e/beacon.mjs
 ```
 
@@ -122,4 +124,4 @@ node e2e/beacon.mjs
 
 `e2e/beacon.mjs` 是票据原型的浏览器检查，需本机 Google Chrome、运行中的 30142 和已完成真实模型试跑的默认 playground。它恢复已有会话，不向模型追加消息。
 
-会话画布的试跑记录见 [session-canvas-results.md](docs/research/session-canvas-results.md)，分叉与回看的试跑记录见 [branch-navigation-results.md](docs/research/branch-navigation-results.md)，本地票据见 [local-tickets-results.md](docs/research/local-tickets-results.md)，票据下的讨论见 [ticket-talks-results.md](docs/research/ticket-talks-results.md)，依赖变动见 [dependency-changes-results.md](docs/research/dependency-changes-results.md)，起名字与找回讨论见 [find-and-rename-results.md](docs/research/find-and-rename-results.md)，切换工作目录与多画布见 [workspaces-and-canvases-results.md](docs/research/workspaces-and-canvases-results.md)，票据原型见 [prototype-results.md](docs/research/prototype-results.md)。上游是 [agegr/pi-web](https://github.com/agegr/pi-web)，基于提交 `a26cc68df9227cb74253bddd7c59624aa475e61f`，Pi SDK 版本 `0.85.1`。
+会话画布的试跑记录见 [session-canvas-results.md](docs/research/session-canvas-results.md)，分叉与回看的试跑记录见 [branch-navigation-results.md](docs/research/branch-navigation-results.md)，本地票据见 [local-tickets-results.md](docs/research/local-tickets-results.md)，票据下的讨论见 [ticket-talks-results.md](docs/research/ticket-talks-results.md)，依赖变动见 [dependency-changes-results.md](docs/research/dependency-changes-results.md)，起名字与找回讨论见 [find-and-rename-results.md](docs/research/find-and-rename-results.md)，切换工作目录与多画布见 [workspaces-and-canvases-results.md](docs/research/workspaces-and-canvases-results.md)，手动分组与关联见 [groups-and-links-results.md](docs/research/groups-and-links-results.md)，票据原型见 [prototype-results.md](docs/research/prototype-results.md)。上游是 [agegr/pi-web](https://github.com/agegr/pi-web)，基于提交 `a26cc68df9227cb74253bddd7c59624aa475e61f`，Pi SDK 版本 `0.85.1`。

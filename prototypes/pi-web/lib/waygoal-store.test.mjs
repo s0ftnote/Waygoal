@@ -459,3 +459,172 @@ test("a premise that could not be read once does not light the ticket when the r
     assert.equal(back.justUnblocked, false, "reading it again is not the premise being met");
   } finally { s.done(); }
 });
+
+// 手动分组与手动关联：用户自己整理的，不是从 Pi 历史或票据正文里读出来的。
+const grouped = (scope, name) => store.buildSnapshot(scope, [], []).groups.find(g => g.name === name);
+
+test("几段会话圈成命名分组，组名和成员写进画布记录，重启还在", () => {
+  const s = sandbox();
+  try {
+    const sessions = [session("one", s.a), session("two", s.a), session("three", s.a)];
+    store.buildSnapshot(s.sa, sessions, []);
+    store.applyCanvasPatch(s.sa, { addGroup: { name: "开场那一摊", members: ["one", "three"] } });
+
+    // 一次新的读取就是重启后看到的：记录在盘上，没别的东西记着它。
+    const after = store.buildSnapshot(s.sa, sessions, []);
+    assert.equal(after.groups.length, 1);
+    assert.equal(after.groups[0].name, "开场那一摊");
+    assert.deepEqual(after.groups[0].members, ["one", "three"]);
+    assert.equal(after.groups[0].collapsed, false, "刚建好的分组是摊开的，成员照旧在画布上");
+    assert.ok(after.groups[0].position, "收起时它自己也要有个位置");
+    assert.deepEqual(after.nodes.map(n => n.id), ["one", "two", "three"], "分组不新建会话，也不吃掉成员");
+  } finally { s.done(); }
+});
+
+test("建分组不建立会话、不动分叉来源，也不动票据关联", () => {
+  const s = sandbox();
+  try {
+    localMap(s.a, "screening", { "01-feeling.md": ticketBody("感受") });
+    const ticket = ".scratch/screening/issues/01-feeling.md";
+    const sessions = [session("one", s.a), session("two", s.a)];
+    store.applyCanvasPatch(s.sa, { origin: { sessionId: "two", originSessionId: "one", originEntryId: "e1" } });
+    store.applyCanvasPatch(s.sa, { ticketSession: { sessionId: "one", ticket } });
+    const before = store.readCanvasRecord(s.sa);
+
+    store.applyCanvasPatch(s.sa, { addGroup: { name: "开场那一摊", members: ["one", "two"] } });
+    const after = store.readCanvasRecord(s.sa);
+    assert.deepEqual(after.origins, before.origins, "分组不是分叉，来源记录一个字都不变");
+    assert.deepEqual(after.ticketSessions, before.ticketSessions, "分组不是票据关联");
+    assert.deepEqual(store.buildSnapshot(s.sa, sessions, []).nodes.map(n => n.id), ["one", "two"], "分组没有多出一段会话");
+  } finally { s.done(); }
+});
+
+test("一张卡片只属于一个分组，放进新分组就从旧的里出来", () => {
+  const s = sandbox();
+  try {
+    store.applyCanvasPatch(s.sa, { addGroup: { name: "开场", members: ["one", "two"] } });
+    store.applyCanvasPatch(s.sa, { addGroup: { name: "吃的", members: ["two", "three"] } });
+    const groups = store.readCanvasRecord(s.sa).groups;
+    assert.deepEqual(groups.map(g => g.name), ["开场", "吃的"]);
+    assert.deepEqual(groups[0].members, ["one"], "同一张卡片不会同时挂在两个组名下");
+    assert.deepEqual(groups[1].members, ["two", "three"]);
+  } finally { s.done(); }
+});
+
+test("分组可以收起，也可以解散；解散只去掉分组，成员照旧在", () => {
+  const s = sandbox();
+  try {
+    const sessions = [session("one", s.a), session("two", s.a)];
+    store.applyCanvasPatch(s.sa, { addGroup: { name: "开场", members: ["one", "two"] } });
+    const id = store.readCanvasRecord(s.sa).groups[0].id;
+
+    store.applyCanvasPatch(s.sa, { groupCollapsed: { group: id, collapsed: true } });
+    assert.equal(grouped(s.sa, "开场").collapsed, true, "收起记在记录里，重启还是收起的");
+
+    store.applyCanvasPatch(s.sa, { removeGroup: id });
+    assert.deepEqual(store.buildSnapshot(s.sa, sessions, []).groups, []);
+    assert.deepEqual(store.buildSnapshot(s.sa, sessions, []).nodes.map(n => n.id), ["one", "two"], "解散的是分组，不是里面的会话");
+  } finally { s.done(); }
+});
+
+test("手动关联可以带说明，也可以删掉", () => {
+  const s = sandbox();
+  try {
+    store.applyCanvasPatch(s.sa, { addLink: { from: "one", to: "two", note: "这两段说的是同一件事" } });
+    store.applyCanvasPatch(s.sa, { addLink: { from: "two", to: "three" } });
+    const links = store.buildSnapshot(s.sa, [], []).links;
+    assert.deepEqual(links.map(l => [l.from, l.to, l.note]), [["one", "two", "这两段说的是同一件事"], ["two", "three", ""]], "说明是可选的");
+
+    store.applyCanvasPatch(s.sa, { removeLink: links[0].id });
+    assert.deepEqual(store.buildSnapshot(s.sa, [], []).links.map(l => l.id), [links[1].id]);
+  } finally { s.done(); }
+});
+
+test("同两张卡片之间只有一条手动关联，再连一次是改说明", () => {
+  const s = sandbox();
+  try {
+    store.applyCanvasPatch(s.sa, { addLink: { from: "one", to: "two", note: "先说这个" } });
+    store.applyCanvasPatch(s.sa, { addLink: { from: "two", to: "one", note: "其实是同一件事" } });
+    const links = store.readCanvasRecord(s.sa).links;
+    assert.equal(links.length, 1, "同两张卡片之间不会叠出两条一模一样的线");
+    assert.equal(links[0].note, "其实是同一件事");
+  } finally { s.done(); }
+});
+
+test("手动关联、真实分叉、票据依赖在记录里是分开的三样", () => {
+  const s = sandbox();
+  try {
+    localMap(s.a, "screening", { "01-room.md": ticketBody("场地"), "02-opening.md": ticketBody("开场", "Blocked by: 01\n") });
+    const sessions = [session("one", s.a), session("two", s.a)];
+    store.applyCanvasPatch(s.sa, { origin: { sessionId: "two", originSessionId: "one", originEntryId: "e1" } });
+    store.applyCanvasPatch(s.sa, { addLink: { from: "one", to: "two", note: "顺手连一下" } });
+
+    const snapshot = store.buildSnapshot(s.sa, sessions, []);
+    const fork = snapshot.nodes.find(n => n.id === "two");
+    assert.equal(fork.origin.sessionId, "one", "真实分叉还是从会话历史来的");
+    assert.deepEqual(snapshot.links.map(l => [l.from, l.to]), [["one", "two"]]);
+    assert.equal(store.readCanvasRecord(s.sa).origins.two.entryId, "e1", "手动连一条不会把自己写成分叉来源");
+
+    // 票据依赖来自票据正文的 Blocked by:，手动关联碰不到它。
+    const opening = card(store.buildTicketSnapshot(s.sa, snapshot.nodes), "开场");
+    assert.deepEqual(opening.blockers.map(b => b.number), ["01"]);
+    store.applyCanvasPatch(s.sa, { addLink: { from: ".scratch/screening/issues/02-opening.md", to: "one", note: "回头看这段" } });
+    assert.equal(card(store.buildTicketSnapshot(s.sa, snapshot.nodes), "开场").blockers.length, 1, "手动关联不会变成一条依赖");
+  } finally { s.done(); }
+});
+
+test("改了会话标题，分组成员和手动关联都不受影响", () => {
+  const s = sandbox();
+  try {
+    const before = [session("one", s.a), session("two", s.a)];
+    store.buildSnapshot(s.sa, before, []);
+    store.applyCanvasPatch(s.sa, { addGroup: { name: "开场", members: ["one", "two"] } });
+    store.applyCanvasPatch(s.sa, { addLink: { from: "one", to: "two", note: "同一件事" } });
+
+    // 关系认的是会话身份，不是它现在叫什么。
+    const renamed = [session("one", s.a, { name: "开场怎么说" }), session("two", s.a, { name: "吃的准备什么" })];
+    const after = store.buildSnapshot(s.sa, renamed, []);
+    assert.deepEqual(after.nodes.map(n => n.title), ["开场怎么说", "吃的准备什么"]);
+    assert.deepEqual(after.groups[0].members, ["one", "two"]);
+    assert.deepEqual(after.links.map(l => [l.from, l.to, l.note]), [["one", "two", "同一件事"]]);
+  } finally { s.done(); }
+});
+
+test("空成员的分组和指向自己的关联被拒", () => {
+  const s = sandbox();
+  try {
+    store.applyCanvasPatch(s.sa, { addGroup: { name: "空的", members: [] } });
+    store.applyCanvasPatch(s.sa, { addLink: { from: "one", to: "one" } });
+    store.applyCanvasPatch(s.sa, { addLink: { from: "", to: "two" } });
+    const record = store.readCanvasRecord(s.sa);
+    assert.deepEqual(record.groups, []);
+    assert.deepEqual(record.links, []);
+  } finally { s.done(); }
+});
+
+test("收起的分组占的位置记在盘上，不会有别的卡片被摆到它头上", () => {
+  const s = sandbox();
+  try {
+    // 成员还没有位置时，分组自己那张卡片得由快照分配一个——而且要写下来，
+    // 否则下一次给票据分配位置时这块地方还算空的。
+    store.applyCanvasPatch(s.sa, { addGroup: { name: "开场", members: ["one"] } });
+    const id = store.readCanvasRecord(s.sa).groups[0].id;
+    const placed = store.buildSnapshot(s.sa, [], []).groups[0].position;
+    assert.deepEqual(store.readCanvasRecord(s.sa).nodes[id], placed, "分配到的位置要留在记录里");
+
+    localMap(s.a, "screening", { "01-feeling.md": ticketBody("感受") });
+    const ticket = card(store.buildTicketSnapshot(s.sa, []), "感受");
+    assert.notDeepEqual(ticket.position, placed, "票据不会被摆在分组卡片头上");
+  } finally { s.done(); }
+});
+
+test("解散分组把它占的地方还回去", () => {
+  const s = sandbox();
+  try {
+    store.applyCanvasPatch(s.sa, { addGroup: { name: "开场", members: ["one"] } });
+    const id = store.readCanvasRecord(s.sa).groups[0].id;
+    store.buildSnapshot(s.sa, [], []);
+    store.applyCanvasPatch(s.sa, { removeGroup: id });
+    assert.equal(store.readCanvasRecord(s.sa).nodes[id], undefined, "解散之后它不该还占着一块画布");
+  } finally { s.done(); }
+});

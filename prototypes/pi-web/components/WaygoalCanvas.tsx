@@ -8,6 +8,7 @@ import type { WaygoalBranchChoice, WaygoalBranchPoint, WaygoalSessionTreeRespons
 import { CHIP_HEIGHT, NODE_HEIGHT, NODE_WIDTH, needsCheck, ticketCardHeight, ticketChipTop, type WaygoalCanvasPatch, type WaygoalNode, type WaygoalPoint, type WaygoalSnapshotResponse, type WaygoalView } from "@/lib/waygoal-types";
 import { ChatWindow } from "./ChatWindow";
 import { WaygoalPaths } from "./WaygoalPaths";
+import { WaygoalArrange } from "./WaygoalArrange";
 import { WaygoalFind } from "./WaygoalFind";
 import { WaygoalPathView } from "./WaygoalPathView";
 import { WaygoalRename } from "./WaygoalRename";
@@ -115,6 +116,9 @@ export function WaygoalCanvas() {
   const [view, setView] = useState<WaygoalView>(DEFAULT_VIEW);
   const [dragging, setDragging] = useState<Record<string, WaygoalPoint>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Cards the user picked with ⌘/Ctrl-click, to group or to link. Picking is
+  // not opening: it changes nothing until 建一个分组 or 连一条关联 is pressed.
+  const [picked, setPicked] = useState<string[]>([]);
   const [draftKey, setDraftKey] = useState<string | null>(null);
   // The ticket a discussion being started belongs to. Nothing is written until
   // the user actually sends: an unsent draft holds no session and no ticket.
@@ -200,7 +204,7 @@ export function WaygoalCanvas() {
     }
     setSnapshot(null);
     setSelectedId(null); setOpenTicket(null); setPendingTicket(null);
-    setDraftKey(null); setCreatedSession(null); setViewing(null); setTree(null);
+    setDraftKey(null); setCreatedSession(null); setViewing(null); setTree(null); setPicked([]);
     setPanelKey(k => k + 1);
     setError(""); setNotice("");
   }, [patch, view]);
@@ -319,6 +323,10 @@ export function WaygoalCanvas() {
     tickets: map.tickets.map(ticket => ({ ...ticket, position: dragging[ticket.id] ?? ticket.position })),
   })), [snapshot, dragging]);
   const ticketCount = ticketMaps.reduce((total, map) => total + map.tickets.length, 0);
+  const groups = useMemo(() => (snapshot?.groups ?? []).map(group => ({ ...group, position: dragging[group.id] ?? group.position })), [snapshot, dragging]);
+  // A collapsed group stands in for its members: they are not drawn, and
+  // neither is any line that would end on one. Nothing about them changes.
+  const tucked = useMemo(() => new Set(groups.filter(group => group.collapsed).flatMap(group => group.members)), [groups]);
   // Directories under .scratch/ that were not read as maps. Saying so on the
   // canvas is the point: a silently skipped directory looks like an empty one.
   const skipped = [...(snapshot?.tickets.unsupported ?? []), ...(snapshot?.tickets.unreadable ?? [])];
@@ -328,16 +336,30 @@ export function WaygoalCanvas() {
   // Every card on the canvas, in the one shape finding, 回到全景 and the
   // thumbnail all read. A ticket's title comes from its source file: renaming
   // happens to Pi sessions only, never to a ticket.
-  const cards = useMemo<WaygoalCard[]>(() => [
-    ...nodes.map(node => ({ id: node.id, title: node.title, kind: "session" as const, position: node.position, height: NODE_H, modified: node.modified })),
-    ...ticketMaps.flatMap(map => [
-      { id: map.path, title: map.title, kind: "map" as const, position: map.position, height: NODE_H, modified: null },
-      ...map.tickets.map(ticket => ({
-        id: ticket.id, title: ticket.title, kind: "ticket" as const, position: ticket.position,
-        height: ticket.expanded ? ticketCardHeight(ticket.discussions.length) : NODE_H, modified: null,
+  const cards = useMemo<WaygoalCard[]>(() => {
+    // A card inside a collapsed group is not drawn on its own, so finding it,
+    // 回到全景 and the thumbnail all point at the group card standing there
+    // instead. It is still findable under its own title: it is still here.
+    const standIn = new Map(groups.filter(group => group.collapsed).flatMap(group => group.members.map(member => [member, group] as const)));
+    const placed = (card: WaygoalCard): WaygoalCard => {
+      const group = standIn.get(card.id);
+      return group ? { ...card, position: group.position, height: NODE_H } : card;
+    };
+    return [
+      ...nodes.map(node => placed({ id: node.id, title: node.title, kind: "session" as const, position: node.position, height: NODE_H, modified: node.modified })),
+      ...ticketMaps.flatMap(map => [
+        placed({ id: map.path, title: map.title, kind: "map" as const, position: map.position, height: NODE_H, modified: null }),
+        ...map.tickets.map(ticket => placed({
+          id: ticket.id, title: ticket.title, kind: "ticket" as const, position: ticket.position,
+          height: ticket.expanded ? ticketCardHeight(ticket.discussions.length) : NODE_H, modified: null,
+        })),
+      ]),
+      ...groups.filter(group => group.collapsed).map(group => ({
+        id: group.id, title: group.name, kind: "group" as const, position: group.position, height: NODE_H, modified: null,
       })),
-    ]),
-  ], [nodes, ticketMaps]);
+    ];
+  }, [nodes, ticketMaps, groups]);
+  const cardById = useMemo(() => new Map(cards.map(card => [card.id, card])), [cards]);
   // The card the record was left on, while it is still here.
   const continueCard = useMemo(() => (snapshot?.lastViewed && !snapshot.lastViewedMissing
     ? cards.find(card => card.id === snapshot.lastViewed) ?? null
@@ -382,9 +404,9 @@ export function WaygoalCanvas() {
   // Real fork relations between nodes of this workspace, as drawn edges.
   const originEdges = useMemo(() => nodes.flatMap(node => {
     const from = node.origin?.inWorkspace ? nodeById.get(node.origin.sessionId) : undefined;
-    if (!from || from.id === node.id) return [];
+    if (!from || from.id === node.id || tucked.has(node.id) || tucked.has(from.id)) return [];
     return [{ id: node.id, from: from.position, to: node.position, exact: Boolean(node.origin?.entryId) }];
-  }), [nodes, nodeById]);
+  }), [nodes, nodeById, tucked]);
 
   // A ticket and its discussions, drawn so the relation survives dragging one
   // of them away. It is an association, not a fork and not a dependency.
@@ -393,8 +415,32 @@ export function WaygoalCanvas() {
       const node = nodeById.get(talk.sessionId);
       // Collapsed means this ticket is not spread out on the canvas: its lines
       // go quiet with its chips. The discussions are still held under it.
-      return node && ticket.expanded ? [{ id: `${ticket.id}->${talk.sessionId}`, from: ticket.position, to: node.position }] : [];
-    }))), [ticketMaps, nodeById]);
+      const hidden = tucked.has(talk.sessionId) || tucked.has(ticket.id);
+      return node && ticket.expanded && !hidden ? [{ id: `${ticket.id}->${talk.sessionId}`, from: ticket.position, to: node.position }] : [];
+    }))), [ticketMaps, nodeById, tucked]);
+
+  // Relations the user drew by hand. They are read from the record as written,
+  // never derived: no fork history and no `Blocked by:` line produces one, and
+  // removing one takes nothing else with it.
+  const manualEdges = useMemo(() => (snapshot?.links ?? []).flatMap(link => {
+    // A member of a collapsed group is drawn at the group's card, so the line
+    // ends there rather than disappearing: the note on it is the only place the
+    // relation can be read and removed, and it must stay reachable. Both ends
+    // inside the same collapsed group is the one case with nothing to draw.
+    const from = cardById.get(link.from), to = cardById.get(link.to);
+    if (!from || !to || (from.position.x === to.position.x && from.position.y === to.position.y)) return [];
+    const start = borderAnchor(from.position, to.position);
+    const end = borderAnchor(to.position, from.position);
+    return [{ id: link.id, note: link.note, start, end, mid: { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 } }];
+  }), [snapshot, cardById]);
+
+  // A group is drawn as a frame around wherever its members currently sit, so
+  // dragging a member reshapes the frame instead of breaking the grouping.
+  const groupFrames = useMemo(() => groups.filter(group => !group.collapsed).flatMap(group => {
+    const box = cardBounds(group.members.flatMap(id => { const card = cardById.get(id); return card ? [card] : []; }));
+    // Room for the frame, and above it for the header carrying the name.
+    return box ? [{ ...group, left: box.x - 18, top: box.y - 46, width: box.width + 36, height: box.height + 64 }] : [];
+  }), [groups, cardById]);
 
   // The card grows when it carries origin or branch marks, so the chip stack
   // is placed under its measured height rather than the nominal one.
@@ -643,10 +689,41 @@ export function WaygoalCanvas() {
     [cards, view, viewportSize],
   );
 
-  const nudge = useCallback((node: WaygoalNode, dx: number, dy: number) => {
-    const position = { x: node.position.x + dx, y: node.position.y + dy };
-    setDragging(d => ({ ...d, [node.id]: position }));
-    void patch({ positions: { [node.id]: position } }).then(() => refresh()).then(() => setDragging(d => without(d, node.id)));
+  const nudge = useCallback((id: string, from: WaygoalPoint, dx: number, dy: number) => {
+    const position = { x: from.x + dx, y: from.y + dy };
+    setDragging(d => ({ ...d, [id]: position }));
+    void patch({ positions: { [id]: position } }).then(() => refresh()).then(() => setDragging(d => without(d, id)));
+  }, [patch, refresh]);
+  /** Arrow keys move a card the way dragging does, for every kind of card. */
+  const onCardKeyDown = (id: string, position: WaygoalPoint) => (e: React.KeyboardEvent) => {
+    const step = e.shiftKey ? 50 : 10;
+    const moves: Record<string, WaygoalPoint> = { ArrowLeft: { x: -step, y: 0 }, ArrowRight: { x: step, y: 0 }, ArrowUp: { x: 0, y: -step }, ArrowDown: { x: 0, y: step } };
+    if (moves[e.key]) { e.preventDefault(); e.stopPropagation(); nudge(id, position, moves[e.key].x, moves[e.key].y); }
+    else if (e.key === "Escape" && panelOpen) { e.preventDefault(); closePanel(); }
+  };
+
+  const togglePick = useCallback((id: string) => {
+    setPicked(current => (current.includes(id) ? current.filter(other => other !== id) : [...current, id]));
+  }, []);
+  /** Group the picked cards under a name the user typed. It writes one line of
+   *  the canvas record: no session is started and no context is shared. */
+  const createGroup = useCallback(async (name: string) => {
+    await patch({ addGroup: { name, members: picked } });
+    setPicked([]);
+    await refresh(true);
+  }, [patch, picked, refresh]);
+  const createLink = useCallback(async (note: string) => {
+    const [from, to] = picked;
+    if (!from || !to) return;
+    await patch({ addLink: { from, to, note } });
+    setPicked([]);
+    await refresh(true);
+  }, [patch, picked, refresh]);
+  /** Everything a group frame or a manual link offers is one patch and a read;
+   *  Pi's history, the active leaf and the tracker files are never touched. */
+  const arrange = useCallback(async (body: WaygoalCanvasPatch) => {
+    await patch(body);
+    await refresh(true);
   }, [patch, refresh]);
 
   const onViewportPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -713,6 +790,9 @@ export function WaygoalCanvas() {
             {skipped.length} 个目录没有读成地图：{skipped.map(s => s.path).join("、")}
           </span>}
           <WaygoalFind cards={cards} onGo={goToCard} />
+          <WaygoalArrange picked={picked.flatMap(id => { const card = cardById.get(id); return card ? [{ id, title: card.title }] : []; })}
+            onGroup={createGroup} onLink={createLink} onClear={() => setPicked([])} />
+          {picked.length === 0 && cards.length >= 2 && <span className="waygoal-count">按住 ⌘/Ctrl 点卡片，可以圈成分组或连一条关联</span>}
           {/* One step back to what the canvas restores on load. 看 and 在聊 are
               two different things (票 #3), and this entry is the 看 one. */}
           {continueCard && <button type="button" data-continue className="waygoal-button outlined small"
@@ -753,22 +833,65 @@ export function WaygoalCanvas() {
                   <circle cx={end.x} cy={end.y} r={4.5} />
                 </g>;
               })}
+              {/* Drawn by hand, so drawn differently: a solid line with a dot at
+                  each end and no direction claimed. A fork's line says where a
+                  history came from; this one says only what the user said. */}
+              {manualEdges.map(edge => <g key={`manual-${edge.id}`} className="waygoal-link manual" data-link-line={edge.id}>
+                <path d={`M ${edge.start.x} ${edge.start.y} L ${edge.end.x} ${edge.end.y}`} />
+                <circle cx={edge.start.x} cy={edge.start.y} r={4.5} />
+                <circle cx={edge.end.x} cy={edge.end.y} r={4.5} />
+              </g>)}
             </svg>
-            {nodes.map(node => <button key={node.id} type="button" data-node={node.id}
+            {/* The note rides on the line, and is where the relation is taken
+                away again. Removing it removes the line and nothing else. */}
+            {manualEdges.map(edge => <div key={`note-${edge.id}`} data-link={edge.id} className="waygoal-link-note"
+              style={{ left: edge.mid.x, top: edge.mid.y }} onPointerDown={e => e.stopPropagation()}>
+              <span>{edge.note || "手动关联"}</span>
+              <button type="button" data-link-remove={edge.id} aria-label={`删掉这条手动关联${edge.note ? `：${edge.note}` : ""}`}
+                onClick={e => { e.stopPropagation(); void arrange({ removeLink: edge.id }); }}>×</button>
+            </div>)}
+            {/* A frame around the cards the user said belong together. It draws
+                nothing of its own: the members are the same cards as before. */}
+            {groupFrames.map(frame => <div key={frame.id} data-group={frame.id} className="waygoal-group"
+              style={{ left: frame.left, top: frame.top, width: frame.width, height: frame.height }}>
+              <div className="waygoal-group-head" onPointerDown={e => e.stopPropagation()}>
+                <strong>{frame.name}</strong>
+                <span>{frame.members.length} 个</span>
+                <button type="button" data-group-collapse={frame.id} className="waygoal-button outlined small"
+                  onClick={() => void arrange({ groupCollapsed: { group: frame.id, collapsed: true } })}>收起</button>
+                <button type="button" data-group-remove={frame.id} className="waygoal-button outlined small"
+                  onClick={() => void arrange({ removeGroup: frame.id })}>解散</button>
+              </div>
+            </div>)}
+            {/* Collapsed: one named card standing for the group. Opening it puts
+                the very same cards back, at the very same places. */}
+            {groups.filter(group => group.collapsed).map(group => <button key={group.id} type="button" data-node={group.id} data-group-card={group.id}
+              className="waygoal-group-card" style={{ left: group.position.x, top: group.position.y }}
+              aria-label={`分组：${group.name}，${group.members.length} 个节点，展开进入原节点`}
+              onPointerDown={e => { e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); drag.current = { id: group.id, start: { x: e.clientX, y: e.clientY }, origin: group.position, moved: false, pointerId: e.pointerId }; }}
+              onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
+              onClick={() => { if (!drag.current?.moved) void arrange({ groupCollapsed: { group: group.id, collapsed: false } }); }}
+              onKeyDown={onCardKeyDown(group.id, group.position)}>
+              <span className="waygoal-node-meta"><span>分组</span><span className="waygoal-node-state">{group.members.length} 个节点</span></span>
+              <strong>{group.name}</strong>
+              <span className="waygoal-node-foot"><span>里面的会话原样还在</span><span aria-hidden="true">展开 →</span></span>
+            </button>)}
+            {nodes.filter(node => !tucked.has(node.id)).map(node => <button key={node.id} type="button" data-node={node.id}
               ref={node.id === selectedId ? selectedElRef : undefined}
-              className={`waygoal-node${node.id === selectedId ? " selected" : ""}${node.running ? " running" : ""}${viewing?.sessionId === node.id ? " viewing" : ""}`}
+              className={`waygoal-node${node.id === selectedId ? " selected" : ""}${node.running ? " running" : ""}${viewing?.sessionId === node.id ? " viewing" : ""}${picked.includes(node.id) ? " picked" : ""}`}
               style={{ left: node.position.x, top: node.position.y }}
               aria-pressed={node.id === selectedId}
               aria-label={`${node.title}${node.running ? "，正在运行" : ""}${node.branchPointCount ? `，${node.branchPointCount} 处会话内分叉` : ""}${node.origin ? "，有分叉来源" : ""}`}
               onPointerDown={e => { e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); drag.current = { id: node.id, start: { x: e.clientX, y: e.clientY }, origin: node.position, moved: false, pointerId: e.pointerId }; }}
               onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
-              onClick={() => { if (!drag.current?.moved) openNode(node); }}
-              onKeyDown={e => {
-                const step = e.shiftKey ? 50 : 10;
-                const moves: Record<string, WaygoalPoint> = { ArrowLeft: { x: -step, y: 0 }, ArrowRight: { x: step, y: 0 }, ArrowUp: { x: 0, y: -step }, ArrowDown: { x: 0, y: step } };
-                if (moves[e.key]) { e.preventDefault(); e.stopPropagation(); nudge(node, moves[e.key].x, moves[e.key].y); }
-                else if (e.key === "Escape" && panelOpen) { e.preventDefault(); closePanel(); }
-              }}>
+              onClick={e => {
+                if (drag.current?.moved) return;
+                // Holding a modifier picks the card for grouping or linking
+                // instead of opening it: picking opens nothing and sends nothing.
+                if (e.metaKey || e.ctrlKey) { togglePick(node.id); return; }
+                openNode(node);
+              }}
+              onKeyDown={onCardKeyDown(node.id, node.position)}>
               <span className="waygoal-node-meta"><span>{node.titleSource === "name" ? "会话" : node.titleSource === "fallback" ? "未命名 · 首条消息" : "未命名"}</span><span className="waygoal-node-state">{node.running ? <><i aria-hidden="true" /> 正在运行</> : relativeTime(node.modified)}</span></span>
               <strong>{node.title}</strong>
               {(node.origin || node.branchPointCount > 0) && <span className="waygoal-node-marks">
@@ -799,15 +922,20 @@ export function WaygoalCanvas() {
                   </>,
                   foot: ticket.question.slice(0, 28) || "还没写下要解决的问题",
                 }))]
+                .filter(card => !tucked.has(card.id))
                 .map(card => <button key={card.id} type="button" data-node={card.id}
                   data-state={card.ticketState ?? undefined} data-unblocked={card.lit ? "true" : undefined}
-                  className={`waygoal-ticket-card${card.extra}${openTicket === card.id ? " selected" : ""}${card.stale ? " stale" : ""}${card.lit ? " unblocked" : ""}`}
+                  className={`waygoal-ticket-card${card.extra}${openTicket === card.id ? " selected" : ""}${card.stale ? " stale" : ""}${card.lit ? " unblocked" : ""}${picked.includes(card.id) ? " picked" : ""}`}
                   style={{ left: card.position.x, top: card.position.y }}
                   aria-pressed={openTicket === card.id}
                   aria-label={`${card.kind}：${card.title}${card.stale ? "，读不到来源文件" : ""}`}
                   onPointerDown={e => { e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); drag.current = { id: card.id, start: { x: e.clientX, y: e.clientY }, origin: card.position, moved: false, pointerId: e.pointerId }; }}
                   onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
-                  onClick={() => { if (!drag.current?.moved) openLocalTicket(card.id); }}>
+                  onClick={e => {
+                    if (drag.current?.moved) return;
+                    if (e.metaKey || e.ctrlKey) { togglePick(card.id); return; }
+                    openLocalTicket(card.id);
+                  }}>
                   <span className="waygoal-node-meta">
                     <span>{card.label}</span>
                     <span className="waygoal-node-state">{card.stale ? "读不到来源" : card.state}</span>
@@ -818,7 +946,7 @@ export function WaygoalCanvas() {
                 </button>)}
               {/* The discussions held under each ticket, right below it: the
                   tickets stay laid out flat, no container wraps them. */}
-              {map.tickets.map(ticket => <Fragment key={`talks-${ticket.id}`}>
+              {map.tickets.filter(ticket => !tucked.has(ticket.id)).map(ticket => <Fragment key={`talks-${ticket.id}`}>
                 {ticket.discussions.length > 0 && <button type="button" data-talk-toggle={ticket.id}
                   className="waygoal-chip toggle" style={{ left: ticket.position.x, top: ticket.position.y + ticketChipTop(0), width: NODE_W }}
                   onPointerDown={e => e.stopPropagation()}

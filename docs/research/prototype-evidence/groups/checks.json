@@ -1,0 +1,125 @@
+{
+  "ranAt": "2026-09-10T21:13:00.688Z",
+  "checks": [
+    {
+      "name": "three real sessions to arrange",
+      "ok": true,
+      "detail": "01a08d2a-7733-7205-b214-cb3fb75b56e0,01a08d2a-85ea-7205-b214-cb418c497c9e,01a08d2a-8ac1-7205-b214-cb42e824294a"
+    },
+    {
+      "name": "picking cards opens no panel and sends nothing",
+      "ok": true,
+      "detail": "已选 2 个：放映会放哪部片好、吃的准备什么"
+    },
+    {
+      "name": "a named group is made from the picked cards",
+      "ok": true,
+      "detail": "{\"id\":\"g-7b018ce47f0e\",\"name\":\"先定好片子和吃的\",\"members\":[\"01a08d2a-7733-7205-b214-cb3fb75b56e0\",\"01a08d2a-85ea-7205-b214-cb418c497c9e\"],\"collapsed\":false,\"position\":{\"x\":0,\"y\":200}}"
+    },
+    {
+      "name": "making a group starts no session and sends no message",
+      "ok": true,
+      "detail": "{\"requests\":0}"
+    },
+    {
+      "name": "the group is named on the canvas, and its members are still their own cards",
+      "ok": true,
+      "detail": "{\"chats\":3}"
+    },
+    {
+      "name": "grouping shares no context: each member is still its own session, unchanged",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "collapsed, the group is one named card and its members are off the canvas",
+      "ok": true,
+      "detail": "{\"chats\":1}"
+    },
+    {
+      "name": "collapsing takes nothing away: the sessions are all still there",
+      "ok": true,
+      "detail": "01a08d2a-7733-7205-b214-cb3fb75b56e0,01a08d2a-85ea-7205-b214-cb418c497c9e,01a08d2a-8ac1-7205-b214-cb42e824294a"
+    },
+    {
+      "name": "a chat inside a collapsed group is still found by its own title, and going to it lands on the group card",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "expanding puts the very same nodes back where they were",
+      "ok": true,
+      "detail": "{\"01a08d2a-7733-7205-b214-cb3fb75b56e0\":\"{\\\"x\\\":0,\\\"y\\\":200}\",\"01a08d2a-85ea-7205-b214-cb418c497c9e\":\"{\\\"x\\\":0,\\\"y\\\":400}\",\"01a08d2a-8ac1-7205-b214-cb42e824294a\":\"{\\\"x\\\":320,\\\"y\\\":400}\"}"
+    },
+    {
+      "name": "a manual link is drawn between the two picked cards, with the note the user wrote",
+      "ok": true,
+      "detail": "{\"id\":\"l-6d8d958144fb\",\"from\":\"01a08d2a-8ac1-7205-b214-cb42e824294a\",\"to\":\".scratch/party/issues/01-room.md\",\"note\":\"客厅这个说法就是从这段聊出来的\"}"
+    },
+    {
+      "name": "the note is shown on the canvas",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a manual link is drawn as its own kind of line, not as a fork and not as a dependency",
+      "ok": true,
+      "detail": "1"
+    },
+    {
+      "name": "drawing it sent nothing, moved no leaf and did not touch the tracker file",
+      "ok": true,
+      "detail": "{\"leafBefore\":\"4715ae63\",\"now\":\"4715ae63\"}"
+    },
+    {
+      "name": "the ticket's real dependency is unchanged by the manual link",
+      "ok": true,
+      "detail": "[{\"number\":\"01\",\"path\":\".scratch/party/issues/01-room.md\",\"status\":\"open\",\"holding\":\"waiting\"}]"
+    },
+    {
+      "name": "a manual link reaching into a collapsed group is drawn to the group card, note and all",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "and removing it from there takes only that link",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "renaming a session breaks neither its group nor its links",
+      "ok": true,
+      "detail": "{\"members\":[\"01a08d2a-7733-7205-b214-cb3fb75b56e0\",\"01a08d2a-85ea-7205-b214-cb418c497c9e\"],\"links\":[{\"id\":\"l-6d8d958144fb\",\"from\":\"01a08d2a-8ac1-7205-b214-cb42e824294a\",\"to\":\".scratch/party/issues/01-room.md\",\"note\":\"客厅这个说法就是从这段聊出来的\"}]}"
+    },
+    {
+      "name": "after a restart the group name, its members and its layout are all back",
+      "ok": true,
+      "detail": "[{\"id\":\"g-7b018ce47f0e\",\"name\":\"先定好片子和吃的\",\"members\":[\"01a08d2a-7733-7205-b214-cb3fb75b56e0\",\"01a08d2a-85ea-7205-b214-cb418c497c9e\"],\"collapsed\":false,\"position\":{\"x\":0,\"y\":200}}]"
+    },
+    {
+      "name": "and the manual link is back with its note",
+      "ok": true,
+      "detail": "[{\"id\":\"l-6d8d958144fb\",\"from\":\"01a08d2a-8ac1-7205-b214-cb42e824294a\",\"to\":\".scratch/party/issues/01-room.md\",\"note\":\"客厅这个说法就是从这段聊出来的\"}]"
+    },
+    {
+      "name": "the restart replayed no command",
+      "ok": true,
+      "detail": "0"
+    },
+    {
+      "name": "removing a manual link removes the line and nothing else",
+      "ok": true,
+      "detail": "{\"sessions\":[\"01a08d2a-7733-7205-b214-cb3fb75b56e0\",\"01a08d2a-85ea-7205-b214-cb418c497c9e\",\"01a08d2a-8ac1-7205-b214-cb42e824294a\"],\"leafBefore\":\"4715ae63\",\"now\":\"4715ae63\"}"
+    },
+    {
+      "name": "dissolving a group leaves every session in it exactly as it was",
+      "ok": true,
+      "detail": "[\"01a08d2a-7733-7205-b214-cb3fb75b56e0\",\"01a08d2a-85ea-7205-b214-cb418c497c9e\",\"01a08d2a-8ac1-7205-b214-cb42e824294a\"]"
+    },
+    {
+      "name": "no page or console errors",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

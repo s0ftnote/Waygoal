@@ -25,6 +25,10 @@ export interface WaygoalCanvasRecord {
    *  ticket that has just stopped waiting can be pointed at once, and so a
    *  restarted host does not point at the same change again. */
   ticketWaiting: Record<string, boolean>;
+  /** The user's own arrangement of this canvas: which cards they said belong
+   *  together, and which relations they drew by hand. Neither is inferred. */
+  groups: WaygoalGroup[];
+  links: WaygoalManualLink[];
   view?: WaygoalView;
   lastViewed?: string | null;
   /** Read-only viewing position inside `lastViewed`. */
@@ -73,6 +77,35 @@ export interface WaygoalNode {
   activeLeafId: string | null;
 }
 
+/** A named group of cards the user drew on one canvas. It says these belong
+ *  together and nothing else: no session is created, no context is shared, and
+ *  every member keeps its own history. */
+export interface WaygoalGroup {
+  id: string;
+  name: string;
+  members: string[];
+  /** Collapsed shows the group as one named card and leaves its members off
+   *  the canvas; expanded puts them back where they were. */
+  collapsed: boolean;
+}
+
+/** A group as drawn: where its own card sits when it is collapsed. */
+export interface WaygoalGroupView extends WaygoalGroup {
+  position: WaygoalPoint;
+}
+
+/** A relation between two cards that the user drew by hand, with an optional
+ *  note. Nothing inferred it: it is neither a real fork read from Pi's history
+ *  nor a dependency read from a ticket's `Blocked by:`, and drawing or removing
+ *  one changes neither of those. */
+export interface WaygoalManualLink {
+  id: string;
+  from: string;
+  to: string;
+  /** Empty when the user did not write one. */
+  note: string;
+}
+
 export interface WaygoalSnapshot {
   cwd: string;
   workspaceId: string;
@@ -82,6 +115,8 @@ export interface WaygoalSnapshot {
   lastViewedEntry: string | null;
   /** Set when the record points at a session that is no longer in this workspace. */
   lastViewedMissing: boolean;
+  groups: WaygoalGroupView[];
+  links: WaygoalManualLink[];
 }
 
 export interface WaygoalTicketPlace {
@@ -103,6 +138,17 @@ export interface WaygoalCanvasPatch {
   /** Put this session on the canvas the patch is addressed to. A session
    *  started from a canvas belongs to that canvas and no other. */
   registerSession?: string;
+  /** Group these cards under this name. The id is made here, and a card
+   *  joining a group leaves the one it was in. */
+  addGroup?: { name: string; members: string[] };
+  /** Show this group as one card, or spread its members out again. */
+  groupCollapsed?: { group: string; collapsed: boolean };
+  /** Take the grouping away. The members themselves are untouched. */
+  removeGroup?: string;
+  /** Draw a relation between two cards by hand. Between the same two cards
+   *  there is only ever one, so drawing it again is how the note is changed. */
+  addLink?: { from: string; to: string; note?: string };
+  removeLink?: string;
 }
 
 /** Node card size in canvas units; waygoal.css mirrors these for `.waygoal-node`. */

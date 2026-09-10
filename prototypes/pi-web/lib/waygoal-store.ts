@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
@@ -7,7 +8,7 @@ import { normalizeWorkspaceInput, workspaceDir, workspaceId } from "./waygoal-pa
 import { claimSessionsOn, registerSession, rememberedWorkspace } from "./waygoal-workspaces";
 import type { SessionInfo } from "./types";
 import { mergeTicketScan, readLocalTickets } from "./waygoal-tickets";
-import { DEFAULT_CANVAS_ID, NODE_HEIGHT, NODE_WIDTH, TICKET_CARD_HEIGHT, type WaygoalScope, type WaygoalCanvasPatch, type WaygoalCanvasRecord, type WaygoalNode, type WaygoalNodeOrigin, type WaygoalOriginRecord, type WaygoalPoint, type WaygoalSavedTickets, type WaygoalSnapshot, type WaygoalTicketDiscussion, type WaygoalTicketSnapshot, type WaygoalTicketView, type WaygoalTitleSource, type WaygoalTreeInfo } from "./waygoal-types";
+import { DEFAULT_CANVAS_ID, NODE_HEIGHT, NODE_WIDTH, TICKET_CARD_HEIGHT, type WaygoalScope, type WaygoalCanvasPatch, type WaygoalCanvasRecord, type WaygoalGroup, type WaygoalGroupView, type WaygoalManualLink, type WaygoalNode, type WaygoalNodeOrigin, type WaygoalOriginRecord, type WaygoalPoint, type WaygoalSavedTickets, type WaygoalSnapshot, type WaygoalTicketDiscussion, type WaygoalTicketSnapshot, type WaygoalTicketView, type WaygoalTitleSource, type WaygoalTreeInfo } from "./waygoal-types";
 export { NODE_HEIGHT, NODE_WIDTH };
 
 /** One file per canvas. The first canvas keeps the name the record had when
@@ -34,7 +35,7 @@ export function resolveWorkspaceCwd(input?: string | null, agentDir = getAgentDi
 }
 
 function emptyRecord(cwd: string): WaygoalCanvasRecord {
-  return { version: 1, cwd, nodes: {}, origins: {}, tickets: emptySavedTickets(), ticketSessions: {}, ticketExpanded: {}, ticketLast: {}, ticketWaiting: {}, updatedAt: new Date(0).toISOString() };
+  return { version: 1, cwd, nodes: {}, origins: {}, tickets: emptySavedTickets(), ticketSessions: {}, ticketExpanded: {}, ticketLast: {}, ticketWaiting: {}, groups: [], links: [], updatedAt: new Date(0).toISOString() };
 }
 
 const emptySavedTickets = (): WaygoalSavedTickets => ({ maps: {}, tickets: {} });
@@ -65,6 +66,25 @@ function isOrigin(value: unknown): value is WaygoalOriginRecord {
   const origin = value as WaygoalOriginRecord;
   return Boolean(origin) && typeof origin.sessionId === "string" && Boolean(origin.sessionId)
     && typeof origin.entryId === "string" && Boolean(origin.entryId);
+}
+
+const isNonEmptyString = (value: unknown): value is string => typeof value === "string" && Boolean(value);
+
+function validGroups(value: unknown): WaygoalGroup[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap(group => {
+    const members: string[] = Array.isArray(group?.members) ? [...new Set((group.members as unknown[]).filter(isNonEmptyString))] : [];
+    if (typeof group?.id !== "string" || !group.id || typeof group?.name !== "string" || members.length === 0) return [];
+    return [{ id: group.id, name: group.name, members, collapsed: group.collapsed === true }];
+  });
+}
+
+function validLinks(value: unknown): WaygoalManualLink[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap(link => {
+    if (typeof link?.id !== "string" || !link.id || !isNonEmptyString(link?.from) || !isNonEmptyString(link?.to) || link.from === link.to) return [];
+    return [{ id: link.id, from: link.from, to: link.to, note: typeof link.note === "string" ? link.note : "" }];
+  });
 }
 
 function isPoint(value: unknown): value is WaygoalPoint {
@@ -98,6 +118,8 @@ export function readCanvasRecord(scope: WaygoalScope): WaygoalCanvasRecord {
       ticketWaiting: Object.fromEntries(Object.entries(parsed.ticketWaiting ?? {}).filter(([t, waiting]) => isTicketPath(t) && typeof waiting === "boolean")),
       ticketLast: Object.fromEntries(Object.entries(parsed.ticketLast ?? {}).filter(([t, place]) => isTicketPath(t) && place && typeof place.sessionId === "string" && Boolean(place.sessionId))
         .map(([t, place]) => [t, { sessionId: place.sessionId, entryId: typeof place.entryId === "string" && place.entryId ? place.entryId : null }])),
+      groups: validGroups(parsed.groups),
+      links: validLinks(parsed.links),
       ...(view ? { view } : {}),
       lastViewed: typeof parsed.lastViewed === "string" ? parsed.lastViewed : null,
       lastViewedEntry: typeof parsed.lastViewedEntry === "string" ? parsed.lastViewedEntry : null,
@@ -155,6 +177,50 @@ export function applyCanvasPatch(scope: WaygoalScope, patch: WaygoalCanvasPatch)
   if (held && typeof held.sessionId === "string" && held.sessionId) {
     if (held.ticket === null) { delete record.ticketSessions[held.sessionId]; changed = true; }
     else if (isTicketPath(held.ticket)) { record.ticketSessions[held.sessionId] = held.ticket; changed = true; }
+  }
+  const group = patch.addGroup;
+  if (group && Array.isArray(group.members)) {
+    const members = [...new Set(group.members.filter(isNonEmptyString))];
+    if (members.length > 0) {
+      // A card belongs to one arrangement at a time: joining a group is how it
+      // leaves the one it was in, and a group left with nobody in it is gone.
+      for (const other of record.groups) {
+        other.members = other.members.filter(id => !members.includes(id));
+        if (other.members.length === 0) delete record.nodes[other.id];
+      }
+      record.groups = record.groups.filter(other => other.members.length > 0);
+      const id = `g-${randomBytes(6).toString("hex")}`;
+      record.groups.push({ id, name: group.name?.trim() || "未命名分组", members, collapsed: false });
+      // Collapsed, the group stands where its members were standing.
+      const placed = members.map(member => record.nodes[member]).filter(Boolean);
+      if (placed.length > 0) record.nodes[id] = { x: Math.min(...placed.map(p => p.x)), y: Math.min(...placed.map(p => p.y)) };
+      changed = true;
+    }
+  }
+  const collapse = patch.groupCollapsed;
+  if (collapse && isNonEmptyString(collapse.group) && typeof collapse.collapsed === "boolean") {
+    record.groups = record.groups.map(g => (g.id === collapse.group ? { ...g, collapsed: collapse.collapsed } : g));
+    changed = true;
+  }
+  if (isNonEmptyString(patch.removeGroup)) {
+    // Only the grouping goes: the sessions and tickets in it are Pi's and the
+    // workspace's, and taking a frame away must not touch them.
+    record.groups = record.groups.filter(group => group.id !== patch.removeGroup);
+    delete record.nodes[patch.removeGroup];
+    changed = true;
+  }
+  const link = patch.addLink;
+  if (link && isNonEmptyString(link.from) && isNonEmptyString(link.to) && link.from !== link.to) {
+    const note = typeof link.note === "string" ? link.note.trim() : "";
+    const between = (l: WaygoalManualLink) => (l.from === link.from && l.to === link.to) || (l.from === link.to && l.to === link.from);
+    const existing = record.links.find(between);
+    if (existing) record.links = record.links.map(l => (l.id === existing.id ? { ...l, from: link.from, to: link.to, note } : l));
+    else record.links.push({ id: `l-${randomBytes(6).toString("hex")}`, from: link.from, to: link.to, note });
+    changed = true;
+  }
+  if (isNonEmptyString(patch.removeLink)) {
+    record.links = record.links.filter(l => l.id !== patch.removeLink);
+    changed = true;
   }
   if (patch.ticketExpanded && isTicketPath(patch.ticketExpanded.ticket) && typeof patch.ticketExpanded.expanded === "boolean") {
     record.ticketExpanded[patch.ticketExpanded.ticket] = patch.ticketExpanded.expanded;
@@ -288,6 +354,12 @@ export function buildSnapshot(
       activeLeafId: trees.get(session.id)?.activeLeafId ?? null,
     };
   });
+  // Collapsed, a group is a card like any other and needs a place of its own.
+  // Placed before the write below, so the place it is given is the one kept.
+  const groups: WaygoalGroupView[] = record.groups.map(group => {
+    if (placeOnCanvas(record, group.id)) changed = true;
+    return { ...group, position: record.nodes[group.id] };
+  });
   if (changed) {
     record.updatedAt = new Date().toISOString();
     writeCanvasRecord(record, scope);
@@ -303,6 +375,8 @@ export function buildSnapshot(
     // The position belongs to that session only; it must never be carried over.
     lastViewedEntry: lastViewedMissing ? null : record.lastViewedEntry ?? null,
     lastViewedMissing,
+    groups,
+    links: record.links,
   };
 }
 

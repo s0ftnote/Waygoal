@@ -249,12 +249,13 @@ app/api/beacon/route.ts          ticket prototype: tracker snapshot and ticket �
 components/WaygoalCanvas.tsx     pan/zoom canvas, draggable session nodes, right panel hosting ChatWindow; 回到上次看的地方 and the thumbnail (ticket #5)
 components/WaygoalFind.tsx       查找 over the canvas: title match on the cards already there, 最近聊过的 when nothing is typed (ticket #5)
 components/WaygoalRename.tsx     改名 / 请 Pi 起个名字 for one session, through the host's own PATCH /api/sessions/[id] and auto-name (ticket #5)
+components/WaygoalArrange.tsx    toolbar bar shown once cards are picked: name a group, or draw one manual link with a note (ticket #6)
 components/WaygoalWorkspaceBar.tsx  header: which working directory, the ones opened before, this directory's canvases, 新建画布 (ticket #4)
 components/WaygoalPaths.tsx      panel header: fork origin, branch points, 打开这段 (ticket #3)
 components/WaygoalPathView.tsx   read-only history of one path; reuses GET /api/sessions/[id]/context (ticket #3)
 components/WaygoalTicketPanel.tsx  full view of one local ticket or map: the source file itself, blockers, read time (ticket #7); the discussions held under it and the closable how-to (ticket #8); what each premise still needs (ticket #9)
 components/BeaconCanvas.tsx      ticket prototype canvas
-lib/waygoal-store.ts             canvas records in <agentDir>/waygoal/workspaces/<id>/canvas.json (canvas-<canvasId>.json past the first); snapshot builder. Everything reads and writes through a WaygoalScope { cwd, canvasId, agentDir } (ticket #4)
+lib/waygoal-store.ts             canvas records in <agentDir>/waygoal/workspaces/<id>/canvas.json (canvas-<canvasId>.json past the first); snapshot builder. Everything reads and writes through a WaygoalScope { cwd, canvasId, agentDir } (ticket #4). Also holds the user's own arrangement: groups and manual links, neither of them inferred (ticket #6)
 lib/waygoal-workspaces.ts        workspace.json: this directory's canvases, the one it was left on, which canvas each session is on; recent.json remembers the directories opened (ticket #4)
 lib/waygoal-paths.ts             where records live: waygoalRoot / workspaceId / workspaceDir / normalizeWorkspaceInput, so both records can use them without importing each other
 lib/waygoal-branches.ts          pure projection of a Pi tree into branch points and paths; no I/O (ticket #3)
@@ -270,6 +271,7 @@ e2e/waygoal-tickets.mjs          npm run test:waygoal-tickets — local maps and
 e2e/waygoal-ticket-talks.mjs     npm run test:waygoal-ticket-talks — starting, forking and continuing a discussion under a ticket (ticket #8)
 e2e/waygoal-dependencies.mjs     npm run test:waygoal-dependencies — dependency changes: two premises, unblocking, re-blocking, dropped and unreadable premises, no model (ticket #9)
 e2e/waygoal-find.mjs             npm run test:waygoal-find — renaming, asking Pi for a title, finding by title after a restart, 最近访问, the thumbnail, locating (ticket #5)
+e2e/waygoal-groups.mjs           npm run test:waygoal-groups — picking cards, naming a group, collapsing and expanding it, a manual link with a note, renaming, and a host restart (ticket #6)
 e2e/waygoal-workspaces.mjs       npm run test:waygoal-workspaces — two working directories sharing a folder name, several canvases each: making one, switching, isolation, reload and restart (ticket #4)
 e2e/beacon.mjs                   ticket prototype browser check against a running 30142
 ```

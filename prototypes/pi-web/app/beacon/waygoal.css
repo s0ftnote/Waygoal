@@ -170,6 +170,29 @@
 .waygoal-link path { fill: none; stroke: var(--wg-path); stroke-width: 1.5; stroke-dasharray: 5 4; opacity: .75; }
 .waygoal-link circle { fill: var(--wg-path); opacity: .75; }
 .waygoal-link text { font-size: 10px; fill: var(--wg-muted); paint-order: stroke; stroke: var(--wg-canvas); stroke-width: 4px; }
+/* Drawn by hand, so it does not look like a fork or a dependency: solid and
+   thicker where those are thin and dashed, with a dot at each end because it
+   claims no direction. */
+.waygoal-link.manual path { stroke: var(--wg-path); stroke-width: 2.5; stroke-dasharray: none; opacity: 1; }
+.waygoal-link.manual circle { fill: var(--wg-path); opacity: 1; }
+.waygoal-link-note { position: absolute; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 4px; max-width: 190px; padding: 2px 4px 2px 9px; border-radius: 11px; font-size: 10px; line-height: 18px; color: var(--wg-ink); background: var(--wg-surface); border: 1px solid var(--wg-path); }
+.waygoal-link-note span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.waygoal-link-note button { width: 18px; height: 18px; border-radius: 50%; font-size: 13px; color: var(--wg-muted); flex-shrink: 0; }
+.waygoal-link-note button:hover { background: var(--wg-accent-soft); color: var(--wg-ink); }
+
+/* A group is a frame around where its members already are, so it must not take
+   the pointer away from them; only its own header is clickable. */
+.waygoal-group { position: absolute; border: 1.5px dashed var(--wg-accent); border-radius: 24px; background: rgb(169 219 220 / 10%); pointer-events: none; }
+.waygoal-group-head { position: absolute; left: 14px; top: -14px; display: inline-flex; align-items: center; gap: 8px; padding: 3px 10px; border-radius: 14px; background: var(--wg-surface); border: 1px solid var(--wg-accent); pointer-events: auto; font-size: 12px; }
+.waygoal-group-head strong { font-weight: 650; }
+.waygoal-group-head span { color: var(--wg-muted); font-size: 11px; }
+.waygoal-group-card { position: absolute; width: 250px; min-height: 140px; background: var(--wg-accent-soft); border: 1.5px dashed var(--wg-accent); border-radius: 21px; text-align: left; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--wg-shadow); cursor: grab; touch-action: none; }
+.waygoal-group-card:hover { border-color: var(--wg-ink); }
+.waygoal-group-card strong { font-size: 16px; font-weight: 650; line-height: 1.45; }
+.waygoal-node.picked, .waygoal-ticket-card.picked { border: 2px dashed var(--wg-path); box-shadow: 0 0 0 5px rgb(89 123 130 / 20%); }
+.waygoal-arrange { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 5px 10px; border: 1px solid var(--wg-accent); border-radius: 14px; background: var(--wg-accent-soft); }
+.waygoal-arrange form { display: flex; align-items: center; gap: 5px; }
+.waygoal-arrange input { border: 1px solid var(--wg-border); border-radius: 10px; padding: 5px 9px; font: inherit; font-size: 12px; width: 120px; background: var(--wg-surface); color: inherit; }
 
 .waygoal-tag { display: inline-flex; align-items: center; border-radius: 11px; padding: 1px 8px; font-size: 10px; line-height: 18px; white-space: nowrap; border: 1px solid var(--wg-border); color: var(--wg-muted); background: var(--wg-surface); }
 .waygoal-tag.origin { border-style: dashed; }
@@ -240,7 +263,9 @@
 
 @media (max-width: 1100px) {
   .waygoal-top { padding: 0 20px; gap: 18px; }
-  .waygoal-link { display: none; }
+  /* The lines go; the notes that ride on them have to go with them, or they
+     float over the canvas pointing at nothing. */
+  .waygoal-link, .waygoal-link-note { display: none; }
   .waygoal-toolbar, .waygoal-statusline { padding-left: 20px; padding-right: 20px; }
 }
 @media (max-width: 640px) {

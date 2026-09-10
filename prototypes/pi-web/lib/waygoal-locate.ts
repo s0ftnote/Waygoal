@@ -6,7 +6,7 @@ import { NODE_WIDTH, type WaygoalPoint, type WaygoalView } from "./waygoal-types
 export interface WaygoalCard {
   id: string;
   title: string;
-  kind: "session" | "ticket" | "map";
+  kind: "session" | "ticket" | "map" | "group";
   position: WaygoalPoint;
   height: number;
   /** When the session last changed. Tickets and maps have no such time — the

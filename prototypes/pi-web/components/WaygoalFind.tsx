@@ -8,7 +8,7 @@ interface Props {
   onGo: (card: WaygoalCard) => void;
 }
 
-const KIND_LABEL = { session: "会话", ticket: "票据", map: "地图" } as const;
+const KIND_LABEL = { session: "会话", ticket: "票据", map: "地图", group: "分组" } as const;
 
 /** Finding a discussion by the name it was given. It opens over the canvas and
  *  closes again: the canvas stays the main view, and this only says where to
