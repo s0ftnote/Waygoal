@@ -1,0 +1,140 @@
+{
+  "ranAt": "2026-09-10T22:43:48.599Z",
+  "checks": [
+    {
+      "name": "the delivery answers with the card it landed on and whether the canvas is in sync",
+      "ok": true,
+      "detail": "{\"ticket\":\"remote/github/s0ftnote/Waygoal/10\",\"captured\":true,\"note\":null}"
+    },
+    {
+      "name": "the source itself becomes a card beside the local map, not a second kind of thing",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "the body is the source's own text, character for character — no model rewrote it",
+      "ok": true,
+      "detail": "## Parent\n\nhttps://github.com/s0ftnote/Waygoal/issues/1\n\n## What to build\n\n验证 Ag"
+    },
+    {
+      "name": "and the title is the source's own",
+      "ok": true,
+      "detail": "远程原文也走同一票据入口"
+    },
+    {
+      "name": "the card says where it came from and when it was taken",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "the pending-check line says plainly that this is a snapshot, not live sync",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "attachments and links are addresses, listed and never fetched",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "comments that were fetched and turned out to be none say exactly that",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "this ticket can be talked about the same way a local one can",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a result that never carried comments says so, instead of reading as 'no comments'",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "the offline sample comes in through the same entrance and stands as its own source",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "the same bare number under GitHub, the sample and the local map is three tickets, not one",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "its premise is settled inside its own source only, never against a GitHub or local ticket of the same number",
+      "ok": true,
+      "detail": "3 · open"
+    },
+    {
+      "name": "a delivery whose raw result is gone is recorded as not captured, and the source operation still counts",
+      "ok": true,
+      "detail": "{\"ticket\":\"remote/github/s0ftnote/Waygoal/11\",\"captured\":false,\"note\":\"没有读到这次交付的原始结果（ENOENT: no such file or directory, lstat '/private/var/folders/91/xkj5dqrd45xg8jp31lj5zjnw0000gn/T/waygoal-remote-e2e-c0TVZR/work/放映会/.scratch/remote/github-11.json'）。原始结果要落在工作目录里；把它写回去之后可以再取一次。\"}"
+    },
+    {
+      "name": "the card is there and says 未同步 rather than disappearing or showing invented text",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "and the panel shows nothing as if it were the source's own",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "re-obtaining the source and asking again brings it in, on the same card",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "delivering the same ticket again does not add a second card",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "an older result is not taken, and it says so instead of silently overwriting",
+      "ok": true,
+      "detail": "{\"ticket\":\"remote/github/s0ftnote/Waygoal/10\",\"captured\":false,\"note\":\"收到一份更旧或顺序不明的结果（2026-01-01T00:00:00Z），没有采用，画布上还是已经确认的那一份。要排出先后，来源的结果里得带上它自己的更新时间。\"}"
+    },
+    {
+      "name": "the confirmed state stays on screen after the older result arrives",
+      "ok": true,
+      "detail": "远程原文也走同一票据入口"
+    },
+    {
+      "name": "and the reason it was not taken is shown, not swallowed",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "an unsupported format is named as unsupported and nothing is guessed out of it",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "and it shows no body at all rather than a scraped one",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "after the host restarts, the sources and their tickets are still on the canvas, with their own text",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "and the one whose result was never captured is still there, still 未同步",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "nothing was sent to a model, and the kept GitHub result is byte-for-byte what this test wrote",
+      "ok": true,
+      "detail": "{\"requests\":0,\"now\":0}"
+    },
+    {
+      "name": "no page or console errors",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

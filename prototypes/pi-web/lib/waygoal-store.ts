@@ -7,6 +7,8 @@ import { projectIdentityKey } from "./project-identity";
 import { normalizeWorkspaceInput, workspaceDir, workspaceId } from "./waygoal-paths";
 import { claimSessionsOn, registerSession, rememberedWorkspace } from "./waygoal-workspaces";
 import type { SessionInfo } from "./types";
+import { REMOTE_PREFIX } from "./waygoal-remote";
+import { remoteMapViews } from "./waygoal-remote-store";
 import { mergeTicketScan, readLocalTickets } from "./waygoal-tickets";
 import { DEFAULT_CANVAS_ID, NODE_HEIGHT, NODE_WIDTH, TICKET_CARD_HEIGHT, type WaygoalScope, type WaygoalCanvasPatch, type WaygoalCanvasRecord, type WaygoalGroup, type WaygoalGroupView, type WaygoalManualLink, type WaygoalNode, type WaygoalNodeOrigin, type WaygoalOriginRecord, type WaygoalPoint, type WaygoalSavedTickets, needsCheck, type WaygoalMapCheck, type WaygoalSnapshot, type WaygoalTicketDiscussion, type WaygoalTicketMapView, type WaygoalTicketState, type WaygoalTicketSnapshot, type WaygoalTicketView, type WaygoalTitleSource, type WaygoalTreeInfo } from "./waygoal-types";
 export { NODE_HEIGHT, NODE_WIDTH };
@@ -248,9 +250,10 @@ const GRID_Y = NODE_HEIGHT + 60;
 const GRID_COLUMNS = 3;
 
 /** How tall a card already on the canvas is. Ticket cards are the tall ones:
- *  the record's own ticket list says which ids are tickets. */
+ *  the record's own ticket list names the local ones, and a remote source's
+ *  tickets are named by the source they were delivered from. */
 function cardHeight(record: WaygoalCanvasRecord, id: string): number {
-  return record.tickets.tickets[id] ? TICKET_CARD_HEIGHT : NODE_HEIGHT;
+  return record.tickets.tickets[id] || id.startsWith(REMOTE_PREFIX) ? TICKET_CARD_HEIGHT : NODE_HEIGHT;
 }
 
 /** Give one card a place on the canvas, keeping the one it already has.
@@ -446,10 +449,14 @@ export function buildTicketSnapshot(scope: WaygoalScope, nodes: WaygoalNode[] = 
         originSessionId: record.origins[sessionId]?.sessionId ?? null,
       };
     });
-  const maps = merged.maps.map(map => ({
+  // A source's tickets are laid out exactly like a local map's: same cards,
+  // same places, same discussions under them. Only where they were read from
+  // differs, and each card says so itself.
+  const maps = [...merged.maps, ...remoteMapViews(scope)].map(map => ({
     ...map,
     position: place(map.path, NODE_HEIGHT),
-    check: mapCheck(map, record.mapCheckDismissed[map.path] ?? false),
+    // A source mirror has no Destination of its own to go back and check.
+    check: map.remote ? null : mapCheck(map, record.mapCheckDismissed[map.path] ?? false),
     tickets: map.tickets.map(ticket => ({
       ...ticket,
       position: place(ticket.id, TICKET_CARD_HEIGHT),

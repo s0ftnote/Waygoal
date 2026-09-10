@@ -84,7 +84,7 @@ function ticketState(status: string, blocked: boolean): WaygoalTicketState {
  *  the canvas is showing them. Anything that does not resolve to exactly one
  *  ticket there is reported as unknown and keeps the ticket waiting — an
  *  unread relation is not an absent one. */
-function resolveBlockers(tickets: WaygoalTicketView[]): void {
+export function resolveBlockers(tickets: WaygoalTicketView[]): void {
   for (const ticket of tickets) {
     ticket.blockers = ticket.rawBlockers.map(number => {
       const matches = tickets.filter(t => sameNumber(t.number, number));
@@ -198,7 +198,7 @@ export function mergeTicketScan(
    *  `resolveBlockers` settles them once every ticket of the map is in place,
    *  including the ones only the last good read still knows about. */
   const asView = (ticket: WaygoalTicketNode, stale: WaygoalStale | null): WaygoalTicketView =>
-    ({ ...ticket, stale, blockers: [], blocked: false, state: "unblocked", references: [] });
+    ({ ...ticket, stale, blockers: [], blocked: false, state: "unblocked", references: [], remote: null });
 
   const views: WaygoalTicketMapView[] = scan.maps.map(map => ({
     ...map,
@@ -206,6 +206,7 @@ export function mergeTicketScan(
     lead: mapLead(map.body),
     sections: mapSections(map.body),
     references: [],
+    remote: false,
     tickets: map.tickets.map(ticket => asView(ticket, null)),
   }));
 
@@ -217,7 +218,7 @@ export function mergeTicketScan(
       .map(({ readAt, ...ticket }) => asView(ticket, { reason: STALE_REASON, lastReadAt: readAt, checkedAt }));
     views.push({
       path, title: savedMap.title, body: savedMap.body,
-      lead: mapLead(savedMap.body), sections: mapSections(savedMap.body), references: [],
+      lead: mapLead(savedMap.body), sections: mapSections(savedMap.body), references: [], remote: false,
       tickets, unreadable: [], warnings: [],
       stale: { reason: STALE_REASON, lastReadAt: savedMap.readAt, checkedAt },
     });

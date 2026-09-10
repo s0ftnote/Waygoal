@@ -5,7 +5,7 @@ import { rekeyDraft } from "@/lib/draft-store";
 import { cardBounds, cardCenter, thumbnail, viewCenteredOn, worldPoint, type WaygoalCard } from "@/lib/waygoal-locate";
 import type { SessionInfo } from "@/lib/types";
 import type { WaygoalBranchChoice, WaygoalBranchPoint, WaygoalSessionTreeResponse } from "@/lib/waygoal-branches";
-import { CHIP_HEIGHT, NODE_HEIGHT, NODE_WIDTH, canOpen, needsCheck, ticketCardHeight, ticketChipTop, type WaygoalCanvasPatch, type WaygoalNode, type WaygoalReference, type WaygoalPoint, type WaygoalSnapshotResponse, type WaygoalView } from "@/lib/waygoal-types";
+import { CHIP_HEIGHT, NODE_HEIGHT, NODE_WIDTH, canOpen, mapKind, needsCheck, ticketCardHeight, ticketKind, ticketChipTop, type WaygoalCanvasPatch, type WaygoalNode, type WaygoalReference, type WaygoalPoint, type WaygoalSnapshotResponse, type WaygoalTicketCard, type WaygoalView } from "@/lib/waygoal-types";
 import { ChatWindow } from "./ChatWindow";
 import { FileViewer } from "./FileViewer";
 import { WaygoalPaths } from "./WaygoalPaths";
@@ -160,6 +160,19 @@ export function WaygoalCanvas() {
       if (!res.ok) throw new Error((await res.json()).error);
     } catch (e) { setError(`画布记录没有保存：${e instanceof Error ? e.message : String(e)}`); }
   }, [snapshot?.cwd, snapshot?.workspace.canvasId]);
+
+  /** Ask the host to read that remote ticket's raw result again. Nothing is
+   *  sent to the source and nothing is written to it: this only retries the
+   *  read of a result the Agent already produced. */
+  const retryRemote = useCallback(async (ticket: WaygoalTicketCard) => {
+    if (!snapshot?.cwd) return;
+    try {
+      const res = await fetch("/api/waygoal/remote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cwd: snapshot.cwd, ticket: ticket.id }) });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+      if (!body.captured) setNotice(body.note ?? "还是没读到这次交付的原始结果。");
+    } catch (e) { setError(`没能重新取得：${e instanceof Error ? e.message : String(e)}`); }
+  }, [snapshot?.cwd]);
 
   const refresh = useCallback(async (force = false) => {
     try {
@@ -919,10 +932,10 @@ export function WaygoalCanvas() {
             {/* Local maps and their tickets, read from this workspace's own
                 files. Opening one only reads it: no Pi session is started. */}
             {ticketMaps.map(map => <div key={map.path} className="waygoal-ticket-group">
-              {[{ id: map.path, title: map.title, position: map.position, stale: map.stale, kind: "本地地图",
-                  extra: " map", label: "本地地图", state: "", ticketState: null, lit: false, marks: null, foot: `${map.tickets.length} 张票据` },
+              {[{ id: map.path, title: map.title, position: map.position, stale: map.stale, kind: mapKind(map.remote),
+                  extra: " map", label: mapKind(map.remote), state: "", ticketState: null, lit: false, marks: null, foot: `${map.tickets.length} 张票据` },
                 ...map.tickets.map(ticket => ({
-                  id: ticket.id, title: ticket.title, position: ticket.position, stale: ticket.stale, kind: "本地票据",
+                  id: ticket.id, title: ticket.title, position: ticket.position, stale: ticket.stale, kind: ticketKind(Boolean(ticket.remote)),
                   extra: "", label: `票据 ${ticket.number}`, state: ticket.type,
                   ticketState: ticket.state,
                   // Only the snapshot that first sees it stop waiting says so;
@@ -935,6 +948,9 @@ export function WaygoalCanvas() {
                         still names an unmet premise says both. */}
                     {ticket.blocked && <span className="waygoal-tag waiting">{ticket.blockers.some(needsCheck) ? "依赖要核对" : "被依赖挡着"}</span>}
                     {ticket.state === "unblocked" && ticket.blockers.length > 0 && <span className="waygoal-tag unblocked">前提都满足了</span>}
+                    {/* Delivered but never read: the card stays, and says so
+                        rather than showing anything as the source's own. */}
+                    {ticket.remote && !ticket.remote.capturedAt && <span className="waygoal-tag unknown" data-unsynced>未同步</span>}
                   </>,
                   foot: ticket.question.slice(0, 28) || "还没写下要解决的问题",
                 }))]
@@ -1054,7 +1070,7 @@ export function WaygoalCanvas() {
         <div className="waygoal-panel-head">
           {isMobile && <button type="button" className="waygoal-button outlined small" onClick={closePanel}>← 回到画布</button>}
           <div className="waygoal-panel-title">
-            <span className="waygoal-eyebrow">{openTicketMap ? (openTicketCard ? "本地票据" : "本地地图") : viewing ? "正在看这条路径" : panelSession ? (selectedNode?.running ? "正在运行" : "已有会话") : pendingTicket ? "这张票下的新讨论" : "新的会话"}</span>
+            <span className="waygoal-eyebrow">{openTicketMap ? (openTicketCard ? ticketKind(Boolean(openTicketCard.remote)) : mapKind(openTicketMap.remote)) : viewing ? "正在看这条路径" : panelSession ? (selectedNode?.running ? "正在运行" : "已有会话") : pendingTicket ? "这张票下的新讨论" : "新的会话"}</span>
             <strong>{openTicketMap ? (openTicketCard?.title ?? openTicketMap.title)
               : panelSession ? (selectedNode?.title ?? createdSession?.firstMessage ?? "会话")
               : pendingTicket ? `${pendingTicketTitle ?? pendingTicket}：写下第一句，发送后这段讨论就挂在这张票下`
@@ -1077,7 +1093,8 @@ export function WaygoalCanvas() {
           onStart={ticket => startTicketChat(ticket.id)}
           onOpenDiscussion={id => { const node = nodes.find(n => n.id === id); if (node) openNode(node); }}
           onOpenReference={openReference}
-          onReopenCheck={() => void arrange({ mapCheck: { map: openTicketMap.path, dismissed: false } })} />}
+          onReopenCheck={() => void arrange({ mapCheck: { map: openTicketMap.path, dismissed: false } })}
+          onRetryRemote={ticket => void retryRemote(ticket).then(() => refresh(true))} />}
         {panelSession && <WaygoalPaths
           origin={panelOrigin}
           branchPoints={tree?.sessionId === panelSession.id ? tree.branchPoints : []}

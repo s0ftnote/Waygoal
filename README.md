@@ -100,7 +100,8 @@ npm run dev
 - 票据下的讨论：从票据开始聊只是打开一个草稿，草稿按「票据 + 工作目录」记住，关掉面板再点还是同一份，发送才真正建立会话并挂到这张票据下。一张票据可以带多段讨论；从某段讨论分叉出去的那段沿用同一张票据，不复制票据也不新增依赖。票据下记着上次在聊哪一段，也记着这张票据的讨论是摊开还是收起，都存进同一份画布记录，宿主重启后仍在。收起只是不在画布上摊开，票据里照样能接着聊；被挡住的票据和已解决的票据都还能讨论，聊天本身不改票据状态。关联指向的会话不在了就照实说「打不开」，不按标题换一段顶上。票据卡片下的操作提示是写死的一句话，可关可再开，不读聊天内容也不调用模型。
 - 地图结论与产物：地图按它自己的 `##` 小节、自己的顺序和原话显示，不另外生成一份结论摘要；只有来源自己写成 Markdown 链接的去处才会出现在「来源指向」里，指到票据的能打开票，指到工作目录里文件的用现成的只读查看器读，指不到的写「打不开」，站外地址原样列出不替你打开，都不按措辞或相近标题猜。从票据结论进它下面真开的那段讨论、再回到来源，都不发消息也不动活动叶子。一张地图完整的票集合非空且全部关闭时，旁边出现一条可关闭的检查提示，问剩下的问题和通往目的地的路，不宣布地图完成；取消的票算进时机但会照实说出有几张。地图或票据显示的是上次读到的内容、有文件读不到、有同号多份、或者是空地图，都不触发。提示不抢焦点，「查看地图」只读，关掉后刷新和宿主重启都不再弹，可从地图面板重新打开。
 
-尚未处理：把已有会话搬到另一张画布、画布改名与删除、分组改名与嵌套、跨画布的分组、成员或关联端点不在时的说明、分支标题、跨画布与跨工作目录查找、按会话正文搜索、远程来源、多进程同时写同一画布记录、窄屏下检查提示的摆放。
+- 远程来源：Agent 按平常的方式读完一张远程票据后，交给画布的只有来源身份和它自己那份原始结果放在哪，正文由 Waygoal 自己去读——交付入口没有正文这个参数，Agent 无从用改写稿冒充原文。交付入口是 extension 注册的工具，不去猜 Agent 的散文，也没有加长系统提示。来源操作成功和画布同步成功分开记：没取到就是「未同步」，卡片留在画布上不显示任何冒充来源的内容，把结果写回工作目录后可以重新取得，还是原来那张卡片。支持的格式写死 `gh issue view --json` 的输出和一份离线样本，其它一律明说未支持，不从散文里刮正文。GitHub 和离线样本各自成一组，复用本地票据的快照和画布身份：同号裸编号跨来源是不同的票，前提只在自己来源里结算，卡片下面照样能挂讨论。显示的是取得那一刻的原文，取到的评论按取到的样子列出、没取评论的明说没取到，附件只按地址列出不下载；更旧或顺序不明的结果不静默顶掉已确认的状态，重复交付不多出卡片。来源上的改动要等下一次取得，不承诺实时同步；Web 不维护第二份正式正文，也不需要另配 OAuth。
+尚未处理：把已有会话搬到另一张画布、画布改名与删除、分组改名与嵌套、跨画布的分组、成员或关联端点不在时的说明、分支标题、跨画布与跨工作目录查找、按会话正文搜索、来源变更的主动发现、GitHub 与离线样本以外的来源、多进程同时写同一画布记录、窄屏下检查提示的摆放。
 
 ## 验证
 
@@ -115,6 +116,7 @@ npm run test:waygoal-ticket-talks
 npm run test:waygoal-workspaces
 npm run test:waygoal-groups
 npm run test:waygoal-map
+npm run test:waygoal-remote
 node e2e/beacon.mjs
 ```
 
@@ -128,4 +130,5 @@ node e2e/beacon.mjs
 
 `e2e/beacon.mjs` 是票据原型的浏览器检查，需本机 Google Chrome、运行中的 30142 和已完成真实模型试跑的默认 playground。它恢复已有会话，不向模型追加消息。
 
-会话画布的试跑记录见 [session-canvas-results.md](docs/research/session-canvas-results.md)，分叉与回看的试跑记录见 [branch-navigation-results.md](docs/research/branch-navigation-results.md)，本地票据见 [local-tickets-results.md](docs/research/local-tickets-results.md)，票据下的讨论见 [ticket-talks-results.md](docs/research/ticket-talks-results.md)，依赖变动见 [dependency-changes-results.md](docs/research/dependency-changes-results.md)，起名字与找回讨论见 [find-and-rename-results.md](docs/research/find-and-rename-results.md)，切换工作目录与多画布见 [workspaces-and-canvases-results.md](docs/research/workspaces-and-canvases-results.md)，手动分组与关联见 [groups-and-links-results.md](docs/research/groups-and-links-results.md)，地图结论与产物见 [map-conclusions-results.md](docs/research/map-conclusions-results.md)，票据原型见 [prototype-results.md](docs/research/prototype-results.md)。上游是 [agegr/pi-web](https://github.com/agegr/pi-web)，基于提交 `a26cc68df9227cb74253bddd7c59624aa475e61f`，Pi SDK 版本 `0.85.1`。
+`test:waygoal-remote` 在隔离宿主里配一个假模型、全程不联网，用一份从真实仓库只读取回并留存的 `gh issue view --json` 结果和一份离线自定义样本，从界面检查：正文与标题一字不差、来源与取得时间、待核对与附件边界、取到零条评论与评论没取到之别、同一裸编号跨来源与本地是三张票、前提只在自己来源里结算、引用失效时的未同步与重新取得、重复交付不多卡、更旧结果不静默覆盖、未支持格式不刮正文、宿主重启后仍在，检查记录写入 `docs/research/prototype-evidence/remote/`。
+会话画布的试跑记录见 [session-canvas-results.md](docs/research/session-canvas-results.md)，分叉与回看的试跑记录见 [branch-navigation-results.md](docs/research/branch-navigation-results.md)，本地票据见 [local-tickets-results.md](docs/research/local-tickets-results.md)，票据下的讨论见 [ticket-talks-results.md](docs/research/ticket-talks-results.md)，依赖变动见 [dependency-changes-results.md](docs/research/dependency-changes-results.md)，起名字与找回讨论见 [find-and-rename-results.md](docs/research/find-and-rename-results.md)，切换工作目录与多画布见 [workspaces-and-canvases-results.md](docs/research/workspaces-and-canvases-results.md)，手动分组与关联见 [groups-and-links-results.md](docs/research/groups-and-links-results.md)，地图结论与产物见 [map-conclusions-results.md](docs/research/map-conclusions-results.md)，远程来源见 [remote-tickets-results.md](docs/research/remote-tickets-results.md)，票据原型见 [prototype-results.md](docs/research/prototype-results.md)。上游是 [agegr/pi-web](https://github.com/agegr/pi-web)，基于提交 `a26cc68df9227cb74253bddd7c59624aa475e61f`，Pi SDK 版本 `0.85.1`。

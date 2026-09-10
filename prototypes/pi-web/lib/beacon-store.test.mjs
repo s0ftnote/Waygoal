@@ -50,7 +50,7 @@ test("extension emits once for actual ticket edits, never for session binding ch
     writeFileSync(path, "# Question\nStatus: open\n");
     beaconSnapshot(cwd);
     const handlers = {}, entries = [];
-    createBeaconExtension(cwd)({ on: (name, handler) => { handlers[name] = handler; }, appendEntry: (type, data) => entries.push({ type, data }) });
+    createBeaconExtension(cwd)({ on: (name, handler) => { handlers[name] = handler; }, appendEntry: (type, data) => entries.push({ type, data }), registerTool: () => {} });
     saveBinding(cwd, ".scratch/a/issues/01-question.md", { id: "new", path: "/session", started: true });
     handlers.tool_result(); assert.equal(entries.length, 0);
     writeFileSync(path, "# Question\nStatus: resolved\n\n## Answer\nDone\n");

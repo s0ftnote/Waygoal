@@ -132,7 +132,7 @@ test("extension: unknown /skill: gets feedback and is not sent; known skills pas
   try {
     const handlers = {};
     const pi = { on: (name, fn) => { handlers[name] = fn; }, appendEntry() {} };
-    createBeaconExtension(s.a, async () => ["e2e-skill"])(pi);
+    createBeaconExtension(s.a, async () => ["e2e-skill"])({ ...pi, registerTool: () => {} });
     const notices = [];
     const ctx = { ui: { notify: (m, level) => notices.push([m, level]) } };
     assert.deepEqual(await handlers.input({ text: "/skill:missing hi", source: "rpc" }, ctx), { action: "handled" });

@@ -279,6 +279,9 @@ export interface WaygoalTicketView extends WaygoalTicketNode {
   state: WaygoalTicketState;
   /** Where this ticket says to go, settled against this working directory. */
   references: WaygoalReference[];
+  /** Where this ticket was read from, when it is not this workspace's own
+   *  file. Null for every local ticket. */
+  remote: WaygoalRemoteInfo | null;
 }
 
 /** One `##` section of a source file, as that file wrote it. */
@@ -304,6 +307,90 @@ export interface WaygoalReference extends WaygoalSourceLink {
   path: string | null;
 }
 
+/** The sources Waygoal reads a remote ticket from. `unknown` is a result
+ *  whose format is not one of them — said so, never half-read. */
+export type WaygoalRemoteFormat = "github" | "custom" | "unknown";
+
+/** Which ticket, in which source. These three always travel together: they
+ *  are the whole of a remote ticket's identity, and the id on the canvas is
+ *  made of them, so the same bare number under two sources stays two tickets. */
+export interface WaygoalRemoteId {
+  source: string;
+  origin: string;
+  number: string;
+}
+
+/** What a source is called on screen. One map, so the card and the panel
+ *  never disagree; a source Waygoal has no reader for is called by its own
+ *  name rather than renamed into something it is not. */
+export const remoteSourceLabel = (source: string): string =>
+  ({ github: "GitHub", custom: "离线样本" } as Record<string, string>)[source] ?? source;
+
+/** What a card is, in the two places that say it. */
+export const mapKind = (remote: boolean): string => (remote ? "来源" : "本地地图");
+export const ticketKind = (remote: boolean): string => (remote ? "来源票据" : "本地票据");
+
+/** One comment as the source wrote it. Waygoal never writes one back. */
+export interface WaygoalRemoteComment {
+  author: string;
+  body: string;
+  createdAt: string;
+}
+
+/** One raw result, read into the fields the canvas shows. Every field comes
+ *  from the source's own result: nothing here is a retelling, and nothing is
+ *  filled in from a local file that was submitted earlier. */
+export interface WaygoalRemoteRead {
+  format: WaygoalRemoteFormat;
+  number: string;
+  title: string;
+  /** The source's own conclusion, in the words the local tracker uses, so the
+   *  canvas settles remote and local tickets the same way. */
+  status: string;
+  body: string;
+  url: string | null;
+  /** The source's own time — the only order there is between two results. */
+  updatedAt: string | null;
+  /** Null when the result never carried comments: not fetched is not "none". */
+  comments: WaygoalRemoteComment[] | null;
+  blockers: string[];
+  /** Why the format is unsupported; null when it was read. */
+  reason: string | null;
+}
+
+/** What one delivery left behind: who said it, where the raw result was, and
+ *  what Waygoal managed to capture from it before that reference expired.
+ *  The source operation succeeding and the canvas syncing are two facts and
+ *  are kept as two: `deliveredAt` is the first, `capturedAt` the second. */
+export interface WaygoalRemoteDelivery extends WaygoalRemoteId {
+  /** Where the raw result was when it was delivered. Kept so a capture that
+   *  failed can be retried against the same place. */
+  ref: string;
+  deliveredAt: string;
+  capturedAt: string | null;
+  /** The raw result, exactly as the source produced it, kept as the snapshot
+   *  the canvas reads. Null while nothing has been captured. */
+  raw: string | null;
+  /** The captured result's own time, for ordering later deliveries. */
+  updatedAt: string | null;
+  /** Why this ticket is not showing the source's latest: the capture failed,
+   *  or a result arrived that did not supersede what is shown. */
+  note: string | null;
+}
+
+/** What a remote ticket card says about where it came from. Local tickets
+ *  have none of this; a card with it is a read-only mirror of a source. */
+export interface WaygoalRemoteInfo extends WaygoalRemoteId {
+  url: string | null;
+  format: WaygoalRemoteFormat;
+  deliveredAt: string;
+  /** Null means 未同步: the source operation was reported, the raw result was
+   *  not captured, and nothing is being shown as if it were the source's. */
+  capturedAt: string | null;
+  comments: WaygoalRemoteComment[] | null;
+  note: string | null;
+}
+
 export interface WaygoalTicketMapView extends Omit<WaygoalTicketMap, "tickets"> {
   tickets: WaygoalTicketView[];
   stale: WaygoalStale | null;
@@ -314,6 +401,9 @@ export interface WaygoalTicketMapView extends Omit<WaygoalTicketMap, "tickets"> 
   sections: WaygoalMapSection[];
   /** Where this file says to go, settled against this working directory. */
   references: WaygoalReference[];
+  /** Set when this group is a read-only mirror of a source rather than one of
+   *  this workspace's own maps: it has no Destination of its own to check. */
+  remote: boolean;
 }
 
 /** One discussion held under a ticket: a real Pi session, named as the canvas
@@ -406,12 +496,17 @@ export interface WaygoalWorkspaceRecord {
   updatedAt: string;
 }
 
+/** One working directory, and where Waygoal keeps its records for it. Reads
+ *  that belong to the whole workspace rather than to one board take this. */
+export interface WaygoalWorkspaceRef {
+  cwd: string;
+  agentDir: string;
+}
+
 /** One working directory and one canvas in it: what a read or a write is
  *  about. */
-export interface WaygoalScope {
-  cwd: string;
+export interface WaygoalScope extends WaygoalWorkspaceRef {
   canvasId: string;
-  agentDir: string;
 }
 
 /** The canvas every working directory starts with. Its id is fixed, so the

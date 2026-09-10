@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { canOpen, needsCheck, type WaygoalReference, type WaygoalTicketBlocker, type WaygoalTicketCard, type WaygoalTicketMapCard, type WaygoalTicketState } from "@/lib/waygoal-types";
+import { canOpen, needsCheck, remoteSourceLabel, type WaygoalReference, type WaygoalRemoteInfo, type WaygoalTicketBlocker, type WaygoalTicketCard, type WaygoalTicketMapCard, type WaygoalTicketState } from "@/lib/waygoal-types";
 
 interface Props {
   map: WaygoalTicketMapCard;
@@ -16,6 +16,9 @@ interface Props {
   onOpenReference: (reference: WaygoalReference) => void;
   /** Show this map's check note again after it was put away. */
   onReopenCheck: () => void;
+  /** Try again to read the raw result this remote ticket was delivered with,
+   *  after the source's result has been put back. */
+  onRetryRemote: (ticket: WaygoalTicketCard) => void;
 }
 
 /** Where a ticket stands, coloured the same way everywhere it is shown. */
@@ -96,10 +99,55 @@ function References({ references, onOpen }: { references: WaygoalReference[]; on
   </div>;
 }
 
+/** Where a remote ticket came from, and how far it got. The source operation
+ *  and the canvas being in sync are two facts and are shown as two: a ticket
+ *  whose raw result was never read says 未同步 and shows nothing as if it were
+ *  the source's own text. Nothing here is fetched further — an attachment or a
+ *  link in the body is an address, shown as written. */
+function Remote({ remote, onRetry }: { remote: WaygoalRemoteInfo; onRetry: () => void }) {
+  return <div className="waygoal-ticket-remote" data-remote={remote.source}>
+    <p>
+      <span className="waygoal-ticket-label">来源</span>
+      <span className="waygoal-tag">{remoteSourceLabel(remote.source)} · {remote.origin}</span>
+      {remote.capturedAt
+        ? <span className="waygoal-tag done" data-remote-synced>取得于 {readTime(remote.capturedAt)}</span>
+        : <span className="waygoal-tag unknown" data-remote-unsynced>未同步</span>}
+    </p>
+    {remote.url && <p className="waygoal-ticket-source"><code>{remote.url}</code><span className="waygoal-ref-note">站外地址，原样列出，没有替你打开</span></p>}
+    {remote.note && <p role="status" className="waygoal-ticket-stale" data-remote-note>{remote.note}</p>}
+    {!remote.capturedAt && <p className="waygoal-ticket-check">
+      <button type="button" className="waygoal-button outlined small" data-remote-retry onClick={onRetry}>重新取得</button>
+      <span>来源那边报告成功是 {readTime(remote.deliveredAt)}；把结果重新写回工作目录后可以再取一次。</span>
+    </p>}
+    <p className="waygoal-ticket-check" data-remote-pending>
+      待核对：这里是取得那一刻的原文。来源上的改动要等下一次取得才会出现，Waygoal 不承诺实时同步。附件只按地址列出，不下载，也不代你打开。
+    </p>
+    <RemoteComments comments={remote.comments} />
+  </div>;
+}
+
+/** The comments the result actually carried. A result that never carried them
+ *  says so: not fetched is not the same as there being none. */
+function RemoteComments({ comments }: { comments: WaygoalRemoteInfo["comments"] }) {
+  if (comments === null) return <p className="waygoal-ticket-empty" data-remote-comments="none">这次取得的结果里没有评论字段，所以这不是「没有评论」，是评论没取到。</p>;
+  if (comments.length === 0) return <p className="waygoal-ticket-empty" data-remote-comments="empty">取到的评论：0 条。</p>;
+  return <div className="waygoal-ticket-talks" data-remote-comments="some">
+    <p className="waygoal-ticket-label">取到的评论</p>
+    <ul>
+      {comments.map((comment, index) => <li key={`${index}-${comment.createdAt}`} data-remote-comment={index}>
+        <span className="waygoal-talk-title">{comment.author || "没有署名"}</span>
+        <span className="waygoal-tag">{comment.createdAt ? readTime(comment.createdAt) : "没有时间"}</span>
+        <pre className="waygoal-ticket-body">{comment.body}</pre>
+      </li>)}
+    </ul>
+  </div>;
+}
+
 /** The map's own text, in its own order and its own headings. The file is
  *  shown, not retold: no summary of what it decided is produced here. */
 function MapBody({ map }: { map: WaygoalTicketMapCard }) {
-  if (map.sections.length === 0) return <pre className="waygoal-ticket-body">{map.body}</pre>;
+  // A source mirror has no file of its own; what it has to say is its lead.
+  if (map.sections.length === 0) return <pre className="waygoal-ticket-body">{map.body || map.lead}</pre>;
   return <div className="waygoal-map-sections">
     {map.lead && <pre className="waygoal-ticket-body">{map.lead}</pre>}
     {/* A file may write the same heading twice; each block stays its own. */}
@@ -162,16 +210,19 @@ function Discussions({ ticket, onStart, onOpenDiscussion }: { ticket: WaygoalTic
 /** The full view of one local ticket or map: what the source file says, where
  *  it came from and when it was read. It shows the file's own text rather than
  *  a retelling, and opening it starts no Pi session. */
-export function WaygoalTicketPanel({ map, ticket, readAt, onStart, onOpenDiscussion, onOpenReference, onReopenCheck }: Props) {
+export function WaygoalTicketPanel({ map, ticket, readAt, onStart, onOpenDiscussion, onOpenReference, onReopenCheck, onRetryRemote }: Props) {
   const stale = ticket ? ticket.stale : map.stale;
   const path = ticket ? ticket.path : map.path;
   return <div className="waygoal-ticket-panel">
     <div className="waygoal-ticket-head">
       {/* The panel header already names it; this is what the file says about it. */}
       <p className="waygoal-ticket-meta">
-        {ticket && <><span className="waygoal-tag">{ticket.type}</span><span className={`waygoal-tag ${stateClass(ticket.state)}`}>{ticket.status}</span></>}
+        {/* A source that has no type field for its tickets gets no empty tag. */}
+        {ticket?.type && <span className="waygoal-tag">{ticket.type}</span>}
+        {ticket && <span className={`waygoal-tag ${stateClass(ticket.state)}`}>{ticket.status}</span>}
         {ticket && <span className="waygoal-ticket-map">来自「{map.title}」</span>}
       </p>
+      {ticket?.remote && <Remote remote={ticket.remote} onRetry={() => onRetryRemote(ticket)} />}
       {ticket && <Blockers ticket={ticket} />}
       <p className="waygoal-ticket-source">
         <span className="waygoal-ticket-label">来源</span><code>{path}</code>
