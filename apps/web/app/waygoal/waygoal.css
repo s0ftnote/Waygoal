@@ -329,6 +329,9 @@
 .waygoal-switch-box { position: relative; flex-shrink: 0; }
 .waygoal-switch { position: absolute; top: calc(100% + 6px); left: 0; z-index: 6; width: 330px; max-height: 320px; overflow: auto; background: var(--wg-surface); border: 1px solid var(--wg-border); border-radius: 14px; box-shadow: var(--wg-shadow); padding: 10px; }
 .waygoal-switch form { display: flex; gap: 6px; }
+.waygoal-browse { width: 100%; margin-bottom: 10px; min-height: 44px; }
+.waygoal-app .directory-picker-entry:hover { background: var(--wg-accent-soft) !important; }
+.waygoal-app .directory-picker-entry { min-height: 44px !important; font-size: 13px !important; }
 .waygoal-switch input { flex: 1; min-width: 0; border: 1px solid var(--wg-border); border-radius: 10px; padding: 7px 10px; font: inherit; font-size: 13px; background: var(--wg-surface); color: inherit; }
 .waygoal-switch ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .waygoal-switch li button { display: block; width: 100%; text-align: left; border-radius: 9px; padding: 7px 9px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

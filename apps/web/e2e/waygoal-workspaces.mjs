@@ -214,9 +214,33 @@ try {
 
   // 7. Another working directory is its own workspace, even sharing a name.
   const beforeSwitch = model.requests.length;
+  const picker = () => page.getByRole("dialog", { name: /^(Select directory|选择目录)$/ });
+  const pickerPath = () => picker().locator(".directory-picker-path");
+  const browseToOtherWorkspace = async () => {
+    await page.locator("[data-workspace-switch]").click();
+    await page.locator("[data-workspace-browse]").click();
+    await waitFor(async () => (await pickerPath().inputValue()).includes("one/放映会"), "browser starts at current directory");
+    const up = picker().getByRole("button", { name: /^(Go to parent directory|转到上级目录)$/ });
+    await up.click();
+    await waitFor(async () => (await pickerPath().inputValue()).endsWith("/one"), "parent directory");
+    await up.click();
+    await picker().getByRole("button", { name: "two", exact: true }).click();
+    await picker().getByRole("button", { name: "放映会", exact: true }).click();
+    await waitFor(async () => (await pickerPath().inputValue()).includes("two/放映会"), "browsed to second directory");
+  };
+  await browseToOtherWorkspace();
+  check("browsing folders leaves the current workspace and canvas unchanged",
+    (await shownCwd()).includes("one/放映会")
+    && (await page.locator(`[data-canvas="${second}"][aria-current="true"]`).count()) === 1
+    && model.requests.length === beforeSwitch);
+  await picker().getByRole("button", { name: /^(Cancel|取消)$/ }).click();
+  check("cancelling the folder browser keeps the original workspace",
+    (await picker().count()) === 0 && (await shownCwd()).includes("one/放映会"));
+  // Cancel returns to the switch menu. Close it before testing a fresh browse.
   await page.locator("[data-workspace-switch]").click();
-  await page.locator("[data-workspace-input]").fill(workB);
-  await page.locator("[data-workspace-open]").click();
+  await browseToOtherWorkspace();
+  await page.screenshot({ animations: "disabled", path: join(evidence, "04-directory-browser.png") });
+  await picker().getByRole("button", { name: /^(Select this folder|选择此文件夹)$/ }).click();
   await waitFor(async () => (await shownCwd()).includes("two/放映会"), "the other working directory");
   await delay(800);
   check("switching directory shows the other one, with its own single canvas and nothing on it",

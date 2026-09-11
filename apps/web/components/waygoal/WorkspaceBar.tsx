@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { DirectoryPicker } from "@/components/DirectoryPicker";
 import type { WaygoalWorkspaceView } from "@/lib/waygoal/types";
 
 interface Props {
@@ -16,6 +17,8 @@ interface Props {
  *  user to it — that is the step they just asked for. */
 export function WaygoalWorkspaceBar({ workspace, onOpen, onSwitchCanvas, onError }: Props) {
   const [picking, setPicking] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
+  const [pickerContainer, setPickerContainer] = useState<HTMLDivElement | null>(null);
   const [path, setPath] = useState("");
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState("");
@@ -25,6 +28,7 @@ export function WaygoalWorkspaceBar({ workspace, onOpen, onSwitchCanvas, onError
     const wanted = cwd.trim();
     if (!wanted) return;
     setPicking(false);
+    setBrowsing(false);
     setPath("");
     void onOpen(wanted);
   };
@@ -46,13 +50,15 @@ export function WaygoalWorkspaceBar({ workspace, onOpen, onSwitchCanvas, onError
     }
   };
 
-  return <div className="waygoal-workspace">
+  return <div className="waygoal-workspace" ref={setPickerContainer}>
     <span>工作目录</span>
     <code title={workspace?.cwd}>{workspace?.cwd ?? "…"}</code>
     <div className="waygoal-switch-box">
       <button type="button" data-workspace-switch className="waygoal-button outlined small" aria-expanded={picking}
         onClick={() => setPicking(o => !o)}>换一个目录</button>
       {picking && <div className="waygoal-switch" role="dialog" aria-label="换一个工作目录">
+        <button type="button" data-workspace-browse className="waygoal-button outlined small waygoal-browse"
+          onClick={() => { setPicking(false); setBrowsing(true); }}>浏览文件夹…</button>
         <form onSubmit={e => { e.preventDefault(); open(path); }}>
           <input autoFocus data-workspace-input aria-label="工作目录路径" placeholder="输入一个目录路径" value={path}
             onChange={e => setPath(e.target.value)} onKeyDown={e => { if (e.key === "Escape") setPicking(false); }} />
@@ -73,6 +79,8 @@ export function WaygoalWorkspaceBar({ workspace, onOpen, onSwitchCanvas, onError
         </>}
       </div>}
     </div>
+    {browsing && <DirectoryPicker initialPath={workspace?.cwd} portalContainer={pickerContainer}
+      onSelect={open} onCancel={() => { setBrowsing(false); setPicking(true); }} />}
     <span>画布</span>
     <div className="waygoal-canvas-list" role="group" aria-label="这个工作目录的画布">
       {workspace?.canvases.map(canvas => <button key={canvas.id} type="button" data-canvas={canvas.id}

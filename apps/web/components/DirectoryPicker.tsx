@@ -53,9 +53,11 @@ interface Props {
   initialPath?: string;
   busy?: boolean;
   error?: string | null;
+  /** Keep the picker inside a host's scoped theme when one is provided. */
+  portalContainer?: HTMLElement | null;
 }
 
-export function DirectoryPicker({ onCancel, onSelect, initialPath, busy = false, error }: Props) {
+export function DirectoryPicker({ onCancel, onSelect, initialPath, busy = false, error, portalContainer }: Props) {
   const { t } = useI18n();
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const [currentPath, setCurrentPath] = useState("");
@@ -95,7 +97,7 @@ export function DirectoryPicker({ onCancel, onSelect, initialPath, busy = false,
     if (candidate) void navigateTo(candidate);
   };
   const hasUncommittedPath = pathInput.trim() !== currentPath;
-  const canSelect = Boolean(currentPath) && !hasUncommittedPath && !busy;
+  const canSelect = Boolean(currentPath) && !hasUncommittedPath && !busy && !loading && !loadError;
   const canNavigateUp = Boolean(parentDirectory) || isWindowsDriveRoot(currentPath);
 
   if (!portalTarget) return null;
@@ -224,6 +226,6 @@ export function DirectoryPicker({ onCancel, onSelect, initialPath, busy = false,
         </div>
       </div>
     </div>,
-    portalTarget,
+    portalContainer ?? portalTarget,
   );
 }
