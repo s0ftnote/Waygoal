@@ -320,7 +320,7 @@ export function WaygoalCanvas() {
         if (cancelled) return;
         if (res.ok && body.entryFound) {
           const choice = flattenChoices(body.branchPoints ?? []).find(c => c.choice.entryId === entryId)?.choice;
-          setViewing({ sessionId, entryId, leafId: choice?.leafId ?? null, label: "上次查看的位置" });
+          setViewing({ sessionId, entryId, leafId: choice?.leafId ?? null, label: "上次看的这条" });
         }
         else {
           setNotice("上次看的那条消息在这段会话里已经找不到了，画布没有按标题绑到别的历史，面板停在这段会话现在在聊的那条路径。");
@@ -607,8 +607,8 @@ export function WaygoalCanvas() {
     setPanelKey(k => k + 1);
     await patch({ lastViewed: newSessionId, lastViewedEntry: null });
     setNotice(originEntryId
-      ? "已分出一条新路径。原来的讨论还在画布上，连线指向它分出的那条消息。"
-      : "已分出一条新路径。这次没有记下具体消息位置，画布只显示来源会话。");
+      ? "已分出一段新会话。原来的讨论还在画布上，连线指向它分出的那条消息。"
+      : "已分出一段新会话。这次没有记下具体消息位置，画布只显示来源会话。");
     await refresh(true);
   }, [patch, refresh, ticketOfSession]);
 

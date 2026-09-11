@@ -26,7 +26,7 @@ function OriginRow({ origin, onViewOrigin }: { origin: WaygoalNodeOrigin; onView
     </p>;
   }
   return <p className="waygoal-path-note">
-    分叉自「{name}」的一条消息，原路径仍然保留。
+    分叉自「{name}」的一条消息，原来的会话仍然保留。
     <button type="button" className="waygoal-button outlined small" onClick={onViewOrigin}>回到来源这条消息</button>
   </p>;
 }
@@ -36,7 +36,7 @@ function OriginRow({ origin, onViewOrigin }: { origin: WaygoalNodeOrigin; onView
  *  in it is what continues there, so there is no separate switch action. */
 export function WaygoalPaths({ origin, branchPoints, viewingEntryId, busyReason, loading, onViewOrigin, onView }: Props) {
   if (!origin && branchPoints.length === 0) {
-    return loading ? null : <div className="waygoal-paths"><p className="waygoal-path-note">这段讨论还没有分叉。把鼠标停在自己发过的消息上，点「从这里分叉」，就会分出一条保留来源、可以独立继续的路径。</p></div>;
+    return loading ? null : <div className="waygoal-paths"><p className="waygoal-path-note">这段讨论还没有分叉。把鼠标停在自己发过的消息上，点「从这里分叉」，就会分出另一段记着来源、可以独立继续的会话。</p></div>;
   }
   return <div className="waygoal-paths" aria-label="路径">
     {origin && <OriginRow origin={origin} onViewOrigin={onViewOrigin} />}
