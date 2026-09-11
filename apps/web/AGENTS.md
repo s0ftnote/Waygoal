@@ -242,11 +242,9 @@ Files that are not in upstream agegr/pi-web. Keep them narrow; product docs live
 ```
 app/beacon/page.tsx              /beacon — Waygoal session canvas (ticket #2)
 app/beacon/waygoal.css           Waygoal light theme; remaps ChatWindow CSS vars inside .waygoal-app
-app/beacon/tickets/page.tsx      /beacon/tickets — earlier Pi × Wayfinder ticket prototype (BeaconCanvas)
 app/api/waygoal/route.ts         GET ?cwd=&canvas=&force=1 snapshot (sessions + local tickets + workspace) | PATCH { cwd, canvas?, positions?, view?, lastViewed?, lastViewedEntry?, origin?, ticketSession?, ticketExpanded?, ticketLast?, registerSession? } | POST { cwd, name } adds a canvas (ticket #4)
 app/api/waygoal/session/[id]/route.ts  GET ?entry= — one session's real branch points and active leaf; read-only, never navigates (ticket #3)
 app/api/waygoal/remote/route.ts  POST { cwd, ticket } — read again the raw result one delivery pointed at. Talks to no platform and needs no login: the Agent already produced the result (ticket #10)
-app/api/beacon/route.ts          ticket prototype: tracker snapshot and ticket → session binding
 components/WaygoalCanvas.tsx     pan/zoom canvas, draggable session nodes, right panel hosting ChatWindow; 回到上次看的地方 and the thumbnail (ticket #5)
 components/WaygoalFind.tsx       查找 over the canvas: title match on the cards already there, 最近聊过的 when nothing is typed (ticket #5)
 components/WaygoalRename.tsx     改名 / 请 Pi 起个名字 for one session, through the host's own PATCH /api/sessions/[id] and auto-name (ticket #5)
@@ -255,7 +253,6 @@ components/WaygoalWorkspaceBar.tsx  header: which working directory, the ones op
 components/WaygoalPaths.tsx      panel header: fork origin, branch points, 打开这段 (ticket #3)
 components/WaygoalPathView.tsx   read-only history of one path; reuses GET /api/sessions/[id]/context (ticket #3)
 components/WaygoalTicketPanel.tsx  full view of one ticket or map: the source file itself, blockers, read time (ticket #7); the discussions held under it and the closable how-to (ticket #8); what each premise still needs (ticket #9); a map by its own sections, and where the source itself points (ticket #11); where a remote ticket came from, whether it is synced, and the comments that were actually fetched (ticket #10)
-components/BeaconCanvas.tsx      ticket prototype canvas
 lib/waygoal-store.ts             canvas records in <agentDir>/waygoal/workspaces/<id>/canvas.json (canvas-<canvasId>.json past the first); snapshot builder. Everything reads and writes through a WaygoalScope { cwd, canvasId, agentDir } (ticket #4). Also holds the user's own arrangement: groups and manual links, neither of them inferred (ticket #6). mapCheck asks whether a map's whole ticket set has been read closed; putting that note away is remembered in mapCheckDismissed (ticket #11). Remote sources are laid out through the very same maps, so nothing about positions, groups or discussions is written twice (ticket #10)
 lib/waygoal-workspaces.ts        workspace.json: this directory's canvases, the one it was left on, which canvas each session is on; recent.json remembers the directories opened (ticket #4)
 lib/waygoal-dirs.ts              where records live: waygoalRoot / workspaceId / workspaceDir / normalizeWorkspaceInput, so both records can use them without importing each other
@@ -268,8 +265,8 @@ lib/waygoal-tickets.ts           reads .scratch/<map>/map.md + issues/NN-*.md in
 lib/waygoal-map.ts               a source file's own `##` sections, its opening line and the links it wrote itself; pure, nothing summarised or renamed (ticket #11)
 lib/waygoal-remote.ts            reads one raw result from a source into the fields a ticket shows; only `gh issue view --json` output and an offline sample are supported, everything else is named unsupported. supersedes() is the whole ordering rule: older, or no time at all, never replaces a confirmed state. Pure (ticket #10)
 lib/waygoal-remote-store.ts      takes delivery of a remote ticket — source identity and where its raw result is, never its text — captures that result at once through safePath, and lays the sources out as ticket maps. remote.json sits beside canvas.json in the workspace directory (ticket #10)
-lib/beacon-extension.ts          in-process Pi extension: /skill: feedback (all sessions), the waygoal_remote_ticket delivery tool — the one trigger that fires reliably, with no prose parsed and no long system prompt (ticket #10) — and the tracker watcher (ticket prototype dirs only)
-lib/beacon-store.ts              local Markdown tracker reader for the ticket prototype
+lib/beacon-extension.ts          in-process Pi extension: /skill: feedback (all sessions), the waygoal_remote_ticket delivery tool — the one trigger that fires reliably, with no prose parsed and no long system prompt (ticket #10)
+lib/beacon-store.ts              local Markdown ticket file parsing and the in-workspace path check
 e2e/waygoal.mjs                  npm run test:waygoal — own server, temp PI_CODING_AGENT_DIR, fake model (e2e/fake-model.mjs)
 e2e/waygoal-branches.mjs         npm run test:waygoal-branches — fork / read-only review / explicit continue (ticket #3)
 e2e/waygoal-tickets.mjs          npm run test:waygoal-tickets — local maps and tickets on the canvas, no model, no Pi session (ticket #7)
@@ -280,7 +277,6 @@ e2e/waygoal-groups.mjs           npm run test:waygoal-groups — picking cards, 
 e2e/waygoal-map.mjs              npm run test:waygoal-map — a map's own sections, following its links into tickets and artifacts, the discussion under a ticket, and the note when every ticket reads closed (ticket #11)
 e2e/waygoal-remote.mjs           npm run test:waygoal-remote — a real read-only GitHub result and an offline sample: the source's own text, comments fetched vs never fetched, the same bare number across sources, an expired reference and the retry, a duplicate and an older result, an unsupported format, and a host restart. Never writes to an external ticket (ticket #10)
 e2e/waygoal-workspaces.mjs       npm run test:waygoal-workspaces — two working directories sharing a folder name, several canvases each: making one, switching, isolation, reload and restart (ticket #4)
-e2e/beacon.mjs                   ticket prototype browser check against a running 30142
 ```
 
 Run with `BEACON_PROTOTYPE=1` (`npm run dev` at the repo root does this on port 30142). `proxy.ts` matches `/beacon/:path*`.

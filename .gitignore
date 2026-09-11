@@ -12,7 +12,6 @@ test-results/
 # Credentials and machine-specific session bindings
 .env*
 *.pem
-.beacon-prototype/
 
 # Keep the web host's original upstream checkout local.
 apps/web/.git

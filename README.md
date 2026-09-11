@@ -65,7 +65,7 @@ Waygoal 是通过 Pi extension 接入的本地无限画布会话空间。用户�
 
 当前入口 `/beacon` 是真实会话画布（[票 #2](https://github.com/s0ftnote/Waygoal/issues/2)）：从任意普通工作目录开始，已有 Pi 会话按真实身份出现在默认画布上，可以新开独立会话、拖动节点、平移缩放，刷新和宿主重启后回到原来的位置。从一条消息可以真正分叉出新会话，也可以在同一段会话里分出方向（[票 #3](https://github.com/s0ftnote/Waygoal/issues/3)）：画布显示来源与各条路径，回看是只读的，在某条路径上发送消息才改变下一次发送进入哪条路径。工作目录里已有的本地 Markdown 地图和票据也直接读进同一张画布（[票 #7](https://github.com/s0ftnote/Waygoal/issues/7)）：程序自己读来源文件，展开看到的就是那个文件本身，看票据不启动会话。票据和真实会话是挂在一起的（[票 #8](https://github.com/s0ftnote/Waygoal/issues/8)）：从一张还没有讨论的票据可以直接开始聊，发送之前不建立会话；一张票据可以带好几段讨论，从讨论里分叉出去的那段仍属于同一张票据。来源里的前置和依赖变了，画布跟着更新（[票 #9](https://github.com/s0ftnote/Waygoal/issues/9)）：两个前提要都满足才放行，取消、读不到和指不明的依赖都不算解决而是要在来源里核对，刚放行的票据轻轻点亮一次。讨论可以起名字，也能被找回来（[票 #5](https://github.com/s0ftnote/Waygoal/issues/5)）：自己改名或请 Pi 起一个都要用户点了才发生，起好的名字不被聊天和刷新顶掉；按标题查找、最近聊过的几段、「回到上次看的地方」和右下角缩略图都在画布上完成，查找和定位只移动视野与打开，不发消息。一个工作目录里可以有好几张画布，也可以换到另一个工作目录（[票 #4](https://github.com/s0ftnote/Waygoal/issues/4)）：新建画布和换目录是分开的两个按钮，都不发消息；新画布上没有会话，一段会话只属于开始它的那张画布，同名的两个目录各记各的，重启后不带参数打开也回到上次的目录和画布。它复用 pi-web 宿主及其进程内 Pi extension、Pi 登录、模型、工具和会话能力，不要求 Git 仓库、GitHub、Matt skills 或 tracker，也没有固定的 Wayfinder 根入口或自动路由。
 
-更早的 Pi × Wayfinder 票据原型保留在 `/beacon/tickets`：把本地工作目录中的 Markdown 地图和票据变成可浏览的画布，点击节点开始或继续关联的 Pi 对话。它的两件事现在都在 `/beacon` 上了——本地票据进入画布（票 #7）、从票据开始并继续讨论（票 #8）——只是「一票只绑一段会话」的限制换成了一票多段讨论；这个更早的入口留着做对照，不再往前推进。产品工作指引见 [AGENTS.md](AGENTS.md)。
+更早的 Pi × Wayfinder 票据原型（`/beacon/tickets`，一票只绑一段会话）已于 2026-09-11 删除：它做的两件事——本地票据进入画布（票 #7）、从票据开始并继续讨论（票 #8）——都已在 `/beacon` 上，试跑记录仍在 [prototype-results.md](docs/research/prototype-results.md)，代码在 git 历史里。产品工作指引见 [AGENTS.md](AGENTS.md)。
 
 ## 启动
 
@@ -77,8 +77,6 @@ npm run dev
 打开 http://127.0.0.1:30142/beacon 。使用本机已有 Pi 登录、默认模型和 skills；新会话和 Pi 原始界面的新会话行为一致。已有的 pi-web 30141 不受影响。
 
 默认打开 `playground/`；URL 带 `?cwd=/绝对/路径` 可打开任意已有工作目录（切换与记住工作区的界面属于票 #4）。点「新开聊天」写下第一句并明确发送后，这段会话才出现在画布上；打开已有节点只读取历史，不发送消息。输入 `/skill:名称` 使用已安装 skill，名称不存在时会得到明确提示且消息不会发出。
-
-票据原型入口 http://127.0.0.1:30142/beacon/tickets 仍使用 `openai-codex/gpt-5.6-luna` 新建节点会话，默认打开 `playground/` 中虚构的朋友放映会示例。
 
 原型的 `/beacon` 路由、界面名称及内部标识暂时保留，文档中的产品名称统一为 Waygoal。
 
@@ -117,7 +115,6 @@ npm run test:waygoal-workspaces
 npm run test:waygoal-groups
 npm run test:waygoal-map
 npm run test:waygoal-remote
-node e2e/beacon.mjs
 ```
 
 `test:waygoal` 在临时 Pi 数据目录中启动独立宿主和一个可控的 OpenAI 兼容假模型，从真实界面检查发现、新建、明确发送、消息呈现、skill 反馈、拖动与视野持久化、刷新与宿主重启恢复、键盘操作和窄屏返回入口，截图与检查记录写入 `docs/research/prototype-evidence/session-canvas/`。它不使用本机 Pi 登录，也不改动本机 Pi 数据。需要本机有 Playwright 的 Chromium 或 Google Chrome，且该 checkout 没有正在运行的 dev server。
@@ -128,7 +125,6 @@ node e2e/beacon.mjs
 
 `test:waygoal-map` 在隔离宿主里配一个假模型，工作目录里放一份自己写着票据、产物、缺失去处和站外地址链接的真实地图，从界面检查：地图按自己的小节原样显示、四种去处各自落地、跟着链接进票据与产物再返回、从票据结论进讨论再回来、票全部关闭时的检查提示文案与不抢焦点、取消票的说法、关掉后刷新与宿主重启都不再弹与主动重开、读不到与同号多份时安静、空地图不触发，检查记录写入 `docs/research/prototype-evidence/map/`。
 
-`e2e/beacon.mjs` 是票据原型的浏览器检查，需本机 Google Chrome、运行中的 30142 和已完成真实模型试跑的默认 playground。它恢复已有会话，不向模型追加消息。
 
 `test:waygoal-remote` 在隔离宿主里配一个假模型、全程不联网，用一份从真实仓库只读取回并留存的 `gh issue view --json` 结果和一份离线自定义样本，从界面检查：正文与标题一字不差、来源与取得时间、待核对与附件边界、取到零条评论与评论没取到之别、同一裸编号跨来源与本地是三张票、前提只在自己来源里结算、引用失效时的未同步与重新取得、重复交付不多卡、更旧结果不静默覆盖、未支持格式不刮正文、宿主重启后仍在，检查记录写入 `docs/research/prototype-evidence/remote/`。
 会话画布的试跑记录见 [session-canvas-results.md](docs/research/session-canvas-results.md)，分叉与回看的试跑记录见 [branch-navigation-results.md](docs/research/branch-navigation-results.md)，本地票据见 [local-tickets-results.md](docs/research/local-tickets-results.md)，票据下的讨论见 [ticket-talks-results.md](docs/research/ticket-talks-results.md)，依赖变动见 [dependency-changes-results.md](docs/research/dependency-changes-results.md)，起名字与找回讨论见 [find-and-rename-results.md](docs/research/find-and-rename-results.md)，切换工作目录与多画布见 [workspaces-and-canvases-results.md](docs/research/workspaces-and-canvases-results.md)，手动分组与关联见 [groups-and-links-results.md](docs/research/groups-and-links-results.md)，地图结论与产物见 [map-conclusions-results.md](docs/research/map-conclusions-results.md)，远程来源见 [remote-tickets-results.md](docs/research/remote-tickets-results.md)，票据原型见 [prototype-results.md](docs/research/prototype-results.md)。上游是 [agegr/pi-web](https://github.com/agegr/pi-web)，基于提交 `a26cc68df9227cb74253bddd7c59624aa475e61f`，Pi SDK 版本 `0.85.1`。
