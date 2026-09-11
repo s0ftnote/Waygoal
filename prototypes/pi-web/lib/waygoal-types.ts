@@ -20,7 +20,7 @@ export interface WaygoalCanvasRecord {
   /** Tickets whose discussions the user collapsed. Absent means shown. */
   ticketExpanded: Record<string, boolean>;
   /** Per ticket, the discussion last talked in and the path it was left on. */
-  ticketLast: Record<string, WaygoalTicketPlace>;
+  ticketLast: Record<string, WaygoalPlace>;
   /** Maps whose "everything is closed, go check the destination" note the
    *  user has put away, keyed by map path. It stays away across reads and
    *  across a restart, and the user can ask for it back. */
@@ -40,17 +40,23 @@ export interface WaygoalCanvasRecord {
   updatedAt: string;
 }
 
-export interface WaygoalOriginRecord {
+/** One place in one discussion: a session, and the entry it is at when that
+ *  session has more than one path. Every "where" below is this same pair. */
+export interface WaygoalPlace {
   sessionId: string;
+  entryId: string | null;
+}
+
+/** Where a fork was made from, written down at the moment of forking, so the
+ *  entry is always known. */
+export interface WaygoalOriginRecord extends WaygoalPlace {
   entryId: string;
   recordedAt: string;
 }
 
 /** Where a node was forked from. `entryId` is null when only Pi's header knows
  *  the source session — the position is reported as unrecorded, never guessed. */
-export interface WaygoalNodeOrigin {
-  sessionId: string;
-  entryId: string | null;
+export interface WaygoalNodeOrigin extends WaygoalPlace {
   inWorkspace: boolean;
   title: string | null;
 }
@@ -123,12 +129,6 @@ export interface WaygoalSnapshot {
   links: WaygoalManualLink[];
 }
 
-export interface WaygoalTicketPlace {
-  sessionId: string;
-  /** The entry it was left on, when that discussion has more than one path. */
-  entryId: string | null;
-}
-
 export interface WaygoalCanvasPatch {
   positions?: Record<string, WaygoalPoint>;
   view?: WaygoalView;
@@ -138,7 +138,7 @@ export interface WaygoalCanvasPatch {
   /** Hold this discussion under that ticket, or take it back out with null. */
   ticketSession?: { sessionId: string; ticket: string | null };
   ticketExpanded?: { ticket: string; expanded: boolean };
-  ticketLast?: { ticket: string; sessionId: string; entryId: string | null };
+  ticketLast?: WaygoalPlace & { ticket: string };
   /** Put this session on the canvas the patch is addressed to. A session
    *  started from a canvas belongs to that canvas and no other. */
   registerSession?: string;
@@ -427,7 +427,7 @@ export interface WaygoalTicketCard extends WaygoalTicketView {
   discussions: WaygoalTicketDiscussion[];
   /** Whether this ticket's discussions are shown under it on the canvas. */
   expanded: boolean;
-  lastDiscussion: WaygoalTicketPlace | null;
+  lastDiscussion: WaygoalPlace | null;
 }
 export interface WaygoalTicketMapCard extends Omit<WaygoalTicketMapView, "tickets"> {
   tickets: WaygoalTicketCard[];
@@ -446,9 +446,6 @@ export interface WaygoalMapCheck {
   dismissed: boolean;
 }
 
-/** What `GET /api/waygoal` answers: the sessions of one workspace and the
- *  local tickets read from its own files, in one read so the canvas lays both
- *  out together. */
 /** A working directory that was opened before, and whether it is still there. */
 export interface WaygoalRecentWorkspace {
   cwd: string;
@@ -464,6 +461,9 @@ export interface WaygoalWorkspaceView {
   recent: WaygoalRecentWorkspace[];
 }
 
+/** What `GET /api/waygoal` answers: the sessions of one workspace and the
+ *  local tickets read from its own files, in one read so the canvas lays both
+ *  out together. */
 export interface WaygoalSnapshotResponse extends WaygoalSnapshot {
   tickets: WaygoalTicketSnapshot;
   workspace: WaygoalWorkspaceView;
