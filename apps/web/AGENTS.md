@@ -240,8 +240,8 @@ Location: `~/.pi/agent/sessions/<encoded-cwd>/<timestamp>_<uuid>.jsonl`
 Files that are not in upstream agegr/pi-web. Keep them narrow; product docs live in the repo root.
 
 ```
-app/beacon/page.tsx              /beacon — Waygoal session canvas (ticket #2)
-app/beacon/waygoal.css           Waygoal light theme; remaps ChatWindow CSS vars inside .waygoal-app
+app/waygoal/page.tsx              /waygoal — Waygoal session canvas (ticket #2)
+app/waygoal/waygoal.css           Waygoal light theme; remaps ChatWindow CSS vars inside .waygoal-app
 app/api/waygoal/route.ts         GET ?cwd=&canvas=&force=1 snapshot (sessions + local tickets + workspace) | PATCH { cwd, canvas?, positions?, view?, lastViewed?, lastViewedEntry?, origin?, ticketSession?, ticketExpanded?, ticketLast?, registerSession? } | POST { cwd, name } adds a canvas (ticket #4)
 app/api/waygoal/session/[id]/route.ts  GET ?entry= — one session's real branch points and active leaf; read-only, never navigates (ticket #3)
 app/api/waygoal/remote/route.ts  POST { cwd, ticket } — read again the raw result one delivery pointed at. Talks to no platform and needs no login: the Agent already produced the result (ticket #10)
@@ -278,7 +278,7 @@ e2e/waygoal-remote.mjs           npm run test:waygoal-remote — a real read-onl
 e2e/waygoal-workspaces.mjs       npm run test:waygoal-workspaces — two working directories sharing a folder name, several canvases each: making one, switching, isolation, reload and restart (ticket #4)
 ```
 
-Run with `BEACON_PROTOTYPE=1` (`npm run dev` at the repo root does this on port 30142). `proxy.ts` matches `/beacon/:path*`.
+Run with `WAYGOAL=1` (`npm run dev` at the repo root does this on port 30142). `proxy.ts` matches `/waygoal/:path*`.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

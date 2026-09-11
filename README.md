@@ -63,9 +63,9 @@ Waygoal 是通过 Pi extension 接入的本地无限画布会话空间。用户�
 
 已确认的产品规格见 [Spec #1](https://github.com/s0ftnote/Waygoal/issues/1)，实现拆分、阻塞关系及建议顺序见[实现票清单](docs/spec/tickets.md)，规格正文的本地底稿见 [docs/spec/spec.md](docs/spec/spec.md)。
 
-当前入口 `/beacon` 是真实会话画布（[票 #2](https://github.com/s0ftnote/Waygoal/issues/2)）：从任意普通工作目录开始，已有 Pi 会话按真实身份出现在默认画布上，可以新开独立会话、拖动节点、平移缩放，刷新和宿主重启后回到原来的位置。从一条消息可以真正分叉出新会话，也可以在同一段会话里分出方向（[票 #3](https://github.com/s0ftnote/Waygoal/issues/3)）：画布显示来源与各条路径，回看是只读的，在某条路径上发送消息才改变下一次发送进入哪条路径。工作目录里已有的本地 Markdown 地图和票据也直接读进同一张画布（[票 #7](https://github.com/s0ftnote/Waygoal/issues/7)）：程序自己读来源文件，展开看到的就是那个文件本身，看票据不启动会话。票据和真实会话是挂在一起的（[票 #8](https://github.com/s0ftnote/Waygoal/issues/8)）：从一张还没有讨论的票据可以直接开始聊，发送之前不建立会话；一张票据可以带好几段讨论，从讨论里分叉出去的那段仍属于同一张票据。来源里的前置和依赖变了，画布跟着更新（[票 #9](https://github.com/s0ftnote/Waygoal/issues/9)）：两个前提要都满足才放行，取消、读不到和指不明的依赖都不算解决而是要在来源里核对，刚放行的票据轻轻点亮一次。讨论可以起名字，也能被找回来（[票 #5](https://github.com/s0ftnote/Waygoal/issues/5)）：自己改名或请 Pi 起一个都要用户点了才发生，起好的名字不被聊天和刷新顶掉；按标题查找、最近聊过的几段、「回到上次看的地方」和右下角缩略图都在画布上完成，查找和定位只移动视野与打开，不发消息。一个工作目录里可以有好几张画布，也可以换到另一个工作目录（[票 #4](https://github.com/s0ftnote/Waygoal/issues/4)）：新建画布和换目录是分开的两个按钮，都不发消息；新画布上没有会话，一段会话只属于开始它的那张画布，同名的两个目录各记各的，重启后不带参数打开也回到上次的目录和画布。它复用 pi-web 宿主及其进程内 Pi extension、Pi 登录、模型、工具和会话能力，不要求 Git 仓库、GitHub、Matt skills 或 tracker，也没有固定的 Wayfinder 根入口或自动路由。
+当前入口 `/waygoal` 是真实会话画布（[票 #2](https://github.com/s0ftnote/Waygoal/issues/2)）：从任意普通工作目录开始，已有 Pi 会话按真实身份出现在默认画布上，可以新开独立会话、拖动节点、平移缩放，刷新和宿主重启后回到原来的位置。从一条消息可以真正分叉出新会话，也可以在同一段会话里分出方向（[票 #3](https://github.com/s0ftnote/Waygoal/issues/3)）：画布显示来源与各条路径，回看是只读的，在某条路径上发送消息才改变下一次发送进入哪条路径。工作目录里已有的本地 Markdown 地图和票据也直接读进同一张画布（[票 #7](https://github.com/s0ftnote/Waygoal/issues/7)）：程序自己读来源文件，展开看到的就是那个文件本身，看票据不启动会话。票据和真实会话是挂在一起的（[票 #8](https://github.com/s0ftnote/Waygoal/issues/8)）：从一张还没有讨论的票据可以直接开始聊，发送之前不建立会话；一张票据可以带好几段讨论，从讨论里分叉出去的那段仍属于同一张票据。来源里的前置和依赖变了，画布跟着更新（[票 #9](https://github.com/s0ftnote/Waygoal/issues/9)）：两个前提要都满足才放行，取消、读不到和指不明的依赖都不算解决而是要在来源里核对，刚放行的票据轻轻点亮一次。讨论可以起名字，也能被找回来（[票 #5](https://github.com/s0ftnote/Waygoal/issues/5)）：自己改名或请 Pi 起一个都要用户点了才发生，起好的名字不被聊天和刷新顶掉；按标题查找、最近聊过的几段、「回到上次看的地方」和右下角缩略图都在画布上完成，查找和定位只移动视野与打开，不发消息。一个工作目录里可以有好几张画布，也可以换到另一个工作目录（[票 #4](https://github.com/s0ftnote/Waygoal/issues/4)）：新建画布和换目录是分开的两个按钮，都不发消息；新画布上没有会话，一段会话只属于开始它的那张画布，同名的两个目录各记各的，重启后不带参数打开也回到上次的目录和画布。它复用 pi-web 宿主及其进程内 Pi extension、Pi 登录、模型、工具和会话能力，不要求 Git 仓库、GitHub、Matt skills 或 tracker，也没有固定的 Wayfinder 根入口或自动路由。
 
-更早的 Pi × Wayfinder 票据原型（`/beacon/tickets`，一票只绑一段会话）已于 2026-09-11 删除：它做的两件事——本地票据进入画布（票 #7）、从票据开始并继续讨论（票 #8）——都已在 `/beacon` 上，试跑记录仍在 [prototype-results.md](docs/research/prototype-results.md)，代码在 git 历史里。产品工作指引见 [AGENTS.md](AGENTS.md)。
+更早的 Pi × Wayfinder 票据原型（`/beacon/tickets`，一票只绑一段会话）已于 2026-09-11 删除：它做的两件事——本地票据进入画布（票 #7）、从票据开始并继续讨论（票 #8）——都已在 `/waygoal` 上，试跑记录仍在 [prototype-results.md](docs/research/prototype-results.md)，代码在 git 历史里。产品工作指引见 [AGENTS.md](AGENTS.md)。
 
 ## 启动
 
@@ -74,11 +74,9 @@ npm --prefix apps/web ci --ignore-scripts
 npm run dev
 ```
 
-打开 http://127.0.0.1:30142/beacon 。使用本机已有 Pi 登录、默认模型和 skills；新会话和 Pi 原始界面的新会话行为一致。已有的 pi-web 30141 不受影响。
+打开 http://127.0.0.1:30142/waygoal 。使用本机已有 Pi 登录、默认模型和 skills；新会话和 Pi 原始界面的新会话行为一致。已有的 pi-web 30141 不受影响。
 
 默认打开 `playground/`；URL 带 `?cwd=/绝对/路径` 可打开任意已有工作目录（切换与记住工作区的界面属于票 #4）。点「新开聊天」写下第一句并明确发送后，这段会话才出现在画布上；打开已有节点只读取历史，不发送消息。输入 `/skill:名称` 使用已安装 skill，名称不存在时会得到明确提示且消息不会发出。
-
-原型的 `/beacon` 路由、界面名称及内部标识暂时保留，文档中的产品名称统一为 Waygoal。
 
 ## 会话画布的实现范围
 

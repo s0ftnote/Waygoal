@@ -1,6 +1,6 @@
 # 手动分组和关联想法（票 #6）试跑
 
-日期：2026-09-10。入口：`http://127.0.0.1:30142/beacon`（`npm run dev`）。票据：[#6](https://github.com/s0ftnote/Waygoal/issues/6)，父 Spec [#1](https://github.com/s0ftnote/Waygoal/issues/1)，前置 [#2](https://github.com/s0ftnote/Waygoal/issues/2)。
+日期：2026-09-10。入口：`http://127.0.0.1:30142/waygoal`（`npm run dev`）。票据：[#6](https://github.com/s0ftnote/Waygoal/issues/6)，父 Spec [#1](https://github.com/s0ftnote/Waygoal/issues/1)，前置 [#2](https://github.com/s0ftnote/Waygoal/issues/2)。
 
 ## 结论
 

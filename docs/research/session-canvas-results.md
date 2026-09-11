@@ -1,6 +1,6 @@
 # 从普通工作目录开始的真实会话画布（票 #2）试跑
 
-日期：2026-09-10。入口：`http://127.0.0.1:30142/beacon`（`npm run dev`）。票据：[#2](https://github.com/s0ftnote/Waygoal/issues/2)，父 Spec [#1](https://github.com/s0ftnote/Waygoal/issues/1)。
+日期：2026-09-10。入口：`http://127.0.0.1:30142/waygoal`（`npm run dev`）。票据：[#2](https://github.com/s0ftnote/Waygoal/issues/2)，父 Spec [#1](https://github.com/s0ftnote/Waygoal/issues/1)。
 
 ## 结论
 

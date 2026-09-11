@@ -28,7 +28,7 @@
     "package.json"
   ],
   "scripts": {
-    "dev:beacon": "BEACON_PROTOTYPE=1 next dev -H 127.0.0.1 -p 30142",
+    "dev:waygoal": "WAYGOAL=1 next dev -H 127.0.0.1 -p 30142",
     "postinstall": "node bin/prepare-terminal.js",
     "dev": "next dev -H 127.0.0.1 -p 30141",
     "dev:lan": "next dev -H 0.0.0.0 -p 30141",

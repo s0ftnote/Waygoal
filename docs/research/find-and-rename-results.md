@@ -1,6 +1,6 @@
 # 给讨论起名字、再把它找回来（票 #5）试跑
 
-日期：2026-09-10。入口：`http://127.0.0.1:30142/beacon`（`npm run dev`）。票据：[#5](https://github.com/s0ftnote/Waygoal/issues/5)，父 Spec [#1](https://github.com/s0ftnote/Waygoal/issues/1)，前置 [#2](https://github.com/s0ftnote/Waygoal/issues/2)。
+日期：2026-09-10。入口：`http://127.0.0.1:30142/waygoal`（`npm run dev`）。票据：[#5](https://github.com/s0ftnote/Waygoal/issues/5)，父 Spec [#1](https://github.com/s0ftnote/Waygoal/issues/1)，前置 [#2](https://github.com/s0ftnote/Waygoal/issues/2)。
 
 ## 结论
 

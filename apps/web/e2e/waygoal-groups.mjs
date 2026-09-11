@@ -65,7 +65,7 @@ const base = `http://127.0.0.1:${port}`;
 async function startServer() {
   const child = spawn(process.execPath, [join(root, "node_modules/next/dist/bin/next"), "dev", "-H", "127.0.0.1", "-p", String(port)], {
     cwd: root, stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, BEACON_PROTOTYPE: "1", PI_CODING_AGENT_DIR: agentDir, PI_WEB_PASSWORD: "", NEXT_TELEMETRY_DISABLED: "1" },
+    env: { ...process.env, WAYGOAL: "1", PI_CODING_AGENT_DIR: agentDir, PI_WEB_PASSWORD: "", NEXT_TELEMETRY_DISABLED: "1" },
   });
   child.stdout.pipe(serverLog, { end: false }); child.stderr.pipe(serverLog, { end: false });
   const deadline = Date.now() + 120_000;
@@ -144,7 +144,7 @@ try {
   };
   const chatCards = () => page.locator("[data-node]:not(.waygoal-ticket-card):not(.waygoal-group-card)").count();
 
-  await page.goto(`${base}/beacon?cwd=${encodeURIComponent(work)}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${base}/waygoal?cwd=${encodeURIComponent(work)}`, { waitUntil: "domcontentloaded" });
   await page.locator(".waygoal-ticket-card").first().waitFor();
 
   // Three real Pi sessions to arrange, and a real fork among them.
@@ -285,7 +285,7 @@ try {
   const fresh = await openPage();
   await page.close();
   page = fresh;
-  await page.goto(`${base}/beacon?cwd=${encodeURIComponent(work)}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${base}/waygoal?cwd=${encodeURIComponent(work)}`, { waitUntil: "domcontentloaded" });
   await waitFor(async () => (await page.locator(`[data-group="${group.id}"]`).count()) === 1, "the group after the restart");
   restarting = false;
   const back = await snapshot();

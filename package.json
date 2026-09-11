@@ -1,8 +1,8 @@
 {
-  "name": "beacon-experiment",
+  "name": "waygoal",
   "private": true,
   "scripts": {
-    "dev": "npm --prefix apps/web run dev:beacon",
+    "dev": "npm --prefix apps/web run dev:waygoal",
     "prototype:canvas": "python3 -m http.server 30145 --bind 127.0.0.1 --directory apps/web/public"
   }
 }

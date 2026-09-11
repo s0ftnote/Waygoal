@@ -35,7 +35,7 @@ export function readSubagentSettings(
 export function isBuiltInSubagentsEnabled(
   settingsPath = getSubagentSettingsPath(),
 ): boolean {
-  if (process.env.BEACON_PROTOTYPE === "1") return true;
+  if (process.env.WAYGOAL === "1") return true;
   try {
     return readSubagentSettings(settingsPath).builtInEnabled;
   } catch {

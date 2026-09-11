@@ -1,6 +1,6 @@
 # 从票据开始、分叉和继续讨论（票 #8）试跑
 
-日期：2026-09-10。入口：`http://127.0.0.1:30142/beacon`（`npm run dev`）。票据：[#8](https://github.com/s0ftnote/Waygoal/issues/8)，父 Spec [#1](https://github.com/s0ftnote/Waygoal/issues/1)，前置 [#3](https://github.com/s0ftnote/Waygoal/issues/3)、[#7](https://github.com/s0ftnote/Waygoal/issues/7)。
+日期：2026-09-10。入口：`http://127.0.0.1:30142/waygoal`（`npm run dev`）。票据：[#8](https://github.com/s0ftnote/Waygoal/issues/8)，父 Spec [#1](https://github.com/s0ftnote/Waygoal/issues/1)，前置 [#3](https://github.com/s0ftnote/Waygoal/issues/3)、[#7](https://github.com/s0ftnote/Waygoal/issues/7)。
 
 ## 结论
 

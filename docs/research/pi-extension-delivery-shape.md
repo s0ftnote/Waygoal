@@ -4,7 +4,7 @@
 
 ## 版本与证据边界
 
-证据来自本机已安装的 **Pi SDK 0.85.1**（`apps/web/node_modules/@earendil-works/pi-coding-agent`，`package.json:1-4`）随包发布的官方文档 `docs/` 与编译产物 `dist/`，以及 pi-web fork（上游 `agegr/pi-web@a26cc68`）。下文路径均相对仓库根目录 `/Users/neuron/文稿/2 私人/beacon`。`dist/*.js` 是 `src/*.ts` 的 tsgo 输出，行为一致但行号与上游源码不同；引用行号以本机文件为准。
+证据来自本机已安装的 **Pi SDK 0.85.1**（`apps/web/node_modules/@earendil-works/pi-coding-agent`，`package.json:1-4`）随包发布的官方文档 `docs/` 与编译产物 `dist/`，以及 pi-web fork（上游 `agegr/pi-web@a26cc68`）。下文路径均相对仓库根目录 `/Users/neuron/文稿/2 私人/waygoal`。`dist/*.js` 是 `src/*.ts` 的 tsgo 输出，行为一致但行号与上游源码不同；引用行号以本机文件为准。
 
 标记：**事实**来自官方文档与源码；**推断/建议**是针对 Waygoal 的判断；**待验证**未在本次跑通。
 
