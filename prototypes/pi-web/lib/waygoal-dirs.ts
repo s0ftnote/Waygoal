@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
@@ -29,4 +30,17 @@ export function normalizeWorkspaceInput(input: string): string {
   if (trimmed === "~") return homedir();
   if (trimmed.startsWith("~/")) return resolve(homedir(), trimmed.slice(2));
   return resolve(trimmed);
+}
+
+/** One record file as JSON, shaped by `build`; `fallback()` when the file is
+ *  not there or cannot be read or shaped. A damaged record must never take
+ *  the canvas down with it — Pi still owns the sessions, the sources are
+ *  still there to be delivered again. */
+export function readRecord<T, R>(path: string, build: (parsed: Partial<T>) => R, fallback: () => R): R {
+  if (!existsSync(path)) return fallback();
+  try {
+    return build(JSON.parse(readFileSync(path, "utf8")) as Partial<T>);
+  } catch {
+    return fallback();
+  }
 }

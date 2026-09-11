@@ -109,6 +109,14 @@ function duplicateWarnings(tickets: WaygoalTicketNode[]): string[] {
     .map(([number, paths]) => `编号 ${number} 有 ${paths.length} 份票据（${paths.join("、")}），依赖它的票据无法确定指向哪一份。`);
 }
 
+/** A ticket as the canvas shows it, before anything about it is settled:
+ *  `resolveBlockers` settles its relations once every ticket of the map is in
+ *  place, including the ones only the last good read still knows about, and
+ *  the reader that knows where the ticket came from fills in the rest. */
+export function unsettledView(ticket: WaygoalTicketNode, stale: WaygoalStale | null = null): WaygoalTicketView {
+  return { ...ticket, stale, blockers: [], blocked: false, state: "unblocked", references: [], remote: null };
+}
+
 /** Every local map in one workspace, read straight from the source files.
  *  Nothing here writes, and nothing starts a Pi session. */
 export function readLocalTickets(cwd: string, now: () => Date = () => new Date()): WaygoalTicketScan {
@@ -194,12 +202,6 @@ export function mergeTicketScan(
   const checkedAt = now().toISOString();
   const live = new Map(scan.maps.map(map => [map.path, map]));
 
-  /** A ticket as the canvas shows it. Its relations are left unsettled here:
-   *  `resolveBlockers` settles them once every ticket of the map is in place,
-   *  including the ones only the last good read still knows about. */
-  const asView = (ticket: WaygoalTicketNode, stale: WaygoalStale | null): WaygoalTicketView =>
-    ({ ...ticket, stale, blockers: [], blocked: false, state: "unblocked", references: [], remote: null });
-
   const views: WaygoalTicketMapView[] = scan.maps.map(map => ({
     ...map,
     stale: null,
@@ -207,7 +209,7 @@ export function mergeTicketScan(
     sections: mapSections(map.body),
     references: [],
     remote: false,
-    tickets: map.tickets.map(ticket => asView(ticket, null)),
+    tickets: map.tickets.map(ticket => unsettledView(ticket, null)),
   }));
 
   // Everything read before that this scan did not produce: keep it, marked.
@@ -215,7 +217,7 @@ export function mergeTicketScan(
     if (live.has(path)) continue;
     const tickets = Object.values(previous.tickets)
       .filter(ticket => ticket.mapPath === path)
-      .map(({ readAt, ...ticket }) => asView(ticket, { reason: STALE_REASON, lastReadAt: readAt, checkedAt }));
+      .map(({ readAt, ...ticket }) => unsettledView(ticket, { reason: STALE_REASON, lastReadAt: readAt, checkedAt }));
     views.push({
       path, title: savedMap.title, body: savedMap.body,
       lead: mapLead(savedMap.body), sections: mapSections(savedMap.body), references: [], remote: false,
@@ -229,7 +231,7 @@ export function mergeTicketScan(
     for (const ticket of Object.values(previous.tickets)) {
       if (ticket.mapPath !== view.path || seen.has(ticket.id)) continue;
       const { readAt, ...rest } = ticket;
-      view.tickets.push(asView(rest, { reason: STALE_REASON, lastReadAt: readAt, checkedAt }));
+      view.tickets.push(unsettledView(rest, { reason: STALE_REASON, lastReadAt: readAt, checkedAt }));
     }
     view.tickets.sort((a, b) => a.id.localeCompare(b.id));
   }

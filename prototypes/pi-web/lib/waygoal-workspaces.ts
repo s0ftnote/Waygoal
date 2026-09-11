@@ -1,9 +1,9 @@
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { writePrivateFileAtomicSync } from "./atomic-file";
-import { waygoalRoot, workspaceDir } from "./waygoal-dirs";
+import { readRecord, waygoalRoot, workspaceDir } from "./waygoal-dirs";
 import { DEFAULT_CANVAS_ID, type WaygoalCanvasInfo, type WaygoalRecentWorkspace, type WaygoalScope, type WaygoalWorkspaceRecord } from "./waygoal-types";
 
 const DEFAULT_CANVAS_NAME = "主画布";
@@ -42,9 +42,7 @@ function emptyWorkspace(cwd: string): WaygoalWorkspaceRecord {
  *  not what creates it, and reading twice does not create a second. */
 export function readWorkspaceRecord(cwd: string, agentDir = getAgentDir()): WaygoalWorkspaceRecord {
   const path = workspacePath(cwd, agentDir);
-  if (!existsSync(path)) return emptyWorkspace(cwd);
-  try {
-    const parsed = JSON.parse(readFileSync(path, "utf8")) as Partial<WaygoalWorkspaceRecord>;
+  return readRecord<WaygoalWorkspaceRecord, WaygoalWorkspaceRecord>(path, parsed => {
     const canvases: WaygoalCanvasInfo[] = [];
     for (const canvas of parsed.canvases ?? []) {
       if (isCanvas(canvas) && !canvases.some(known => known.id === canvas.id)) {
@@ -63,10 +61,7 @@ export function readWorkspaceRecord(cwd: string, agentDir = getAgentDir()): Wayg
       sessionCanvas,
       updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : new Date(0).toISOString(),
     };
-  } catch {
-    // A damaged record must not lock the user out of their own directory.
-    return emptyWorkspace(cwd);
-  }
+  }, () => emptyWorkspace(cwd));
 }
 
 function writeWorkspaceRecord(record: WaygoalWorkspaceRecord, agentDir: string): void {
@@ -141,15 +136,10 @@ export function recentWorkspaces(agentDir = getAgentDir()): WaygoalRecentWorkspa
 
 /** The list as written, gone directories and all. */
 function readRecent(agentDir: string): string[] {
-  const path = recentPath(agentDir);
-  if (!existsSync(path)) return [];
-  try {
-    const parsed = JSON.parse(readFileSync(path, "utf8")) as { workspaces?: unknown };
+  return readRecord<{ workspaces: unknown }, string[]>(recentPath(agentDir), parsed => {
     const list = Array.isArray(parsed.workspaces) ? parsed.workspaces : [];
     return list.filter((cwd): cwd is string => typeof cwd === "string");
-  } catch {
-    return [];
-  }
+  }, () => []);
 }
 
 /** The working directory this browser was last on, and whether it is still

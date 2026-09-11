@@ -1,12 +1,12 @@
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { mkdirSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { writePrivateFileAtomicSync } from "./atomic-file";
 import { isPathWithinRoots } from "./path-security";
 import { samePath } from "./paths";
 import { projectIdentityKey } from "./project-identity";
-import { normalizeWorkspaceInput, workspaceDir, workspaceId } from "./waygoal-dirs";
+import { normalizeWorkspaceInput, readRecord, workspaceDir, workspaceId } from "./waygoal-dirs";
 import { claimSessionsOn, registerSession, rememberedWorkspace } from "./waygoal-workspaces";
 import type { SessionInfo } from "./types";
 import { REMOTE_PREFIX } from "./waygoal-remote";
@@ -101,9 +101,7 @@ function isPoint(value: unknown): value is WaygoalPoint {
 export function readCanvasRecord(scope: WaygoalScope): WaygoalCanvasRecord {
   const { cwd } = scope;
   const path = recordPath(scope);
-  if (!existsSync(path)) return emptyRecord(cwd);
-  try {
-    const parsed = JSON.parse(readFileSync(path, "utf8")) as Partial<WaygoalCanvasRecord>;
+  return readRecord<WaygoalCanvasRecord, WaygoalCanvasRecord>(path, parsed => {
     const nodes: Record<string, WaygoalPoint> = {};
     for (const [id, point] of Object.entries(parsed.nodes ?? {})) if (isPoint(point)) nodes[id] = { x: point.x, y: point.y };
     const view = parsed.view && isPoint(parsed.view) && typeof parsed.view.scale === "number" && parsed.view.scale > 0 ? parsed.view : undefined;
@@ -132,10 +130,7 @@ export function readCanvasRecord(scope: WaygoalScope): WaygoalCanvasRecord {
       lastViewedEntry: typeof parsed.lastViewedEntry === "string" ? parsed.lastViewedEntry : null,
       updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : emptyRecord(cwd).updatedAt,
     };
-  } catch {
-    // A damaged record must not block the canvas; Pi still owns the sessions.
-    return emptyRecord(cwd);
-  }
+  }, () => emptyRecord(cwd));
 }
 
 export function writeCanvasRecord(record: WaygoalCanvasRecord, scope: WaygoalScope): void {

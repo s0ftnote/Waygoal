@@ -1,11 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
+import { mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { writePrivateFileAtomicSync } from "./atomic-file";
 import { safePath } from "./beacon-store";
 import { readRemoteResult, remoteSourcePath, remoteTicketPath, supersedes } from "./waygoal-remote";
 import { sourceLinks } from "./waygoal-map";
-import { workspaceDir } from "./waygoal-dirs";
-import { resolveBlockers } from "./waygoal-tickets";
+import { readRecord, workspaceDir } from "./waygoal-dirs";
+import { resolveBlockers, unsettledView } from "./waygoal-tickets";
 import { remoteSourceLabel } from "./waygoal-labels";
 import { type WaygoalReference, type WaygoalRemoteDelivery, type WaygoalRemoteId, type WaygoalTicketMapView, type WaygoalTicketView, type WaygoalWorkspaceRef } from "./waygoal-types";
 
@@ -43,21 +43,14 @@ function recordPath(ref: WaygoalWorkspaceRef): string {
 }
 
 export function readRemoteDeliveries(ref: WaygoalWorkspaceRef): Record<string, WaygoalRemoteDelivery> {
-  const path = recordPath(ref);
-  if (!existsSync(path)) return {};
-  try {
-    const parsed = JSON.parse(readFileSync(path, "utf8")) as Partial<WaygoalRemoteRecord>;
+  return readRecord<WaygoalRemoteRecord, Record<string, WaygoalRemoteDelivery>>(recordPath(ref), parsed => {
     const tickets: Record<string, WaygoalRemoteDelivery> = {};
     for (const [id, delivery] of Object.entries(parsed.tickets ?? {})) {
       if (delivery && isName(delivery.source ?? "") && isName(delivery.origin ?? "") && NUMBER.test(delivery.number ?? "")
         && remoteTicketPath(delivery) === id) tickets[id] = delivery;
     }
     return tickets;
-  } catch {
-    // A damaged record must not take the canvas down with it; the sources are
-    // still there to be delivered again.
-    return {};
-  }
+  }, () => ({}));
 }
 
 function writeRemoteDeliveries(ref: WaygoalWorkspaceRef, tickets: Record<string, WaygoalRemoteDelivery>): void {
@@ -151,13 +144,14 @@ export function remoteMapViews(ref: WaygoalWorkspaceRef): WaygoalTicketMapView[]
     const source = bySource.get(mapPath) ?? { source: delivery.source, origin: delivery.origin, tickets: [] };
     bySource.set(mapPath, source);
     source.tickets.push({
-      id, path: id, mapPath,
-      number: delivery.number,
-      title: read?.title || `#${delivery.number}`,
-      type: "", status: read?.status ?? "open", question: "", answer: "",
-      body,
-      rawBlockers: read?.blockers ?? [],
-      stale: null, blockers: [], blocked: false, state: "unblocked",
+      ...unsettledView({
+        id, path: id, mapPath,
+        number: delivery.number,
+        title: read?.title || `#${delivery.number}`,
+        type: "", status: read?.status ?? "open", question: "", answer: "",
+        body,
+        rawBlockers: read?.blockers ?? [],
+      }),
       references: remoteReferences(body),
       remote: {
         source: delivery.source, origin: delivery.origin, number: delivery.number,
