@@ -18,7 +18,6 @@ docs/
   design/                  交互设计、视觉与体验验收
   spec/                    规格底稿与实现票清单
   research/                研究、历史试跑记录与保留证据
-playground/                虚构的活动工作区，供手动体验
 .github/workflows/         当前仓库的 CI
 ```
 

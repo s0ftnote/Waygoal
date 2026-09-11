@@ -23,14 +23,15 @@ function recordPath(scope: WaygoalScope): string {
 }
 
 /** Resolve the working directory to show: the one asked for, else the one
- *  this browser was last on, else the playground sample shipped with the
- *  repository. A remembered directory that is no longer there is said so by
+ *  this browser was last on, else the directory the server was launched from.
+ *  npm preserves that directory in INIT_CWD when it runs inside apps/web.
+ *  A remembered directory that is no longer there is said so by
  *  name — swapping in another one would show the wrong work without saying. */
 export function resolveWorkspaceCwd(input?: string | null, agentDir = getAgentDir()): string {
   const explicit = input?.trim() ? normalizeWorkspaceInput(input) : null;
   const remembered = explicit ? null : rememberedWorkspace(agentDir);
   if (remembered?.missing) throw new Error(`上次打开的工作目录现在不在了：${remembered.cwd}。请另选一个目录。`);
-  const candidate = explicit ?? remembered?.cwd ?? resolve(process.cwd(), "../../playground");
+  const candidate = explicit ?? remembered?.cwd ?? process.env.INIT_CWD ?? process.cwd();
   try {
     const real = realpathSync(candidate);
     if (statSync(real).isDirectory()) return real;

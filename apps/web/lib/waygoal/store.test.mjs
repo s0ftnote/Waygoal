@@ -64,6 +64,27 @@ test("resolveWorkspaceCwd: explicit directory, rejects missing dirs", () => {
   } finally { s.done(); }
 });
 
+test("workspace startup uses the launch directory, while explicit and remembered choices take priority", () => {
+  const s = sandbox();
+  const initialCwd = process.env.INIT_CWD;
+  try {
+    process.env.INIT_CWD = s.a;
+    assert.equal(store.resolveWorkspaceCwd(null, s.agentDir), s.a);
+    delete process.env.INIT_CWD;
+    assert.equal(store.resolveWorkspaceCwd(null, s.agentDir), realpathSync(process.cwd()));
+    process.env.INIT_CWD = s.a;
+    workspaces.rememberWorkspace(s.b, s.agentDir);
+    assert.equal(store.resolveWorkspaceCwd(null, s.agentDir), s.b);
+    assert.equal(store.resolveWorkspaceCwd(s.a, s.agentDir), s.a);
+    rmSync(s.b, { recursive: true });
+    assert.throws(() => store.resolveWorkspaceCwd(null, s.agentDir), /上次打开的工作目录现在不在了/);
+  } finally {
+    if (initialCwd === undefined) delete process.env.INIT_CWD;
+    else process.env.INIT_CWD = initialCwd;
+    s.done();
+  }
+});
+
 test("snapshot registers real sessions once, by workspace, without subagents", () => {
   const s = sandbox();
   try {

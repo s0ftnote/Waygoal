@@ -71,7 +71,7 @@ Waygoal 是通过 Pi extension 接入的本地无限画布会话空间。用户�
 
 实际应用在 `apps/web`：Waygoal 界面在 `components/waygoal`，画布记录、票据读取和 Pi extension 在 `lib/waygoal`，路由在 `app/waygoal` 与 `app/api/waygoal`。其余宿主代码继续复用 pi-web。
 
-`docs` 保存产品规格、决策、设计和研究；`apps/web/experiments` 保存独立实验；`playground` 是虚构的试用工作目录。目录职责、开发命令及验证方式见[开发指南](docs/development.md)。
+`docs` 保存产品规格、决策、设计和研究；`apps/web/experiments` 保存独立实验。目录职责、开发命令及验证方式见[开发指南](docs/development.md)。
 
 ## 启动
 
@@ -82,7 +82,7 @@ npm run dev
 
 打开 http://127.0.0.1:30142/waygoal 。使用本机已有 Pi 登录、默认模型和 skills；新会话和 Pi 原始界面的新会话行为一致。已有的 pi-web 30141 不受影响。
 
-默认打开 `playground/`；URL 带 `?cwd=/绝对/路径` 可打开任意已有工作目录（也可以使用画布顶部的工作目录切换入口）。点「新开聊天」写下第一句并明确发送后，这段会话才出现在画布上；打开已有节点只读取历史，不发送消息。输入 `/skill:名称` 使用已安装 skill，名称不存在时会得到明确提示且消息不会发出。
+默认恢复上次打开的工作目录；首次启动使用运行启动命令的目录（从仓库根目录运行 `npm run dev` 就打开本仓库）。URL 带 `?cwd=/绝对/路径` 可打开任意已有工作目录（也可以使用画布顶部的工作目录切换入口）。点「新开聊天」写下第一句并明确发送后，这段会话才出现在画布上；打开已有节点只读取历史，不发送消息。输入 `/skill:名称` 使用已安装 skill，名称不存在时会得到明确提示且消息不会发出。
 
 ## 会话画布的实现范围
 
