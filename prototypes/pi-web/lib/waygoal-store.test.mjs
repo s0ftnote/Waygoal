@@ -8,7 +8,7 @@ const jiti = createJiti(import.meta.url, { alias: { "@": new URL("..", import.me
 const store = await jiti.import("./waygoal-store.ts");
 const { createBeaconExtension, MISSING_SKILL_NOTICE, parseSkillCommand } = await jiti.import("./beacon-extension.ts");
 const workspaces = await jiti.import("./waygoal-workspaces.ts");
-const paths = await jiti.import("./waygoal-paths.ts");
+const paths = await jiti.import("./waygoal-dirs.ts");
 
 function session(id, cwd, extra = {}) {
   return { id, path: `/sessions/${id}.jsonl`, cwd, created: "2026-09-01T00:00:00.000Z", modified: "2026-09-02T00:00:00.000Z", messageCount: 2, firstMessage: `first ${id}`, ...extra };

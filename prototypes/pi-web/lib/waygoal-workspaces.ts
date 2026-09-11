@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, statSync } from "nod
 import { join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { writePrivateFileAtomicSync } from "./atomic-file";
-import { waygoalRoot, workspaceDir } from "./waygoal-paths";
+import { waygoalRoot, workspaceDir } from "./waygoal-dirs";
 import { DEFAULT_CANVAS_ID, type WaygoalCanvasInfo, type WaygoalRecentWorkspace, type WaygoalScope, type WaygoalWorkspaceRecord } from "./waygoal-types";
 
 const DEFAULT_CANVAS_NAME = "主画布";

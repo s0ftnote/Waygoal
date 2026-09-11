@@ -258,7 +258,7 @@ components/WaygoalTicketPanel.tsx  full view of one ticket or map: the source fi
 components/BeaconCanvas.tsx      ticket prototype canvas
 lib/waygoal-store.ts             canvas records in <agentDir>/waygoal/workspaces/<id>/canvas.json (canvas-<canvasId>.json past the first); snapshot builder. Everything reads and writes through a WaygoalScope { cwd, canvasId, agentDir } (ticket #4). Also holds the user's own arrangement: groups and manual links, neither of them inferred (ticket #6). mapCheck asks whether a map's whole ticket set has been read closed; putting that note away is remembered in mapCheckDismissed (ticket #11). Remote sources are laid out through the very same maps, so nothing about positions, groups or discussions is written twice (ticket #10)
 lib/waygoal-workspaces.ts        workspace.json: this directory's canvases, the one it was left on, which canvas each session is on; recent.json remembers the directories opened (ticket #4)
-lib/waygoal-paths.ts             where records live: waygoalRoot / workspaceId / workspaceDir / normalizeWorkspaceInput, so both records can use them without importing each other
+lib/waygoal-dirs.ts              where records live: waygoalRoot / workspaceId / workspaceDir / normalizeWorkspaceInput, so both records can use them without importing each other
 lib/waygoal-branches.ts          pure projection of a Pi tree into branch points and paths; no I/O (ticket #3)
 lib/waygoal-tree.ts              reads the real Pi tree for a session (live manager, else the file), mtime-cached
 lib/waygoal-locate.ts            pure card geometry the canvas shares: title search, 最近访问, bounds for 回到全景, centring a point, and the thumbnail (ticket #5)

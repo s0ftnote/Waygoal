@@ -6,7 +6,7 @@ import { writePrivateFileAtomicSync } from "./atomic-file";
 import { isPathWithinRoots } from "./path-security";
 import { samePath } from "./paths";
 import { projectIdentityKey } from "./project-identity";
-import { normalizeWorkspaceInput, workspaceDir, workspaceId } from "./waygoal-paths";
+import { normalizeWorkspaceInput, workspaceDir, workspaceId } from "./waygoal-dirs";
 import { claimSessionsOn, registerSession, rememberedWorkspace } from "./waygoal-workspaces";
 import type { SessionInfo } from "./types";
 import { REMOTE_PREFIX } from "./waygoal-remote";

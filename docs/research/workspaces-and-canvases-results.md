@@ -9,7 +9,7 @@
 ## 实现摘要
 
 - 工作区记录是新的一份：`<agentDir>/waygoal/workspaces/<id>/workspace.json`，记着这个目录有哪几张画布、上次停在哪张、每段会话属于哪张（[lib/waygoal-workspaces.ts](../../prototypes/pi-web/lib/waygoal-workspaces.ts)）。画布布局仍是一张画布一份记录：第一张沿用原来的 `canvas.json`，后建的是 `canvas-<画布 id>.json`，所以票 #2 起写下的记录不用迁移。
-- 读写的对象从「工作目录 + agentDir」换成一个 `WaygoalScope`（工作目录、画布、agentDir），`readCanvasRecord` / `applyCanvasPatch` / `buildSnapshot` / `buildTicketSnapshot` 都按它来（[lib/waygoal-store.ts](../../prototypes/pi-web/lib/waygoal-store.ts)）。工作目录的身份计算搬到 [lib/waygoal-paths.ts](../../prototypes/pi-web/lib/waygoal-paths.ts)，让工作区记录和画布记录都能用而不互相 import。
+- 读写的对象从「工作目录 + agentDir」换成一个 `WaygoalScope`（工作目录、画布、agentDir），`readCanvasRecord` / `applyCanvasPatch` / `buildSnapshot` / `buildTicketSnapshot` 都按它来（[lib/waygoal-store.ts](../../prototypes/pi-web/lib/waygoal-store.ts)）。工作目录的身份计算搬到 [lib/waygoal-dirs.ts](../../prototypes/pi-web/lib/waygoal-dirs.ts)，让工作区记录和画布记录都能用而不互相 import。
 - 会话归属只写在工作区记录里，一段会话只能落在一张画布上。没人登记过的会话由第一张画布收下，而且只有第一张会收：这样票 #2 之前就在的会话留在原处，新建的画布上没有会话。从某张画布开始的会话（含分叉）在建立的当下就登记到这张画布（patch 的 `registerSession`）。读取顺手认领这件事写在名字里：`claimSessionsOn` 会写记录，不是一个纯查询。
 - `recent.json` 记开过的工作目录，最近的在前。不带 `cwd` 打开时回到上次那个；那个目录不在了就报出它的路径，`resolveWorkspaceCwd` 不再退回样例目录顶上。开过的目录列表里，已经不在的那些照样列着并标注「这个目录不在了」，不能点，也不悄悄从列表里消失。
 - 「新建画布」建完就把用户带过去——那正是刚才那一下要的。记录这一层不这样：`addCanvas` 不改这个目录停在哪张画布，换过去是界面另做的一步。

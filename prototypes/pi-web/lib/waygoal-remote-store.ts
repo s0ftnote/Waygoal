@@ -4,7 +4,7 @@ import { writePrivateFileAtomicSync } from "./atomic-file";
 import { safePath } from "./beacon-store";
 import { readRemoteResult, remoteSourcePath, remoteTicketPath, supersedes } from "./waygoal-remote";
 import { sourceLinks } from "./waygoal-map";
-import { workspaceDir } from "./waygoal-paths";
+import { workspaceDir } from "./waygoal-dirs";
 import { resolveBlockers } from "./waygoal-tickets";
 import { remoteSourceLabel, type WaygoalReference, type WaygoalRemoteDelivery, type WaygoalRemoteId, type WaygoalTicketMapView, type WaygoalTicketView, type WaygoalWorkspaceRef } from "./waygoal-types";
 
