@@ -145,6 +145,11 @@ export function WaygoalCanvas() {
   const viewDirty = useRef(false);
   const viewSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const drag = useRef<Drag | null>(null);
+  /** Drop whatever the panel was on: an unsent draft, a session created from
+   *  one, a read-only reading position. Every way of opening something else
+   *  starts here; what it opens instead is that caller's own business. */
+  const leavePanel = useCallback(() => { setDraftKey(null); setCreatedSession(null); setViewing(null); }, []);
+
   const viewportRef = useRef<HTMLDivElement>(null);
   // The session ChatWindow is showing, so a fork it reports can be attributed.
   const chatSessionId = useRef<string | null>(null);
@@ -222,11 +227,10 @@ export function WaygoalCanvas() {
       await patch({ view });
     }
     setSnapshot(null);
-    setSelectedId(null); setOpenTicket(null); setPendingTicket(null);
-    setDraftKey(null); setCreatedSession(null); setViewing(null); setTree(null); setPicked([]);
+    leavePanel(); setSelectedId(null); setOpenTicket(null); setPendingTicket(null); setTree(null); setPicked([]);
     setPanelKey(k => k + 1);
     setError(""); setNotice("");
-  }, [patch, view]);
+  }, [leavePanel, patch, view]);
 
   /** Open another working directory. Which canvas it shows is that
    *  directory's own business: it comes back to the one it was left on. The
@@ -268,7 +272,7 @@ export function WaygoalCanvas() {
     restoredFor.current = place;
     viewDirty.current = false;
     setView(snapshot.view ?? DEFAULT_VIEW);
-    setDraftKey(null); setCreatedSession(null); setViewing(null); setTree(null);
+    leavePanel(); setTree(null);
     if (snapshot.lastViewed && !snapshot.lastViewedMissing) {
       setSelectedId(snapshot.lastViewed);
       pendingRestoreEntry.current = snapshot.lastViewedEntry;
@@ -278,7 +282,7 @@ export function WaygoalCanvas() {
       pendingRestoreEntry.current = null;
       if (snapshot.lastViewedMissing) setNotice("上次查看的会话已不在这个工作目录里，没有自动绑定到其他会话。");
     }
-  }, [snapshot]);
+  }, [leavePanel, snapshot]);
 
   useEffect(() => {
     if (!viewDirty.current || !snapshot?.cwd) return;
@@ -497,24 +501,24 @@ export function WaygoalCanvas() {
     : null;
 
   const openNode = useCallback((node: WaygoalNode) => {
-    setDraftKey(null); setCreatedSession(null); setViewing(null); setOpenTicket(null);
+    leavePanel(); setOpenTicket(null);
     setSelectedId(node.id);
     setPanelKey(k => k + 1);
     setNotice("");
     setPendingTicket(null);
     const ticket = ticketOfSession.get(node.id);
     void patch({ lastViewed: node.id, lastViewedEntry: null, ...(ticket ? { ticketLast: { ticket, sessionId: node.id, entryId: null } } : {}) });
-  }, [patch, ticketOfSession]);
+  }, [leavePanel, patch, ticketOfSession]);
 
   /** Open one local map or ticket: a file this workspace already has. Reading
    *  it starts nothing — it is not a Pi session and has none of its own. */
   const openLocalTicket = useCallback((path: string) => {
-    setDraftKey(null); setCreatedSession(null); setViewing(null); setPendingTicket(null);
+    leavePanel(); setPendingTicket(null);
     setSelectedId(null);
     setOpenTicket(path);
     setOpenFile(null);
     setNotice("");
-  }, []);
+  }, [leavePanel]);
 
   /** Open a read-only reading position. Display only — no navigation.
    *  `leafId` is where a message sent from here would land, null when this
@@ -539,11 +543,11 @@ export function WaygoalCanvas() {
 
   const startNewChat = useCallback(() => {
     if (!snapshot) return;
-    setSelectedId(null); setCreatedSession(null); setViewing(null); setOpenTicket(null); setPendingTicket(null);
+    leavePanel(); setSelectedId(null); setOpenTicket(null); setPendingTicket(null);
     setDraftKey(`waygoal-new:${crypto.randomUUID()}:${snapshot.cwd}`);
     setPanelKey(k => k + 1);
     setNotice("");
-  }, [snapshot]);
+  }, [leavePanel, snapshot]);
 
   /** Start a discussion under one ticket. Like the plain new chat, this only
    *  opens a composer: the draft is kept under the ticket's own key, so coming
@@ -551,7 +555,7 @@ export function WaygoalCanvas() {
    *  second session, and nothing is held under the ticket until it is sent. */
   const startTicketChat = useCallback((ticketPath: string) => {
     if (!snapshot) return;
-    setSelectedId(null); setCreatedSession(null); setViewing(null); setOpenTicket(null);
+    leavePanel(); setSelectedId(null); setOpenTicket(null);
     setPendingTicket(ticketPath);
     // Hand the parked draft back before the composer mounts: it reads the
     // stored draft while rendering, so an effect would be a render too late.
@@ -559,7 +563,7 @@ export function WaygoalCanvas() {
     setDraftKey(liveTicketDraft(ticketPath, snapshot.cwd));
     setPanelKey(k => k + 1);
     setNotice("");
-  }, [snapshot]);
+  }, [leavePanel, snapshot]);
 
   const pendingCwd = snapshot?.cwd;
   useEffect(() => {
@@ -574,9 +578,9 @@ export function WaygoalCanvas() {
   }, [patch]);
 
   const closePanel = useCallback(() => {
-    setSelectedId(null); setDraftKey(null); setCreatedSession(null); setViewing(null); setOpenTicket(null); setOpenFile(null); setPendingTicket(null);
+    leavePanel(); setSelectedId(null); setOpenTicket(null); setOpenFile(null); setPendingTicket(null);
     viewportRef.current?.focus();
-  }, []);
+  }, [leavePanel]);
 
   const onSessionCreated = useCallback((session: SessionInfo) => {
     setCreatedSession(session);
@@ -603,7 +607,7 @@ export function WaygoalCanvas() {
       ...(originEntryId ? { origin: { sessionId: newSessionId, originSessionId, originEntryId } }
         : ticket ? { ticketSession: { sessionId: newSessionId, ticket } } : {}),
     });
-    setViewing(null); setDraftKey(null); setCreatedSession(null);
+    leavePanel();
     setSelectedId(newSessionId);
     setPanelKey(k => k + 1);
     await patch({ lastViewed: newSessionId, lastViewedEntry: null });
@@ -611,7 +615,7 @@ export function WaygoalCanvas() {
       ? "已分出一段新会话。原来的讨论还在画布上，连线指向它分出的那条消息。"
       : "已分出一段新会话。这次没有记下具体消息位置，画布只显示来源会话。");
     await refresh(true);
-  }, [patch, refresh, ticketOfSession]);
+  }, [leavePanel, patch, refresh, ticketOfSession]);
 
   /** The real Pi fork, from a message in the read-only view. */
   const forkFrom = useCallback(async (sessionId: string, entryId: string) => {
@@ -761,6 +765,13 @@ export function WaygoalCanvas() {
     e.currentTarget.setPointerCapture(e.pointerId);
     drag.current = { start: { x: e.clientX, y: e.clientY }, origin: { x: view.x, y: view.y }, moved: false, pointerId: e.pointerId };
   };
+  /** Take hold of one card to drag it. The drag ends in the same handlers
+   *  as a viewport pan, so the three kinds of card share this one start. */
+  const onCardPointerDown = (id: string, origin: WaygoalPoint) => (e: React.PointerEvent<HTMLElement>) => {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { id, start: { x: e.clientX, y: e.clientY }, origin, moved: false, pointerId: e.pointerId };
+  };
   const onPointerMove = (e: React.PointerEvent<HTMLElement>) => {
     const d = drag.current;
     if (!d || d.pointerId !== e.pointerId) return;
@@ -898,7 +909,7 @@ export function WaygoalCanvas() {
             {groups.filter(group => group.collapsed).map(group => <button key={group.id} type="button" data-node={group.id} data-group-card={group.id}
               className="waygoal-group-card" style={{ left: group.position.x, top: group.position.y }}
               aria-label={`分组：${group.name}，${group.members.length} 个节点，展开进入原节点`}
-              onPointerDown={e => { e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); drag.current = { id: group.id, start: { x: e.clientX, y: e.clientY }, origin: group.position, moved: false, pointerId: e.pointerId }; }}
+              onPointerDown={onCardPointerDown(group.id, group.position)}
               onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
               onClick={() => { if (!drag.current?.moved) void arrange({ groupCollapsed: { group: group.id, collapsed: false } }); }}
               onKeyDown={onCardKeyDown(group.id, group.position)}>
@@ -912,7 +923,7 @@ export function WaygoalCanvas() {
               style={{ left: node.position.x, top: node.position.y }}
               aria-pressed={node.id === selectedId}
               aria-label={`${node.title}${node.running ? "，正在运行" : ""}${node.branchPointCount ? `，${node.branchPointCount} 处会话内分叉` : ""}${node.origin ? "，有分叉来源" : ""}`}
-              onPointerDown={e => { e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); drag.current = { id: node.id, start: { x: e.clientX, y: e.clientY }, origin: node.position, moved: false, pointerId: e.pointerId }; }}
+              onPointerDown={onCardPointerDown(node.id, node.position)}
               onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
               onClick={e => {
                 if (drag.current?.moved) return;
@@ -962,7 +973,7 @@ export function WaygoalCanvas() {
                   style={{ left: card.position.x, top: card.position.y }}
                   aria-pressed={openTicket === card.id}
                   aria-label={`${card.kind}：${card.title}${card.stale ? "，读不到来源文件" : ""}`}
-                  onPointerDown={e => { e.stopPropagation(); e.currentTarget.setPointerCapture(e.pointerId); drag.current = { id: card.id, start: { x: e.clientX, y: e.clientY }, origin: card.position, moved: false, pointerId: e.pointerId }; }}
+                  onPointerDown={onCardPointerDown(card.id, card.position)}
                   onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
                   onClick={e => {
                     if (drag.current?.moved) return;
