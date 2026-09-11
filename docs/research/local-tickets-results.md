@@ -39,7 +39,7 @@
 ## 本票没有做的
 
 - 变更发现走画布已有的 2.5 秒轮询和页面刷新，没有接 `lib/beacon-extension.ts` 里那条 extension 变更检查通道；在 Waygoal 之外改文件确实会被读到（e2e 有验证），但触发机制留给远程来源那张票（#10）一起定。
-- 只支持 `.scratch/<地图>/map.md` 加 `issues/NN-*.md` 这一种布局。本仓库自己的 `.scratch/waygoal-spec/`（只有 spec.md）和 `.scratch/waygoal-tickets/`（票据直接放在目录下）都会被报成「没有读成地图」，这是照实说明，不是支持。
+- 只支持 `.scratch/<地图>/map.md` 加 `issues/NN-*.md` 这一种布局。一个 `.scratch/` 下没有 `map.md` 的目录会被报成「没有读成地图」，这是照实说明，不是支持。（本仓库根上曾有一个装规格底稿的 `.scratch/`，2026-09-11 已搬到 `docs/spec/`，把这个名字还给工作目录里的 tracker。）
 - 票据和会话还没有挂在一起：票据卡片旁边不显示相关会话，也不能从票据开始讨论，那是票 #8。
 
 ## 实测发现
