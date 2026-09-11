@@ -157,6 +157,16 @@ try {
   const roomId = await startChat("场地就定在客厅吧");
   check("three real sessions to arrange", (await idsOn()).length === 3, (await idsOn()).join());
 
+  // Start with two deliberately scattered cards; the third and all tickets
+  // are outside the selection and must keep their saved positions.
+  await fetch(`${base}/api/waygoal`, { method: "PATCH", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cwd: work, positions: { [filmId]: { x: 0, y: 700 }, [snackId]: { x: 960, y: 1400 } } }) });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.locator(`[data-node="${filmId}"]`).waitFor();
+  await closePanel();
+  await page.getByRole("button", { name: "回到全景" }).click();
+  await delay(700);
+
   // 1. Picking cards is not opening them, and changes nothing.
   const requestsBefore = model.requests.length;
   await pick(filmId);
@@ -166,6 +176,34 @@ try {
     && (await page.locator("[data-picked]").innerText()).includes("已选 2 个")
     && model.requests.length === requestsBefore,
     await page.locator("[data-picked]").innerText());
+
+  const layoutBefore = await snapshot();
+  const allPositions = snap => Object.fromEntries(snap.nodes.map(node => [node.id, node.position]));
+  const ticketPositions = snap => Object.fromEntries(snap.tickets.maps.flatMap(map => [[map.path, map.position], ...map.tickets.map(ticket => [ticket.id, ticket.position])]));
+  const sessionBytes = Object.fromEntries((await idsOn()).map(id => [id, sessionFile(id)]));
+  await page.locator("[data-layout-selected]").click();
+  await waitFor(async () => (await snapshot()).canUndoLayout, "layout undo checkpoint");
+  const laidOut = await snapshot();
+  check("local arrangement compacts selected cards without moving the others",
+    Math.abs((await nodeOf(filmId)).position.x - (await nodeOf(snackId)).position.x) <= 320
+    && Math.abs((await nodeOf(filmId)).position.y - (await nodeOf(snackId)).position.y) <= 200
+    && JSON.stringify(laidOut.nodes.find(node => node.id === roomId).position) === JSON.stringify(layoutBefore.nodes.find(node => node.id === roomId).position)
+    && JSON.stringify(ticketPositions(laidOut)) === JSON.stringify(ticketPositions(layoutBefore)), JSON.stringify(allPositions(laidOut)));
+  await page.screenshot({ animations: "disabled", path: join(evidence, "05-local-layout.png") });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.locator("[data-layout-undo]").waitFor();
+  await closePanel();
+  check("arranged positions and undo survive refresh", JSON.stringify(allPositions(await snapshot())) === JSON.stringify(allPositions(laidOut)));
+  await page.locator("[data-layout-undo]").click();
+  await waitFor(async () => !(await snapshot()).canUndoLayout, "undo restores original positions");
+  check("undo restores exactly the earlier positions", JSON.stringify(allPositions(await snapshot())) === JSON.stringify(allPositions(layoutBefore)));
+  check("arrangement and undo do not edit sessions or send a message",
+    model.requests.length === requestsBefore && Object.entries(sessionBytes).every(([id, content]) => sessionFile(id) === content));
+  await page.locator("[data-layout-pick-all]").click();
+  check("all visible sessions can be picked in one click", await page.locator("[data-picked]").getAttribute("data-picked") === "3");
+  await page.locator("[data-picked-clear]").click();
+  await pick(filmId);
+  await pick(snackId);
 
   // 2. Naming a group: the record gains a group, Pi gains nothing.
   const sessionsBefore = readdirSync(join(agentDir, "sessions"), { recursive: true }).length;

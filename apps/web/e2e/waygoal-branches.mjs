@@ -267,6 +267,9 @@ try {
   await clickOnHover("先说观影", "从这里分叉");
   const forkedId = await waitFor(async () => (await snapshot()).nodes.find((n) => n.id !== sessionId)?.id, "a second canvas node");
   const forkedNode = (await snapshot()).nodes.find((n) => n.id === forkedId);
+  const sourcePosition = (await snapshot()).nodes.find(n => n.id === sessionId).position;
+  check("a new fork is placed beside its source", forkedNode.position.x === sourcePosition.x + 320 && forkedNode.position.y === sourcePosition.y,
+    JSON.stringify({ source: sourcePosition, fork: forkedNode.position }));
   check("the fork is a separate Pi session file", sessionEntries(forkedId).length > 0 && forkedId !== sessionId);
   check("the fork records the session AND the message it came from",
     forkedNode.origin?.sessionId === sessionId && forkedNode.origin?.entryId === originEntry.id, JSON.stringify(forkedNode.origin));

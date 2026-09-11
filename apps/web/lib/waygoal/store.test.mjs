@@ -151,6 +151,58 @@ test("nextFreePosition avoids occupied slots, counting how tall each card is", (
   assert.ok(beside.y >= TICKET_CARD_HEIGHT || beside.x !== first.x, JSON.stringify(beside));
 });
 
+test("new forks are placed beside their actual source even with out-of-order dates, and saved positions win", () => {
+  const s = sandbox();
+  try {
+    const source = session("source", s.a, { created: "2026-09-03" });
+    const child = session("child", s.a, { created: "2026-09-01", relation: { kind: "fork", originSessionId: "source" } });
+    const snap = store.buildSnapshot(s.sa, [child, source], []);
+    const positions = Object.fromEntries(snap.nodes.map(n => [n.id, n.position]));
+    assert.deepEqual(positions.child, { x: positions.source.x + store.NODE_WIDTH + 70, y: positions.source.y });
+    store.applyCanvasPatch(s.sa, { positions: { child: { x: -2200, y: 400 } } });
+    assert.deepEqual(store.buildSnapshot(s.sa, [source, child], []).nodes.find(n => n.id === "child").position, { x: -2200, y: 400 });
+  } finally { s.done(); }
+});
+
+test("arranging is position-only, undo survives a read, and other cards and canvases stay put", () => {
+  const s = sandbox();
+  try {
+    const sessions = [session("a", s.a), session("b", s.a), session("other", s.a)];
+    store.buildSnapshot(s.sa, sessions, []);
+    const original = store.applyCanvasPatch(s.sa, { view: { x: 1, y: 2, scale: 0.8 }, addGroup: { name: "group", members: ["a", "b"] }, addLink: { from: "a", to: "b", note: "manual" } });
+    const before = { a: original.nodes.a, b: original.nodes.b };
+    const after = { a: { x: 1000, y: -200 }, b: { x: 1320, y: -200 } };
+    const arranged = store.applyCanvasPatch(s.sa, { layout: { before, after } });
+    assert.deepEqual(arranged.nodes.other, original.nodes.other);
+    assert.deepEqual(arranged.groups, original.groups);
+    assert.deepEqual(arranged.links, original.links);
+    assert.deepEqual(arranged.view, original.view);
+    assert.equal(store.buildSnapshot(s.sa, sessions, []).canUndoLayout, true);
+    assert.equal(store.buildSnapshot(s.sb, [], []).canUndoLayout, false);
+    const newer = [...sessions, session("new", s.a)];
+    store.buildSnapshot(s.sa, newer, []);
+    const added = store.readCanvasRecord(s.sa).nodes.new;
+    const undone = store.applyCanvasPatch(s.sa, { undoLayout: true });
+    assert.deepEqual(undone.nodes.a, original.nodes.a);
+    assert.deepEqual(undone.nodes.b, original.nodes.b);
+    assert.deepEqual(undone.nodes.new, added);
+    assert.equal(store.buildSnapshot(s.sa, newer, []).canUndoLayout, false);
+  } finally { s.done(); }
+});
+
+test("stale layout requests and undo after a manual move cannot overwrite newer positions", () => {
+  const s = sandbox();
+  try {
+    const original = store.applyCanvasPatch(s.sa, { positions: { a: { x: 0, y: 0 }, b: { x: 600, y: 600 } } });
+    const layout = { before: original.nodes, after: { a: { x: 100, y: 0 }, b: { x: 420, y: 0 } } };
+    store.applyCanvasPatch(s.sa, { layout });
+    assert.throws(() => store.applyCanvasPatch(s.sa, { layout }), /位置已变化/);
+    store.applyCanvasPatch(s.sa, { positions: { a: { x: 999, y: 999 } } });
+    assert.throws(() => store.applyCanvasPatch(s.sa, { undoLayout: true }), /没有可撤销/);
+    assert.deepEqual(store.readCanvasRecord(s.sa).nodes.a, { x: 999, y: 999 });
+  } finally { s.done(); }
+});
+
 test("extension: unknown /skill: gets feedback and is not sent; known skills pass through", async () => {
   const s = sandbox();
   try {

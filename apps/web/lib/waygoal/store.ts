@@ -8,6 +8,9 @@ import { samePath } from "../paths";
 import { projectIdentityKey } from "../project-identity";
 import { normalizeWorkspaceInput, readRecord, workspaceDir, workspaceId } from "./dirs";
 import { claimSessionsOn, rememberedWorkspace } from "./workspaces";
+import { nextFreePosition } from "./layout";
+import type { WaygoalLayoutChange } from "./types";
+export { nextFreePosition } from "./layout";
 import type { SessionInfo } from "../types";
 import { REMOTE_PREFIX } from "./remote";
 import { remoteMapViews } from "./remote-store";
@@ -99,6 +102,18 @@ function isPoint(value: unknown): value is WaygoalPoint {
     && Number.isFinite((value as WaygoalPoint).x) && Number.isFinite((value as WaygoalPoint).y);
 }
 
+function validLayout(value: unknown): value is WaygoalLayoutChange {
+  const change = value as WaygoalLayoutChange | undefined;
+  if (!change?.before || !change.after) return false;
+  const ids = Object.keys(change.before);
+  return ids.length > 0 && ids.length === Object.keys(change.after).length
+    && ids.every(id => id && isPoint(change.before[id]) && isPoint(change.after[id]));
+}
+
+const samePoint = (a: WaygoalPoint | undefined, b: WaygoalPoint) => a?.x === b.x && a?.y === b.y;
+const matchesPositions = (nodes: Record<string, WaygoalPoint>, expected: Record<string, WaygoalPoint>) =>
+  Object.entries(expected).every(([id, point]) => samePoint(nodes[id], point));
+
 export function readCanvasRecord(scope: WaygoalScope): WaygoalCanvasRecord {
   const { cwd } = scope;
   const path = recordPath(scope);
@@ -126,6 +141,7 @@ export function readCanvasRecord(scope: WaygoalScope): WaygoalCanvasRecord {
         .map(([t, place]) => [t, { sessionId: place.sessionId, entryId: typeof place.entryId === "string" && place.entryId ? place.entryId : null }])),
       groups: validGroups(parsed.groups),
       links: validLinks(parsed.links),
+      ...(validLayout(parsed.layoutUndo) && matchesPositions(nodes, parsed.layoutUndo.after) ? { layoutUndo: parsed.layoutUndo } : {}),
       ...(view ? { view } : {}),
       lastViewed: typeof parsed.lastViewed === "string" ? parsed.lastViewed : null,
       lastViewedEntry: typeof parsed.lastViewedEntry === "string" ? parsed.lastViewedEntry : null,
@@ -143,9 +159,27 @@ export function applyCanvasPatch(scope: WaygoalScope, patch: WaygoalCanvasPatch)
   const { cwd } = scope;
   const record = readCanvasRecord(scope);
   let changed = false;
+  if (patch.layout) {
+    if (!validLayout(patch.layout) || !matchesPositions(record.nodes, patch.layout.before)) {
+      throw new Error("选中的卡片位置已变化，请重新整理。");
+    }
+    const after = Object.fromEntries(Object.entries(patch.layout.after).map(([id, point]) => [id, { x: Math.round(point.x), y: Math.round(point.y) }]));
+    if (!matchesPositions(record.nodes, after)) {
+      record.layoutUndo = { before: patch.layout.before, after };
+      Object.assign(record.nodes, after);
+      changed = true;
+    }
+  }
+  if (patch.undoLayout) {
+    if (!record.layoutUndo) throw new Error("没有可撤销的整理，或相关卡片已经被移动。");
+    Object.assign(record.nodes, record.layoutUndo.before);
+    delete record.layoutUndo;
+    changed = true;
+  }
   for (const [id, point] of Object.entries(patch.positions ?? {})) {
     if (!isPoint(point) || typeof id !== "string" || !id) continue;
     record.nodes[id] = { x: Math.round(point.x), y: Math.round(point.y) };
+    if (record.layoutUndo?.after[id] && !samePoint(record.nodes[id], record.layoutUndo.after[id])) delete record.layoutUndo;
     changed = true;
   }
   if (patch.view && isPoint(patch.view) && typeof patch.view.scale === "number" && Number.isFinite(patch.view.scale) && patch.view.scale > 0) {
@@ -166,6 +200,7 @@ export function applyCanvasPatch(scope: WaygoalScope, patch: WaygoalCanvasPatch)
   // because the fallback below already reports "source unrecorded" honestly.
   if (origin && origin.sessionId && origin.originSessionId && origin.originEntryId && origin.sessionId !== origin.originSessionId) {
     record.origins[origin.sessionId] = { sessionId: origin.originSessionId, entryId: origin.originEntryId, recordedAt: new Date().toISOString() };
+    if (record.nodes[origin.originSessionId]) placeOnCanvas(record, origin.sessionId, NODE_HEIGHT, record.nodes[origin.originSessionId]);
     // Branching a discussion does not take it out of its ticket: the new path
     // is another way of working on the same question.
     const inherited = record.ticketSessions[origin.originSessionId];
@@ -241,10 +276,6 @@ export function applyCanvasPatch(scope: WaygoalScope, patch: WaygoalCanvasPatch)
   return record;
 }
 
-const GRID_X = NODE_WIDTH + 70;
-const GRID_Y = NODE_HEIGHT + 60;
-const GRID_COLUMNS = 3;
-
 /** How tall a card already on the canvas is. Ticket cards are the tall ones:
  *  the record's own ticket list names the local ones, and a remote source's
  *  tickets are named by the source they were delivered from. */
@@ -255,25 +286,11 @@ function cardHeight(record: WaygoalCanvasRecord, id: string): number {
 /** Give one card a place on the canvas, keeping the one it already has.
  *  Returns null when nothing had to be assigned, so callers know whether the
  *  record needs writing. */
-function placeOnCanvas(record: WaygoalCanvasRecord, id: string, height = NODE_HEIGHT): WaygoalPoint | null {
+function placeOnCanvas(record: WaygoalCanvasRecord, id: string, height = NODE_HEIGHT, source?: WaygoalPoint): WaygoalPoint | null {
   if (record.nodes[id]) return null;
   const taken = Object.entries(record.nodes).map(([takenId, point]) => ({ ...point, height: cardHeight(record, takenId) }));
-  record.nodes[id] = nextFreePosition(taken, height);
+  record.nodes[id] = nextFreePosition(taken, height, source);
   return record.nodes[id];
-}
-
-/** First free grid cell that does not overlap a saved card, counting how tall
- *  each of them is: a ticket's discussions hang below it, and a session card
- *  dropped on top of them would hide the ticket's own discussions. */
-export function nextFreePosition(taken: Iterable<WaygoalPoint & { height: number }>, height: number): WaygoalPoint {
-  const points = [...taken];
-  for (let index = 0; ; index++) {
-    const candidate = { x: (index % GRID_COLUMNS) * GRID_X, y: Math.floor(index / GRID_COLUMNS) * GRID_Y };
-    const overlaps = points.some(p => Math.abs(p.x - candidate.x) < NODE_WIDTH + 20
-      && candidate.y < p.y + p.height + 20
-      && p.y < candidate.y + height + 20);
-    if (!overlaps) return candidate;
-  }
 }
 
 export function sessionTitle(session: Pick<SessionInfo, "name" | "firstMessage" | "messageCount">): { title: string; titleSource: WaygoalTitleSource } {
@@ -342,8 +359,25 @@ export function buildSnapshot(
   const owned = canvasSessions(scope, sessions).sort((a, b) => a.created.localeCompare(b.created));
   const titles = new Map(owned.map(session => [session.id, sessionTitle(session).title]));
   let changed = false;
+  const byId = new Map(owned.map(session => [session.id, session]));
+  // Place sources before their new forks, even when imported timestamps are
+  // out of order. Existing positions win; broken/cyclic ancestry stays finite.
+  for (const session of owned) {
+    const chain: SessionInfo[] = [];
+    const seen = new Set<string>();
+    let current: SessionInfo | undefined = session;
+    while (current && !record.nodes[current.id] && !seen.has(current.id)) {
+      chain.push(current); seen.add(current.id);
+      const origin = nodeOrigin(current, record, titles);
+      current = origin?.inWorkspace ? byId.get(origin.sessionId) : undefined;
+    }
+    for (const item of chain.reverse()) {
+      const origin = nodeOrigin(item, record, titles);
+      const source = origin?.inWorkspace ? record.nodes[origin.sessionId] : undefined;
+      if (placeOnCanvas(record, item.id, NODE_HEIGHT, source)) changed = true;
+    }
+  }
   const nodes: WaygoalNode[] = owned.map(session => {
-    if (placeOnCanvas(record, session.id)) changed = true;
     return {
       id: session.id,
       ...sessionTitle(session),
@@ -381,6 +415,7 @@ export function buildSnapshot(
     lastViewedMissing,
     groups,
     links: record.links,
+    canUndoLayout: Boolean(record.layoutUndo),
   };
 }
 

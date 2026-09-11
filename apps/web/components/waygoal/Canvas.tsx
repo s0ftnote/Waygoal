@@ -6,6 +6,7 @@ import { cardBounds, cardCenter, thumbnail, viewCenteredOn, worldPoint, type Way
 import type { SessionInfo } from "@/lib/types";
 import type { WaygoalBranchChoice, WaygoalBranchPoint, WaygoalSessionTreeResponse } from "@/lib/waygoal/branches";
 import { mapKind, ticketKind } from "@/lib/waygoal/labels";
+import { arrangeCards } from "@/lib/waygoal/layout";
 import { CHIP_HEIGHT, NODE_HEIGHT, NODE_WIDTH, canOpen, needsCheck, ticketCardHeight, ticketChipTop, type WaygoalCanvasPatch, type WaygoalNode, type WaygoalReference, type WaygoalPoint, type WaygoalSnapshotResponse, type WaygoalTicketCard, type WaygoalView } from "@/lib/waygoal/types";
 import { ChatWindow } from "../ChatWindow";
 import { FileViewer } from "../FileViewer";
@@ -125,6 +126,7 @@ export function WaygoalCanvas() {
   // Cards the user picked with ⌘/Ctrl-click, to group or to link. Picking is
   // not opening: it changes nothing until 建一个分组 or 连一条关联 is pressed.
   const [picked, setPicked] = useState<string[]>([]);
+  const [layoutBusy, setLayoutBusy] = useState(false);
   const [draftKey, setDraftKey] = useState<string | null>(null);
   // The ticket a discussion being started belongs to. Nothing is written until
   // the user actually sends: an unsent draft holds no session and no ticket.
@@ -160,13 +162,14 @@ export function WaygoalCanvas() {
   /** One PATCH: the canvas's own patch, plus — for a session that was just
    *  started here — the workspace's note of which canvas it belongs on. */
   const patch = useCallback(async (body: WaygoalCanvasPatch & { registerSession?: string }) => {
-    if (!snapshot?.cwd) return;
+    if (!snapshot?.cwd) return false;
     try {
       // The canvas comes from the snapshot, not from the URL: a patch belongs
       // to the canvas that is actually on screen.
       const res = await fetch("/api/waygoal", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cwd: snapshot.cwd, canvas: snapshot.workspace.canvasId, ...body }) });
       if (!res.ok) throw new Error((await res.json()).error);
-    } catch (e) { setError(`画布记录没有保存：${e instanceof Error ? e.message : String(e)}`); }
+      return true;
+    } catch (e) { setError(`画布记录没有保存：${e instanceof Error ? e.message : String(e)}`); return false; }
   }, [snapshot?.cwd, snapshot?.workspace.canvasId]);
 
   /** Ask the host to read that remote ticket's raw result again. Nothing is
@@ -731,6 +734,41 @@ export function WaygoalCanvas() {
   const togglePick = useCallback((id: string) => {
     setPicked(current => (current.includes(id) ? current.filter(other => other !== id) : [...current, id]));
   }, []);
+  const arrangeSelection = useCallback(async () => {
+    const selected = cards.filter(card => picked.includes(card.id) && !tucked.has(card.id) && card.kind !== "group");
+    if (selected.length < 2 || layoutBusy) return;
+    const ids = new Set(selected.map(card => card.id));
+    const obstacles = cards.filter(card => !ids.has(card.id)).map(card => ({ ...card.position, width: NODE_W, height: card.height }));
+    obstacles.push(...groupFrames.filter(group => !group.members.some(id => ids.has(id)))
+      .map(group => ({ x: group.left, y: group.top, width: group.width, height: group.height })));
+    // Hidden members still reserve their saved space for when their group opens.
+    obstacles.push(...(snapshot?.nodes ?? []).filter(node => tucked.has(node.id)).map(node => ({ ...node.position, width: NODE_W, height: NODE_H })));
+    const after = arrangeCards(selected.map(card => {
+      const node = nodes.find(item => item.id === card.id);
+      return { ...card, originId: node?.origin?.sessionId, created: node?.created,
+        groupId: groups.find(group => group.members.includes(card.id))?.id };
+    }), obstacles);
+    const before = Object.fromEntries(selected.map(card => [card.id, card.position]));
+    if (selected.every(card => before[card.id].x === after[card.id].x && before[card.id].y === after[card.id].y)) {
+      setNotice("所选卡片已经排好了。"); return;
+    }
+    setLayoutBusy(true);
+    try {
+      if (await patch({ layout: { before, after } })) {
+        setPicked([]);
+        setNotice(`已整理 ${selected.length} 张卡片，可撤销上次整理。`);
+        await refresh(true);
+      }
+    } finally { setLayoutBusy(false); }
+  }, [cards, picked, tucked, layoutBusy, snapshot?.nodes, nodes, groups, groupFrames, patch, refresh]);
+  const undoLayout = useCallback(async () => {
+    if (layoutBusy) return;
+    setLayoutBusy(true);
+    try {
+      if (await patch({ undoLayout: true })) setNotice("已恢复整理前的位置。");
+      await refresh(true);
+    } finally { setLayoutBusy(false); }
+  }, [layoutBusy, patch, refresh]);
   /** Group the picked cards under a name the user typed. It writes one line of
    *  the canvas record: no session is started and no context is shared. */
   const createGroup = useCallback(async (name: string) => {
@@ -833,9 +871,12 @@ export function WaygoalCanvas() {
             {skipped.length} 个目录没有读成地图：{skipped.map(s => s.path).join("、")}
           </span>}
           <WaygoalFind cards={cards} onGo={goToCard} />
-          <WaygoalArrange picked={picked.flatMap(id => { const card = cardById.get(id); return card ? [{ id, title: card.title }] : []; })}
-            onGroup={createGroup} onLink={createLink} onClear={() => setPicked([])} />
-          {picked.length === 0 && cards.length >= 2 && <span className="waygoal-count">按住 ⌘/Ctrl 点卡片，可以圈成分组或连一条关联</span>}
+          {nodes.filter(node => !tucked.has(node.id)).length >= 2 && <button type="button" data-layout-pick-all className="waygoal-button outlined small"
+            disabled={layoutBusy} title="选中可见的全部会话，再整理位置或建分组"
+            onClick={() => setPicked(nodes.filter(node => !tucked.has(node.id)).map(node => node.id))}>全选会话</button>}
+          {snapshot?.canUndoLayout && <button type="button" data-layout-undo className="waygoal-button outlined small"
+            disabled={layoutBusy} onClick={() => void undoLayout()}>撤销整理</button>}
+          {picked.length === 0 && cards.length >= 2 && <span className="waygoal-count">⌘/Ctrl 点选卡片，可整理、分组或关联</span>}
           {/* One step back to what the canvas restores on load. 看 and 在聊 are
               two different things (票 #3), and this entry is the 看 one. */}
           {continueCard && <button type="button" data-continue className="waygoal-button outlined small"
@@ -847,6 +888,8 @@ export function WaygoalCanvas() {
             <button type="button" onClick={fitAll}>回到全景</button>
           </div>
         </div>
+        <WaygoalArrange picked={picked.flatMap(id => { const card = cardById.get(id); return card ? [{ id, title: card.title }] : []; })}
+          onGroup={createGroup} onLink={createLink} onLayout={arrangeSelection} onClear={() => setPicked([])} />
         <div ref={viewportRef} className="waygoal-viewport" tabIndex={0} aria-label="会话画布：方向键平移，+ − 缩放，0 回到全景" role="region"
           onWheel={e => zoomBy(e.deltaY > 0 ? 0.92 : 1.08, { x: e.clientX - e.currentTarget.getBoundingClientRect().left, y: e.clientY - e.currentTarget.getBoundingClientRect().top })}
           onPointerDown={onViewportPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onKeyDown={onViewportKeyDown}>
