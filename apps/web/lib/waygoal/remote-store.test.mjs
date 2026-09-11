@@ -4,8 +4,9 @@ import { mkdtempSync, mkdirSync, symlinkSync, writeFileSync, rmSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createJiti } from "jiti";
-const jiti = createJiti(import.meta.url, { alias: { "@": new URL("..", import.meta.url).pathname } });
-const store = await jiti.import("./waygoal-remote-store.ts");
+import { fileURLToPath } from "node:url";
+const jiti = createJiti(import.meta.url, { alias: { "@": fileURLToPath(new URL("../../", import.meta.url)) } });
+const store = await jiti.import("./remote-store.ts");
 const { deliverRemoteTicket, readRemoteDeliveries, remoteMapViews, retryRemoteCapture } = store;
 
 function workspace() {
@@ -179,7 +180,7 @@ test("来源身份里不能藏路径", (t) => {
   assert.throws(() => deliverRemoteTicket(ref, { source: "github", origin: "a/b", number: "n/../1", ref: "x" }), /编号/);
 });
 
-const { createWaygoalExtension } = await jiti.import("./waygoal-extension.ts");
+const { createWaygoalExtension } = await jiti.import("./extension.ts");
 
 /** Drive the registered tool exactly as Pi would: the Agent calls it with the
  *  source identity and where it left the raw result, and nothing else. */

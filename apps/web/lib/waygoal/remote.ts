@@ -1,6 +1,6 @@
-import { blockedByLine } from "./waygoal-tickets";
-import { mapSections } from "./waygoal-map";
-import type { WaygoalRemoteComment, WaygoalRemoteId, WaygoalRemoteRead } from "./waygoal-types";
+import { blockedByLine } from "./tickets";
+import { mapSections } from "./map";
+import type { WaygoalRemoteComment, WaygoalRemoteId, WaygoalRemoteRead } from "./types";
 
 /** The one GitHub shape Waygoal reads: what `gh issue view <n> --json …`
  *  answers. Anything else from `gh` is left unsupported rather than guessed

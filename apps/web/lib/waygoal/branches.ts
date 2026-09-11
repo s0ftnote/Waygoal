@@ -1,4 +1,4 @@
-import type { SessionTreeNode } from "./types";
+import type { SessionTreeNode } from "../types";
 
 /** One continuation available at a branch point. */
 export interface WaygoalBranchChoice {

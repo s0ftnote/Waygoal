@@ -16,7 +16,7 @@ Lint: `npm run lint`
 - A browser-only `Module ... factory is not available` overlay usually means that tab has a stale Turbopack/HMR graph; it does not prove the server or source is broken. First call the browser's explicit reload action, then compare the current server log and a direct HTTP/API request.
 - Restart only after the failure reproduces from a fresh page and the server-side checks also fail. Stop the exact dev process gracefully, move `.next` into a `mktemp -d` backup, and restart with the standard `npm run dev` command.
 - Do not use `next dev --webpack` as a fallback. This repository's development graph can fail on `undici` imports such as `node:console`; development is expected to use Turbopack.
-- Next.js may append a generated `BEGIN:nextjs-agent-rules` block to `AGENTS.md` when `next dev` starts. Treat that as generated tooling output, verify it with `git status`, and do not include it in an unrelated feature commit.
+- Next.js maintains the generated `BEGIN:nextjs-agent-rules` block at the end of this file. Keep the existing tracked block; inspect any runtime-generated change with `git status`.
 
 ---
 
@@ -237,48 +237,9 @@ Location: `~/.pi/agent/sessions/<encoded-cwd>/<timestamp>_<uuid>.jsonl`
 
 ## Waygoal additions (this fork)
 
-Files that are not in upstream agegr/pi-web. Keep them narrow; product docs live in the repo root.
+Waygoal UI lives in `components/waygoal/`; its records, ticket readers and in-process Pi extension live in `lib/waygoal/`, with unit tests beside them. Routes remain in `app/waygoal/` and `app/api/waygoal/`. Import shared host components and services directly; Pi remains the session authority.
 
-```
-app/waygoal/page.tsx              /waygoal — Waygoal session canvas (ticket #2)
-app/waygoal/waygoal.css           Waygoal light theme; remaps ChatWindow CSS vars inside .waygoal-app
-app/api/waygoal/route.ts         GET ?cwd=&canvas=&force=1 snapshot (sessions + local tickets + workspace) | PATCH { cwd, canvas?, positions?, view?, lastViewed?, lastViewedEntry?, origin?, ticketSession?, ticketExpanded?, ticketLast?, registerSession? } | POST { cwd, name } adds a canvas (ticket #4)
-app/api/waygoal/session/[id]/route.ts  GET ?entry= — one session's real branch points and active leaf; read-only, never navigates (ticket #3)
-app/api/waygoal/remote/route.ts  POST { cwd, ticket } — read again the raw result one delivery pointed at. Talks to no platform and needs no login: the Agent already produced the result (ticket #10)
-components/WaygoalCanvas.tsx     pan/zoom canvas, draggable session nodes, right panel hosting ChatWindow; 回到上次看的地方 and the thumbnail (ticket #5)
-components/WaygoalFind.tsx       查找 over the canvas: title match on the cards already there, 最近聊过的 when nothing is typed (ticket #5)
-components/WaygoalRename.tsx     改名 / 请 Pi 起个名字 for one session, through the host's own PATCH /api/sessions/[id] and auto-name (ticket #5)
-components/WaygoalArrange.tsx    toolbar bar shown once cards are picked: name a group, or draw one manual link with a note (ticket #6)
-components/WaygoalWorkspaceBar.tsx  header: which working directory, the ones opened before, this directory's canvases, 新建画布 (ticket #4)
-components/WaygoalPaths.tsx      panel header: fork origin, branch points, 打开这段 (ticket #3)
-components/WaygoalPathView.tsx   read-only history of one path; reuses GET /api/sessions/[id]/context (ticket #3)
-components/WaygoalTicketPanel.tsx  full view of one ticket or map: the source file itself, blockers, read time (ticket #7); the discussions held under it and the closable how-to (ticket #8); what each premise still needs (ticket #9); a map by its own sections, and where the source itself points (ticket #11); where a remote ticket came from, whether it is synced, and the comments that were actually fetched (ticket #10)
-lib/waygoal-store.ts             canvas records in <agentDir>/waygoal/workspaces/<id>/canvas.json (canvas-<canvasId>.json past the first); snapshot builder. Everything reads and writes through a WaygoalScope { cwd, canvasId, agentDir } (ticket #4). Also holds the user's own arrangement: groups and manual links, neither of them inferred (ticket #6). mapCheck asks whether a map's whole ticket set has been read closed; putting that note away is remembered in mapCheckDismissed (ticket #11). Remote sources are laid out through the very same maps, so nothing about positions, groups or discussions is written twice (ticket #10)
-lib/waygoal-workspaces.ts        workspace.json: this directory's canvases, the one it was left on, which canvas each session is on; recent.json remembers the directories opened (ticket #4)
-lib/waygoal-dirs.ts              where records live: waygoalRoot / workspaceId / workspaceDir / normalizeWorkspaceInput, so both records can use them without importing each other
-lib/waygoal-branches.ts          pure projection of a Pi tree into branch points and paths; no I/O (ticket #3)
-lib/waygoal-tree.ts              reads the real Pi tree for a session (live manager, else the file), mtime-cached
-lib/waygoal-locate.ts            pure card geometry the canvas shares: title search, 最近访问, bounds for 回到全景, centring a point, and the thumbnail (ticket #5)
-lib/waygoal-types.ts             record / snapshot / patch types, plus the few rules both the reader and the canvas have to agree on (card geometry, needsCheck)
-lib/waygoal-labels.ts            the words for a source and a card that the canvas, the panel and the remote reader all say the same way; copy only
-lib/waygoal-tickets.ts           reads .scratch/<map>/map.md + issues/NN-*.md into tickets; pure, no writes (ticket #7). Dependencies are settled in mergeTicketScan, over what the canvas shows: only a premise read as resolved releases (ticket #9). referencesFor settles each source link against this working directory (ticket #11)
-lib/waygoal-map.ts               a source file's own `##` sections, its opening line and the links it wrote itself; pure, nothing summarised or renamed (ticket #11)
-lib/waygoal-remote.ts            reads one raw result from a source into the fields a ticket shows; only `gh issue view --json` output and an offline sample are supported, everything else is named unsupported. supersedes() is the whole ordering rule: older, or no time at all, never replaces a confirmed state. Pure (ticket #10)
-lib/waygoal-remote-store.ts      takes delivery of a remote ticket — source identity and where its raw result is, never its text — captures that result at once through safePath, and lays the sources out as ticket maps. remote.json sits beside canvas.json in the workspace directory (ticket #10)
-lib/waygoal-extension.ts         in-process Pi extension: /skill: feedback (all sessions), the waygoal_remote_ticket delivery tool — the one trigger that fires reliably, with no prose parsed and no long system prompt (ticket #10)
-e2e/waygoal.mjs                  npm run test:waygoal — own server, temp PI_CODING_AGENT_DIR, fake model (e2e/fake-model.mjs)
-e2e/waygoal-branches.mjs         npm run test:waygoal-branches — fork / read-only review / explicit continue (ticket #3)
-e2e/waygoal-tickets.mjs          npm run test:waygoal-tickets — local maps and tickets on the canvas, no model, no Pi session (ticket #7)
-e2e/waygoal-ticket-talks.mjs     npm run test:waygoal-ticket-talks — starting, forking and continuing a discussion under a ticket (ticket #8)
-e2e/waygoal-dependencies.mjs     npm run test:waygoal-dependencies — dependency changes: two premises, unblocking, re-blocking, dropped and unreadable premises, no model (ticket #9)
-e2e/waygoal-find.mjs             npm run test:waygoal-find — renaming, asking Pi for a title, finding by title after a restart, 最近访问, the thumbnail, locating (ticket #5)
-e2e/waygoal-groups.mjs           npm run test:waygoal-groups — picking cards, naming a group, collapsing and expanding it, a manual link with a note, renaming, and a host restart (ticket #6)
-e2e/waygoal-map.mjs              npm run test:waygoal-map — a map's own sections, following its links into tickets and artifacts, the discussion under a ticket, and the note when every ticket reads closed (ticket #11)
-e2e/waygoal-remote.mjs           npm run test:waygoal-remote — a real read-only GitHub result and an offline sample: the source's own text, comments fetched vs never fetched, the same bare number across sources, an expired reference and the retry, a duplicate and an older result, an unsupported format, and a host restart. Never writes to an external ticket (ticket #10)
-e2e/waygoal-workspaces.mjs       npm run test:waygoal-workspaces — two working directories sharing a folder name, several canvases each: making one, switching, isolation, reload and restart (ticket #4)
-```
-
-Run with `WAYGOAL=1` (`npm run dev` at the repo root does this on port 30142). `proxy.ts` matches `/waygoal/:path*`.
+For directory ownership, root commands, browser suites and evidence handling, read [the development guide](../../docs/development.md). Product direction and domain decisions remain in the repository root's `AGENTS.md`, `CONTEXT.md` and `docs/`.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

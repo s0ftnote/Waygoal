@@ -1,11 +1,11 @@
 import { statSync } from "node:fs";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { projectTreeForResponse } from "./project-tree";
-import { getRpcSession } from "./rpc-manager";
-import { resolveSessionPath } from "./session-reader";
-import type { SessionTreeNode } from "./types";
-import { collectBranchPoints, type WaygoalBranchPoint } from "./waygoal-branches";
-import type { WaygoalTreeInfo } from "./waygoal-types";
+import { projectTreeForResponse } from "../project-tree";
+import { getRpcSession } from "../rpc-manager";
+import { resolveSessionPath } from "../session-reader";
+import type { SessionTreeNode } from "../types";
+import { collectBranchPoints, type WaygoalBranchPoint } from "./branches";
+import type { WaygoalTreeInfo } from "./types";
 
 export interface WaygoalSessionTree {
   sessionId: string;

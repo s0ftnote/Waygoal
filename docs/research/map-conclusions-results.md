@@ -14,16 +14,16 @@
 
 ## 实现摘要
 
-- 一个纯函数模块（[lib/waygoal-map.ts](../../apps/web/lib/waygoal-map.ts)）：`mapSections()` 按文件自己的 `##` 切分并原样保留正文，`mapLead()` 交出第一个 `##` 之前那段，`sourceLinks()` 只认 Markdown 链接。三者都不总结、不重排、不改名。
-- 链接落地在 [lib/waygoal-tickets.ts](../../apps/web/lib/waygoal-tickets.ts) 的 `referencesFor()`：相对于写下它的那份文件解析，指到这个工作目录里任何一张票据的是 `ticket`（哪张地图的都算，地图之间本来就会互相指），指到目录里存在的文件是 `file`，越出工作目录或者根本不在就是 `missing`，带协议的是 `external`。「在不在」这一问只走 `safePath()` 一个入口——那是这个仓库里读文件的安全边界，符号链接绕出去也照样答「不在」。扫描结果因此多带一个 `cwd`：判断依据得跟着结论走。
-- 「全部关闭」的判断在 [lib/waygoal-store.ts](../../apps/web/lib/waygoal-store.ts) 的 `mapCheck()`：问的是这张地图完整的票集合，不是叶子也不是当前视野；地图或票据显示的是上次读到的内容、有文件读不到、有同号多份、或者有哪张票写着一条读不清的依赖，都算「这个集合还不知道」，什么都不宣布。空地图没有「全部关闭」这回事。取消的票算进「时机」，但取消了几张会照实说出来。
+- 一个纯函数模块（[lib/waygoal/map.ts](../../apps/web/lib/waygoal/map.ts)）：`mapSections()` 按文件自己的 `##` 切分并原样保留正文，`mapLead()` 交出第一个 `##` 之前那段，`sourceLinks()` 只认 Markdown 链接。三者都不总结、不重排、不改名。
+- 链接落地在 [lib/waygoal/tickets.ts](../../apps/web/lib/waygoal/tickets.ts) 的 `referencesFor()`：相对于写下它的那份文件解析，指到这个工作目录里任何一张票据的是 `ticket`（哪张地图的都算，地图之间本来就会互相指），指到目录里存在的文件是 `file`，越出工作目录或者根本不在就是 `missing`，带协议的是 `external`。「在不在」这一问只走 `safePath()` 一个入口——那是这个仓库里读文件的安全边界，符号链接绕出去也照样答「不在」。扫描结果因此多带一个 `cwd`：判断依据得跟着结论走。
+- 「全部关闭」的判断在 [lib/waygoal/store.ts](../../apps/web/lib/waygoal/store.ts) 的 `mapCheck()`：问的是这张地图完整的票集合，不是叶子也不是当前视野；地图或票据显示的是上次读到的内容、有文件读不到、有同号多份、或者有哪张票写着一条读不清的依赖，都算「这个集合还不知道」，什么都不宣布。空地图没有「全部关闭」这回事。取消的票算进「时机」，但取消了几张会照实说出来。
 - 关掉提示记在画布记录的 `mapCheckDismissed` 里（`{ 地图路径: true }`），和位置、来源、票据关联同住一份文件，所以刷新和宿主重启都不再弹；从地图面板里的「重新显示检查提示」把它设回 `false`。
 - 提示文案照 [docs/design/canvas-navigation-and-states.md](../design/canvas-navigation-and-states.md) 里已确认的那两句写死，不读聊天、不调用模型、不调用 skill。「/to-spec」只在条件句里出现。
 - 产物用的是应用本来就有的 `FileViewer`（[components/FileViewer.tsx](../../apps/web/components/FileViewer.tsx)），只读模式，没有新增任何产物编辑器，也没有新增通用知识图谱。文件读取走 `/api/files`，允许范围就是打开这个工作目录时已经放行的那一个。
 
 ## 验证
 
-单元测试：[lib/waygoal-map.test.mjs](../../apps/web/lib/waygoal-map.test.mjs) 7 项（小节按原顺序原文切分、`##` 之前的开场白、只认 Markdown 链接、锚点与空目标不算去处、同一目标只列一次、站外地址识别）；[lib/waygoal-tickets.test.mjs](../../apps/web/lib/waygoal-tickets.test.mjs) 22 项，其中 6 项是这次加的（本图票据、目录里的产物、取不到的去处、票据结论里的去处与外部地址、越出工作目录、指到另一张地图的票据，以及开场白单独交出来）；[lib/waygoal-store.test.mjs](../../apps/web/lib/waygoal-store.test.mjs) 42 项，其中 5 项是这次加的（读全且非空且全关才提示、空地图与同号多份不触发、取消数目照实带出、关掉记在记录里且能重开、有读不清的依赖就不宣布）。
+单元测试：[lib/waygoal/map.test.mjs](../../apps/web/lib/waygoal/map.test.mjs) 7 项（小节按原顺序原文切分、`##` 之前的开场白、只认 Markdown 链接、锚点与空目标不算去处、同一目标只列一次、站外地址识别）；[lib/waygoal/tickets.test.mjs](../../apps/web/lib/waygoal/tickets.test.mjs) 22 项，其中 6 项是这次加的（本图票据、目录里的产物、取不到的去处、票据结论里的去处与外部地址、越出工作目录、指到另一张地图的票据，以及开场白单独交出来）；[lib/waygoal/store.test.mjs](../../apps/web/lib/waygoal/store.test.mjs) 42 项，其中 5 项是这次加的（读全且非空且全关才提示、空地图与同号多份不触发、取消数目照实带出、关掉记在记录里且能重开、有读不清的依赖就不宣布）。
 
 浏览器验证（`npm run test:waygoal-map`，[e2e/waygoal-map.mjs](../../apps/web/e2e/waygoal-map.mjs)）：隔离的 `PI_CODING_AGENT_DIR`、独立 Next 宿主、本机假模型。工作目录里是一份真实的聚会地图，自己写着指向票据、产物、一个不存在的票据和一个站外地址的链接；另有一张目的地是「已锁定的决定」的地图，和一张空地图。32 项检查全部通过：
 

@@ -1,4 +1,4 @@
-import { NODE_WIDTH, type WaygoalPoint, type WaygoalView } from "./waygoal-types";
+import { NODE_WIDTH, type WaygoalPoint, type WaygoalView } from "./types";
 
 /** One card on the canvas as finding and the thumbnail see it: something to
  *  match a title against, a place, and how much room it takes. A ticket's

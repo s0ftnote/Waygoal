@@ -2,17 +2,17 @@ import { randomBytes } from "node:crypto";
 import { mkdirSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { writePrivateFileAtomicSync } from "./atomic-file";
-import { isPathWithinRoots } from "./path-security";
-import { samePath } from "./paths";
-import { projectIdentityKey } from "./project-identity";
-import { normalizeWorkspaceInput, readRecord, workspaceDir, workspaceId } from "./waygoal-dirs";
-import { claimSessionsOn, rememberedWorkspace } from "./waygoal-workspaces";
-import type { SessionInfo } from "./types";
-import { REMOTE_PREFIX } from "./waygoal-remote";
-import { remoteMapViews } from "./waygoal-remote-store";
-import { mergeTicketScan, readLocalTickets } from "./waygoal-tickets";
-import { DEFAULT_CANVAS_ID, NODE_HEIGHT, NODE_WIDTH, TICKET_CARD_HEIGHT, type WaygoalScope, type WaygoalCanvasPatch, type WaygoalCanvasRecord, type WaygoalGroup, type WaygoalGroupView, type WaygoalManualLink, type WaygoalNode, type WaygoalNodeOrigin, type WaygoalOriginRecord, type WaygoalPoint, type WaygoalSavedTickets, needsCheck, type WaygoalMapCheck, type WaygoalSnapshot, type WaygoalTicketDiscussion, type WaygoalTicketMapView, type WaygoalTicketState, type WaygoalTicketSnapshot, type WaygoalTicketView, type WaygoalTitleSource, type WaygoalTreeInfo } from "./waygoal-types";
+import { writePrivateFileAtomicSync } from "../atomic-file";
+import { isPathWithinRoots } from "../path-security";
+import { samePath } from "../paths";
+import { projectIdentityKey } from "../project-identity";
+import { normalizeWorkspaceInput, readRecord, workspaceDir, workspaceId } from "./dirs";
+import { claimSessionsOn, rememberedWorkspace } from "./workspaces";
+import type { SessionInfo } from "../types";
+import { REMOTE_PREFIX } from "./remote";
+import { remoteMapViews } from "./remote-store";
+import { mergeTicketScan, readLocalTickets } from "./tickets";
+import { DEFAULT_CANVAS_ID, NODE_HEIGHT, NODE_WIDTH, TICKET_CARD_HEIGHT, type WaygoalScope, type WaygoalCanvasPatch, type WaygoalCanvasRecord, type WaygoalGroup, type WaygoalGroupView, type WaygoalManualLink, type WaygoalNode, type WaygoalNodeOrigin, type WaygoalOriginRecord, type WaygoalPoint, type WaygoalSavedTickets, needsCheck, type WaygoalMapCheck, type WaygoalSnapshot, type WaygoalTicketDiscussion, type WaygoalTicketMapView, type WaygoalTicketState, type WaygoalTicketSnapshot, type WaygoalTicketView, type WaygoalTitleSource, type WaygoalTreeInfo } from "./types";
 export { NODE_HEIGHT, NODE_WIDTH };
 
 /** One file per canvas. The first canvas keeps the name the record had when

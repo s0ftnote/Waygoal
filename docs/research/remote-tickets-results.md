@@ -16,16 +16,16 @@ GitHub 和离线自定义样本走同一个入口，各自成一组，用的是�
 
 ## 实现摘要
 
-- 一个纯函数模块（[lib/waygoal-remote.ts](../../apps/web/lib/waygoal-remote.ts)）：`readRemoteResult(source, raw)` 按交付说的来源身份去读那份原始结果，读不出就明说未支持并写出该用哪条命令，绝不半读半猜；`supersedes()` 只认来源自己的时间——比已确认的旧、或者根本没有时间，都不覆盖；`remoteTicketPath()` 把来源身份编进卡片 id，所以同号跨来源天然不撞。
+- 一个纯函数模块（[lib/waygoal/remote.ts](../../apps/web/lib/waygoal/remote.ts)）：`readRemoteResult(source, raw)` 按交付说的来源身份去读那份原始结果，读不出就明说未支持并写出该用哪条命令，绝不半读半猜；`supersedes()` 只认来源自己的时间——比已确认的旧、或者根本没有时间，都不覆盖；`remoteTicketPath()` 把来源身份编进卡片 id，所以同号跨来源天然不撞。
 - 支持的格式写死两种：`gh issue view <编号> --json number,title,state,stateReason,labels,body,url,updatedAt,comments` 的输出（`labels` 里的 `wayfinder:<type>` 是票据类型，正文顶部的 `Blocked by: #n` 行和 `## Blocked by` 下的链接都算前提，与本地票据同一套读法），和一份离线样本的 JSON。`gh` 的其它输出一律算未支持——「任意 Bash／gh 输出都能自动提取」这个前提没有被采纳。GitHub 的 `CLOSED` 分成 `COMPLETED`（做完了）和 `NOT_PLANNED`（不做了），落到本地 tracker 已经在用的 `resolved` / `cancelled` 两个词上，所以依赖结算不用为远程票另写一套。
-- 交付和取得在 [lib/waygoal-remote-store.ts](../../apps/web/lib/waygoal-remote-store.ts)：`deliverRemoteTicket()` 收到交付就立刻去读那份原始结果——趁引用还没失效；读到了记 `capturedAt` 和原文快照，读不到就只记 `deliveredAt` 加一条说明。原始结果必须落在工作目录里，读它走的是 `safePath()`，也就是这个仓库读文件的那一个安全边界。同一张票再交付只是覆盖同一条记录，不会多出一张卡。
-- 交付入口是 extension 注册的工具 `waygoal_remote_ticket`（[lib/waygoal-extension.ts](../../apps/web/lib/waygoal-extension.ts)）。选它是因为它是唯一稳定触发的通路：Pi 用校验过的参数来调，不用去猜 Agent 的散文，也不用改 Matt 的流程。提示只有一行 `promptSnippet`，没有加长系统提示。
+- 交付和取得在 [lib/waygoal/remote-store.ts](../../apps/web/lib/waygoal/remote-store.ts)：`deliverRemoteTicket()` 收到交付就立刻去读那份原始结果——趁引用还没失效；读到了记 `capturedAt` 和原文快照，读不到就只记 `deliveredAt` 加一条说明。原始结果必须落在工作目录里，读它走的是 `safePath()`，也就是这个仓库读文件的那一个安全边界。同一张票再交付只是覆盖同一条记录，不会多出一张卡。
+- 交付入口是 extension 注册的工具 `waygoal_remote_ticket`（[lib/waygoal/extension.ts](../../apps/web/lib/waygoal/extension.ts)）。选它是因为它是唯一稳定触发的通路：Pi 用校验过的参数来调，不用去猜 Agent 的散文，也不用改 Matt 的流程。提示只有一行 `promptSnippet`，没有加长系统提示。
 - 远程来源在画布上就是一组票据视图（`remoteMapViews()`），和本地地图共用 `WaygoalTicketMapView`，所以位置、分组、手动关联、依赖连线、查找、票下讨论全都不用再写一遍。唯一的分别是 `remote: true`——来源镜像没有自己的 Destination，所以不出检查提示。
 - 重新取得走 [app/api/waygoal/remote/route.ts](../../apps/web/app/api/waygoal/remote/route.ts)：它只是再读一次 Agent 已经产出的那份结果，不连平台、不需要登录、也从不往来源写任何东西。
 
 ## 验证
 
-单元测试：[lib/waygoal-remote.test.mjs](../../apps/web/lib/waygoal-remote.test.mjs) 8 项（按来源自己的字段读、空评论与没取评论之别、做完了与不做了、前提按来源自己的编号、离线样本、未知格式明说未支持、同号跨来源是两张票、旧的和顺序不明的都不覆盖）；[lib/waygoal-remote-store.test.mjs](../../apps/web/lib/waygoal-remote-store.test.mjs) 12 项（交付只说来源和引用、两件成功分开记、重试、重复交付不多卡、旧结果不静默覆盖、跨来源分组与前提结算、取到原文但格式不支持、相对引用是相对工作目录、软链接打开的工作目录和它的真实路径是同一个工作区、已确认的那份没带时间时也不被静默顶替、来源身份里不能藏路径、注册的工具就是交付入口）。
+单元测试：[lib/waygoal/remote.test.mjs](../../apps/web/lib/waygoal/remote.test.mjs) 8 项（按来源自己的字段读、空评论与没取评论之别、做完了与不做了、前提按来源自己的编号、离线样本、未知格式明说未支持、同号跨来源是两张票、旧的和顺序不明的都不覆盖）；[lib/waygoal/remote-store.test.mjs](../../apps/web/lib/waygoal/remote-store.test.mjs) 12 项（交付只说来源和引用、两件成功分开记、重试、重复交付不多卡、旧结果不静默覆盖、跨来源分组与前提结算、取到原文但格式不支持、相对引用是相对工作目录、软链接打开的工作目录和它的真实路径是同一个工作区、已确认的那份没带时间时也不被静默顶替、来源身份里不能藏路径、注册的工具就是交付入口）。
 
 真实 GitHub 只读核对：用 `gh issue view 10 --repo s0ftnote/Waygoal --json …` 对真实仓库做了一次只读读取，核对了字段形状（`state` 与 `stateReason` 分开、`comments` 缺字段与空数组之别、`updatedAt` 的写法），并把那份结果原样留在 [e2e/fixtures/github-issue-10.json](../../apps/web/e2e/fixtures/github-issue-10.json) 作为离线回归的输入。没有向任何真实外部票据写入过内容。
 

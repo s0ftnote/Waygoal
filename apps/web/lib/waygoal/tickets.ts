@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, normalize, relative } from "node:path";
-import { isExistingPathWithinRoots } from "./path-security";
-import { mapLead, mapSections, sourceLinks } from "./waygoal-map";
-import type { WaygoalReference, WaygoalSavedTickets, WaygoalStale, WaygoalTicketMap, WaygoalTicketMapView, WaygoalTicketNode, WaygoalTicketScan, WaygoalTicketState, WaygoalTicketView, WaygoalUnreadable } from "./waygoal-types";
+import { isExistingPathWithinRoots } from "../path-security";
+import { mapLead, mapSections, sourceLinks } from "./map";
+import type { WaygoalReference, WaygoalSavedTickets, WaygoalStale, WaygoalTicketMap, WaygoalTicketMapView, WaygoalTicketNode, WaygoalTicketScan, WaygoalTicketState, WaygoalTicketView, WaygoalUnreadable } from "./types";
 
 /** The one layout this reads, as the local Markdown tracker documents it:
  *  `.scratch/<effort>/map.md` with one file per ticket under `issues/`. */

@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createJiti } from "jiti";
-const jiti = createJiti(import.meta.url, { alias: { "@": new URL("..", import.meta.url).pathname } });
-const remote = await jiti.import("./waygoal-remote.ts");
+import { fileURLToPath } from "node:url";
+const jiti = createJiti(import.meta.url, { alias: { "@": fileURLToPath(new URL("../../", import.meta.url)) } });
+const remote = await jiti.import("./remote.ts");
 const { readRemoteResult, remoteSourcePath, remoteTicketPath, supersedes } = remote;
 
 /** What `gh issue view <n> --json …` really answers, kept from a read-only run

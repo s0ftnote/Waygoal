@@ -1,4 +1,4 @@
-import type { WaygoalMapSection, WaygoalSourceLink } from "./waygoal-types";
+import type { WaygoalMapSection, WaygoalSourceLink } from "./types";
 
 /** A source file's own `##` sections, in its own order and its own words. The
  *  body is kept verbatim — the point is to show what the map says, not a

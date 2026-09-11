@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { allowFileRoot } from "@/lib/file-access";
-import { retryRemoteCapture } from "@/lib/waygoal-remote-store";
-import { resolveWorkspaceCwd } from "@/lib/waygoal-store";
-import { scopeFor } from "@/lib/waygoal-workspaces";
+import { retryRemoteCapture } from "@/lib/waygoal/remote-store";
+import { resolveWorkspaceCwd } from "@/lib/waygoal/store";
+import { scopeFor } from "@/lib/waygoal/workspaces";
 
 export const dynamic = "force-dynamic";
 

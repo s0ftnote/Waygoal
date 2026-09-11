@@ -2,9 +2,9 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, realpathSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { writePrivateFileAtomicSync } from "./atomic-file";
-import { readRecord, waygoalRoot, workspaceDir } from "./waygoal-dirs";
-import { DEFAULT_CANVAS_ID, type WaygoalCanvasInfo, type WaygoalRecentWorkspace, type WaygoalScope, type WaygoalWorkspaceRecord } from "./waygoal-types";
+import { writePrivateFileAtomicSync } from "../atomic-file";
+import { readRecord, waygoalRoot, workspaceDir } from "./dirs";
+import { DEFAULT_CANVAS_ID, type WaygoalCanvasInfo, type WaygoalRecentWorkspace, type WaygoalScope, type WaygoalWorkspaceRecord } from "./types";
 
 const DEFAULT_CANVAS_NAME = "主画布";
 

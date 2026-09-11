@@ -1,3 +1,4 @@
+import { evidenceDirectory } from "./waygoal-artifacts.mjs";
 // Browser verification for walking a Wayfinder map: reading its destination,
 // its decisions and what is still unspecified in the source's own words,
 // opening the places the source points at, going from a ticket's conclusion
@@ -13,7 +14,7 @@ import { once } from "node:events";
 import { chmodSync, createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -21,7 +22,7 @@ import { modelsJson, startFakeModel } from "./fake-model.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 assert.ok(!existsSync(join(root, ".next/dev/lock")), "Use a checkout without an active dev server");
-const evidence = resolve(root, "../../docs/research/prototype-evidence/map");
+const evidence = evidenceDirectory("map");
 mkdirSync(evidence, { recursive: true });
 const artifacts = join(root, "test-results/e2e");
 mkdirSync(artifacts, { recursive: true });

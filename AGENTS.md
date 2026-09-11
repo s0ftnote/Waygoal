@@ -20,6 +20,7 @@ Waygoal 以 Pi extension 接入，提供本地无限画布 Web 界面。核心�
 
 ## 按任务读取
 
+- **目录职责、开发命令、测试与证据输出**：读[开发指南](docs/development.md)。Waygoal 界面和数据模块分别位于 `apps/web/components/waygoal` 与 `apps/web/lib/waygoal`，宿主能力继续复用 pi-web。
 - **术语、对象关系**：读 [CONTEXT.md](CONTEXT.md)。定义只在术语表维护；本文件保留产品方向和工作指引，决定及理由写入 ADR，交互细节和验收写入设计文档。
 - **技能入口、extension 职责、流程衔接**：读 [ADR 0004](docs/adr/0004-canvas-carrier-and-user-chosen-skills.md)。
 - **建票边界、会话关联、分支交接**：读 [ADR 0003](docs/adr/0003-discussion-and-ticket-map.md)。

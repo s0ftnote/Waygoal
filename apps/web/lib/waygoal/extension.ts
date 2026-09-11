@@ -2,9 +2,9 @@ import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { StringEnum } from "@earendil-works/pi-ai";
-import { GITHUB_COMMAND } from "./waygoal-remote";
-import { deliverRemoteTicket } from "./waygoal-remote-store";
-import { loadSkillsWithInstallInfo } from "./skills-service";
+import { GITHUB_COMMAND } from "./remote";
+import { deliverRemoteTicket } from "./remote-store";
+import { loadSkillsWithInstallInfo } from "../skills-service";
 
 /** What one delivery answers: which card it landed on, whether the canvas is
  *  in sync with the source, and why not when it is not. The source operation

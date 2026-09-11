@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createJiti } from "jiti";
-const jiti = createJiti(import.meta.url, { alias: { "@": new URL("..", import.meta.url).pathname } });
-const map = await jiti.import("./waygoal-map.ts");
+import { fileURLToPath } from "node:url";
+const jiti = createJiti(import.meta.url, { alias: { "@": fileURLToPath(new URL("../../", import.meta.url)) } });
+const map = await jiti.import("./map.ts");
 const { mapSections, sourceLinks } = map;
 
 const MAP = `# 给朋友办一场小型放映会

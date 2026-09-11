@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createJiti } from "jiti";
-const jiti = createJiti(import.meta.url, { alias: { "@": new URL("..", import.meta.url).pathname } });
-const { cardBounds, cardCenter, findByTitle, recentSessions, thumbnail, viewCenteredOn, worldPoint } = await jiti.import("./waygoal-locate.ts");
-const { NODE_HEIGHT, NODE_WIDTH } = await jiti.import("./waygoal-types.ts");
+import { fileURLToPath } from "node:url";
+const jiti = createJiti(import.meta.url, { alias: { "@": fileURLToPath(new URL("../../", import.meta.url)) } });
+const { cardBounds, cardCenter, findByTitle, recentSessions, thumbnail, viewCenteredOn, worldPoint } = await jiti.import("./locate.ts");
+const { NODE_HEIGHT, NODE_WIDTH } = await jiti.import("./types.ts");
 
 const session = (id, title, modified, position = { x: 0, y: 0 }) =>
   ({ id, title, kind: "session", position, height: NODE_HEIGHT, modified });

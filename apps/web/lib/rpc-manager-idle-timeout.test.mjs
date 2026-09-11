@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createJiti } from "jiti";
+import { fileURLToPath } from "node:url";
 
-const jiti = createJiti(import.meta.url, { interopDefault: true, moduleCache: false });
+const jiti = createJiti(import.meta.url, {
+  alias: { "@": fileURLToPath(new URL("../", import.meta.url)) },
+  interopDefault: true,
+  moduleCache: false,
+});
 const { resolveSessionIdleTimeoutMs } = await jiti.import("./rpc-manager.ts");
 
 const nextTurn = () => new Promise((resolve) => setImmediate(resolve));
@@ -55,7 +60,11 @@ for (const [rawValue, timeoutMs] of [
     const previousValue = process.env.PI_WEB_IDLE_TIMEOUT_MS;
     process.env.PI_WEB_IDLE_TIMEOUT_MS = rawValue;
     try {
-      const freshJiti = createJiti(import.meta.url, { interopDefault: true, moduleCache: false });
+      const freshJiti = createJiti(import.meta.url, {
+        alias: { "@": fileURLToPath(new URL("../", import.meta.url)) },
+        interopDefault: true,
+        moduleCache: false,
+      });
       const { AgentSessionWrapper } = await freshJiti.import("./rpc-manager.ts");
 
       t.mock.timers.enable({ apis: ["setTimeout"] });

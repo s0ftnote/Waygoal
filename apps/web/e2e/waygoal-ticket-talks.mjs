@@ -1,3 +1,4 @@
+import { evidenceDirectory } from "./waygoal-artifacts.mjs";
 // Browser verification for discussions held under a local ticket (ticket #8).
 // Starts its own pi-web on a free loopback port with an isolated Pi data
 // directory and a fake OpenAI-compatible model, writes real tracker files into
@@ -12,7 +13,7 @@ import { once } from "node:events";
 import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -20,7 +21,7 @@ import { modelsJson, startFakeModel } from "./fake-model.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 assert.ok(!existsSync(join(root, ".next/dev/lock")), "Use a checkout without an active dev server");
-const evidence = resolve(root, "../../docs/research/prototype-evidence/ticket-talks");
+const evidence = evidenceDirectory("ticket-talks");
 mkdirSync(evidence, { recursive: true });
 const artifacts = join(root, "test-results/e2e");
 mkdirSync(artifacts, { recursive: true });

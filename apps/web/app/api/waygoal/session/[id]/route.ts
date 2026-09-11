@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { pathToEntry, type WaygoalSessionTreeResponse } from "@/lib/waygoal-branches";
-import { readSessionTree } from "@/lib/waygoal-tree";
+import { pathToEntry, type WaygoalSessionTreeResponse } from "@/lib/waygoal/branches";
+import { readSessionTree } from "@/lib/waygoal/tree";
 
 export const dynamic = "force-dynamic";
 

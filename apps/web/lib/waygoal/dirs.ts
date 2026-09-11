@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { projectIdentityKey } from "./project-identity";
+import { projectIdentityKey } from "../project-identity";
 
 // Records live under Pi's agent directory, apart from the plugin code, and
 // are split per workspace from the start (ADR 0001). Nothing here sends

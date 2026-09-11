@@ -1,6 +1,6 @@
 "use client";
-import type { WaygoalBranchChoice, WaygoalBranchPoint } from "@/lib/waygoal-branches";
-import type { WaygoalNodeOrigin } from "@/lib/waygoal-types";
+import type { WaygoalBranchChoice, WaygoalBranchPoint } from "@/lib/waygoal/branches";
+import type { WaygoalNodeOrigin } from "@/lib/waygoal/types";
 
 interface Props {
   origin: WaygoalNodeOrigin | null;

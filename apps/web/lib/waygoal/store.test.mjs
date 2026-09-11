@@ -4,11 +4,12 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createJiti } from "jiti";
-const jiti = createJiti(import.meta.url, { alias: { "@": new URL("..", import.meta.url).pathname } });
-const store = await jiti.import("./waygoal-store.ts");
-const { createWaygoalExtension, MISSING_SKILL_NOTICE, parseSkillCommand } = await jiti.import("./waygoal-extension.ts");
-const workspaces = await jiti.import("./waygoal-workspaces.ts");
-const paths = await jiti.import("./waygoal-dirs.ts");
+import { fileURLToPath } from "node:url";
+const jiti = createJiti(import.meta.url, { alias: { "@": fileURLToPath(new URL("../../", import.meta.url)) } });
+const store = await jiti.import("./store.ts");
+const { createWaygoalExtension, MISSING_SKILL_NOTICE, parseSkillCommand } = await jiti.import("./extension.ts");
+const workspaces = await jiti.import("./workspaces.ts");
+const paths = await jiti.import("./dirs.ts");
 
 function session(id, cwd, extra = {}) {
   return { id, path: `/sessions/${id}.jsonl`, cwd, created: "2026-09-01T00:00:00.000Z", modified: "2026-09-02T00:00:00.000Z", messageCount: 2, firstMessage: `first ${id}`, ...extra };
@@ -225,7 +226,7 @@ function localMap(cwd, dir, tickets, map = "# 放映会\n\n## Destination\n\n定
   writeFileSync(join(cwd, ".scratch", dir, "map.md"), map);
   for (const [name, body] of Object.entries(tickets)) writeFileSync(join(cwd, ".scratch", dir, "issues", name), body);
 }
-const { TICKET_CARD_HEIGHT } = await jiti.import("./waygoal-types.ts");
+const { TICKET_CARD_HEIGHT } = await jiti.import("./types.ts");
 const ticketBody = (title, extra = "") => `# ${title}\n\nType: grilling\nStatus: open\n${extra}\n## Question\n\n${title}的正文。\n`;
 
 test("local tickets become canvas cards whose layout is kept per workspace", () => {

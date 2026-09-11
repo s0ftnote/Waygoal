@@ -1,3 +1,4 @@
+import { evidenceDirectory } from "./waygoal-artifacts.mjs";
 // Browser verification for dependency changes on the Waygoal canvas (ticket
 // #9). Starts its own pi-web on a free loopback port with an isolated Pi data
 // directory, edits real tracker files in the workspace, and checks what the
@@ -14,14 +15,14 @@ import { once } from "node:events";
 import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 assert.ok(!existsSync(join(root, ".next/dev/lock")), "Use a checkout without an active dev server");
-const evidence = resolve(root, "../../docs/research/prototype-evidence/dependencies");
+const evidence = evidenceDirectory("dependencies");
 mkdirSync(evidence, { recursive: true });
 const artifacts = join(root, "test-results/e2e");
 mkdirSync(artifacts, { recursive: true });

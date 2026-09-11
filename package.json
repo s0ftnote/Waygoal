@@ -2,7 +2,15 @@
   "name": "waygoal",
   "private": true,
   "scripts": {
+    "setup": "cd apps/web && npm ci",
     "dev": "npm --prefix apps/web run dev:waygoal",
+    "build": "npm --prefix apps/web run build",
+    "start": "npm --prefix apps/web run start:waygoal",
+    "lint": "npm --prefix apps/web run lint",
+    "typecheck": "npm --prefix apps/web run typecheck",
+    "test": "npm --prefix apps/web test",
+    "check": "npm run lint && npm run typecheck && npm test",
+    "test:e2e": "npm --prefix apps/web run test:waygoal-all",
     "prototype:canvas": "python3 -m http.server 30145 --bind 127.0.0.1 --directory apps/web/experiments"
   }
 }

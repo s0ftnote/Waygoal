@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createJiti } from "jiti";
-const jiti = createJiti(import.meta.url, { alias: { "@": new URL("..", import.meta.url).pathname } });
-const { collectBranchPoints, pathToEntry } = await jiti.import("./waygoal-branches.ts");
+import { fileURLToPath } from "node:url";
+const jiti = createJiti(import.meta.url, { alias: { "@": fileURLToPath(new URL("../../", import.meta.url)) } });
+const { collectBranchPoints, pathToEntry } = await jiti.import("./branches.ts");
 
 // Projected tree shape, as GET /api/sessions/[id] returns it: single-child
 // chains are contracted and their ids kept in `compressedEntryIds`.

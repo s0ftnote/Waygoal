@@ -67,16 +67,22 @@ Waygoal 是通过 Pi extension 接入的本地无限画布会话空间。用户�
 
 更早的 Pi × Wayfinder 票据原型（`/beacon/tickets`，一票只绑一段会话）已于 2026-09-11 删除：它做的两件事——本地票据进入画布（票 #7）、从票据开始并继续讨论（票 #8）——都已在 `/waygoal` 上，试跑记录仍在 [prototype-results.md](docs/research/prototype-results.md)，代码在 git 历史里。产品工作指引见 [AGENTS.md](AGENTS.md)。
 
+## 仓库导航
+
+实际应用在 `apps/web`：Waygoal 界面在 `components/waygoal`，画布记录、票据读取和 Pi extension 在 `lib/waygoal`，路由在 `app/waygoal` 与 `app/api/waygoal`。其余宿主代码继续复用 pi-web。
+
+`docs` 保存产品规格、决策、设计和研究；`apps/web/experiments` 保存独立实验；`playground` 是虚构的试用工作目录。目录职责、开发命令及验证方式见[开发指南](docs/development.md)。
+
 ## 启动
 
 ```sh
-npm --prefix apps/web ci --ignore-scripts
+npm run setup
 npm run dev
 ```
 
 打开 http://127.0.0.1:30142/waygoal 。使用本机已有 Pi 登录、默认模型和 skills；新会话和 Pi 原始界面的新会话行为一致。已有的 pi-web 30141 不受影响。
 
-默认打开 `playground/`；URL 带 `?cwd=/绝对/路径` 可打开任意已有工作目录（切换与记住工作区的界面属于票 #4）。点「新开聊天」写下第一句并明确发送后，这段会话才出现在画布上；打开已有节点只读取历史，不发送消息。输入 `/skill:名称` 使用已安装 skill，名称不存在时会得到明确提示且消息不会发出。
+默认打开 `playground/`；URL 带 `?cwd=/绝对/路径` 可打开任意已有工作目录（也可以使用画布顶部的工作目录切换入口）。点「新开聊天」写下第一句并明确发送后，这段会话才出现在画布上；打开已有节点只读取历史，不发送消息。输入 `/skill:名称` 使用已安装 skill，名称不存在时会得到明确提示且消息不会发出。
 
 ## 会话画布的实现范围
 
@@ -101,28 +107,25 @@ npm run dev
 
 ## 验证
 
-在 `apps/web` 中：
+在仓库根目录运行：
 
 ```sh
-node_modules/.bin/tsc --noEmit
-node --test lib/waygoal-store.test.mjs lib/waygoal-workspaces.test.mjs lib/waygoal-tickets.test.mjs lib/startup-preferences.test.mjs lib/subagent-settings.test.mjs
-npm run test:waygoal
-npm run test:waygoal-tickets
-npm run test:waygoal-ticket-talks
-npm run test:waygoal-workspaces
-npm run test:waygoal-groups
-npm run test:waygoal-map
-npm run test:waygoal-remote
+npm run check     # lint、类型检查和全部单元测试
+npm run test:e2e  # 顺序执行 10 组 Waygoal 浏览器检查
 ```
 
-`test:waygoal` 在临时 Pi 数据目录中启动独立宿主和一个可控的 OpenAI 兼容假模型，从真实界面检查发现、新建、明确发送、消息呈现、skill 反馈、拖动与视野持久化、刷新与宿主重启恢复、键盘操作和窄屏返回入口，截图与检查记录写入 `docs/research/prototype-evidence/session-canvas/`。它不使用本机 Pi 登录，也不改动本机 Pi 数据。需要本机有 Playwright 的 Chromium 或 Google Chrome，且该 checkout 没有正在运行的 dev server。
+首次运行浏览器检查前，在 `apps/web` 执行 `npx playwright install chromium`，或使用本机已有 Google Chrome。单独复跑某组时用 `npm --prefix apps/web run test:waygoal-branches` 等现有脚本。各组共享 Next 开发构建，需先停止这个 checkout 的 dev server。
 
-`test:waygoal-tickets` 不配置模型、不建立任何 Pi 会话：它在临时工作目录里写出真实布局的本地地图与票据，从界面检查读取、修改、同号、缺失依赖、改标题、重复刷新、宿主重启与来源文件消失后的降级，截图写入 `docs/research/prototype-evidence/tickets/`。
+测试输出默认写到忽略跟踪的 `apps/web/test-results/waygoal/`；`docs/research/prototype-evidence/` 是保留的历史证据。需要主动刷新研究证据时，按[开发指南](docs/development.md)指定输出位置。
 
-`test:waygoal-ticket-talks` 在同样隔离的宿主里配一个假模型，把真实的地图与票据文件写进临时工作目录，从界面检查：空票据开始聊只开草稿不建会话、重复点击回到同一份草稿、发送后讨论挂在票据下、真实分叉仍属这张票据、一票多段讨论、收起后从票据里接着聊、被挡住和已解决的票据照样能讨论、宿主重启后关联与位置都在、会话文件被删后照实说「打不开」，截图写入 `docs/research/prototype-evidence/ticket-talks/`。
+`test:waygoal` 在临时 Pi 数据目录中启动独立宿主和一个可控的 OpenAI 兼容假模型，从真实界面检查发现、新建、明确发送、消息呈现、skill 反馈、拖动与视野持久化、刷新与宿主重启恢复、键盘操作和窄屏返回入口，截图与检查记录写入 `apps/web/test-results/waygoal/session-canvas/`。它不使用本机 Pi 登录，也不改动本机 Pi 数据。需要本机有 Playwright 的 Chromium 或 Google Chrome，且该 checkout 没有正在运行的 dev server。
 
-`test:waygoal-map` 在隔离宿主里配一个假模型，工作目录里放一份自己写着票据、产物、缺失去处和站外地址链接的真实地图，从界面检查：地图按自己的小节原样显示、四种去处各自落地、跟着链接进票据与产物再返回、从票据结论进讨论再回来、票全部关闭时的检查提示文案与不抢焦点、取消票的说法、关掉后刷新与宿主重启都不再弹与主动重开、读不到与同号多份时安静、空地图不触发，检查记录写入 `docs/research/prototype-evidence/map/`。
+`test:waygoal-tickets` 不配置模型、不建立任何 Pi 会话：它在临时工作目录里写出真实布局的本地地图与票据，从界面检查读取、修改、同号、缺失依赖、改标题、重复刷新、宿主重启与来源文件消失后的降级，截图写入 `apps/web/test-results/waygoal/tickets/`。
+
+`test:waygoal-ticket-talks` 在同样隔离的宿主里配一个假模型，把真实的地图与票据文件写进临时工作目录，从界面检查：空票据开始聊只开草稿不建会话、重复点击回到同一份草稿、发送后讨论挂在票据下、真实分叉仍属这张票据、一票多段讨论、收起后从票据里接着聊、被挡住和已解决的票据照样能讨论、宿主重启后关联与位置都在、会话文件被删后照实说「打不开」，截图写入 `apps/web/test-results/waygoal/ticket-talks/`。
+
+`test:waygoal-map` 在隔离宿主里配一个假模型，工作目录里放一份自己写着票据、产物、缺失去处和站外地址链接的真实地图，从界面检查：地图按自己的小节原样显示、四种去处各自落地、跟着链接进票据与产物再返回、从票据结论进讨论再回来、票全部关闭时的检查提示文案与不抢焦点、取消票的说法、关掉后刷新与宿主重启都不再弹与主动重开、读不到与同号多份时安静、空地图不触发，检查记录写入 `apps/web/test-results/waygoal/map/`。
 
 
-`test:waygoal-remote` 在隔离宿主里配一个假模型、全程不联网，用一份从真实仓库只读取回并留存的 `gh issue view --json` 结果和一份离线自定义样本，从界面检查：正文与标题一字不差、来源与取得时间、待核对与附件边界、取到零条评论与评论没取到之别、同一裸编号跨来源与本地是三张票、前提只在自己来源里结算、引用失效时的未同步与重新取得、重复交付不多卡、更旧结果不静默覆盖、未支持格式不刮正文、宿主重启后仍在，检查记录写入 `docs/research/prototype-evidence/remote/`。
+`test:waygoal-remote` 在隔离宿主里配一个假模型、全程不联网，用一份从真实仓库只读取回并留存的 `gh issue view --json` 结果和一份离线自定义样本，从界面检查：正文与标题一字不差、来源与取得时间、待核对与附件边界、取到零条评论与评论没取到之别、同一裸编号跨来源与本地是三张票、前提只在自己来源里结算、引用失效时的未同步与重新取得、重复交付不多卡、更旧结果不静默覆盖、未支持格式不刮正文、宿主重启后仍在，检查记录写入 `apps/web/test-results/waygoal/remote/`。
 会话画布的试跑记录见 [session-canvas-results.md](docs/research/session-canvas-results.md)，分叉与回看的试跑记录见 [branch-navigation-results.md](docs/research/branch-navigation-results.md)，本地票据见 [local-tickets-results.md](docs/research/local-tickets-results.md)，票据下的讨论见 [ticket-talks-results.md](docs/research/ticket-talks-results.md)，依赖变动见 [dependency-changes-results.md](docs/research/dependency-changes-results.md)，起名字与找回讨论见 [find-and-rename-results.md](docs/research/find-and-rename-results.md)，切换工作目录与多画布见 [workspaces-and-canvases-results.md](docs/research/workspaces-and-canvases-results.md)，手动分组与关联见 [groups-and-links-results.md](docs/research/groups-and-links-results.md)，地图结论与产物见 [map-conclusions-results.md](docs/research/map-conclusions-results.md)，远程来源见 [remote-tickets-results.md](docs/research/remote-tickets-results.md)，票据原型见 [prototype-results.md](docs/research/prototype-results.md)。上游是 [agegr/pi-web](https://github.com/agegr/pi-web)，基于提交 `a26cc68df9227cb74253bddd7c59624aa475e61f`，Pi SDK 版本 `0.85.1`。

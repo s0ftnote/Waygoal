@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import type { WaygoalTitleSource } from "@/lib/waygoal-types";
+import type { WaygoalTitleSource } from "@/lib/waygoal/types";
 
 interface Props {
   sessionId: string;

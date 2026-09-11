@@ -1,3 +1,4 @@
+import { evidenceDirectory } from "./waygoal-artifacts.mjs";
 // Browser verification for the Waygoal session canvas (ticket #2).
 // Starts its own pi-web on a free loopback port with an isolated Pi data
 // directory and a fake OpenAI-compatible model, then checks discovery,
@@ -9,7 +10,7 @@ import { once } from "node:events";
 import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -17,7 +18,7 @@ import { modelsJson, startFakeModel } from "./fake-model.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 assert.ok(!existsSync(join(root, ".next/dev/lock")), "Use a checkout without an active dev server");
-const evidence = resolve(root, "../../docs/research/prototype-evidence/session-canvas");
+const evidence = evidenceDirectory("session-canvas");
 mkdirSync(evidence, { recursive: true });
 const artifacts = join(root, "test-results/e2e");
 mkdirSync(artifacts, { recursive: true });
@@ -63,8 +64,24 @@ writeFileSync(join(agentDir, "skills", "e2e-skill", "SKILL.md"), "---\nname: e2e
 
 async function waitFor(predicate, what, timeout = 60_000) {
   const deadline = Date.now() + timeout;
-  while (!predicate()) { assert.ok(Date.now() < deadline, `Timed out waiting for ${what}`); await delay(200); }
+  while (!(await predicate())) { assert.ok(Date.now() < deadline, `Timed out waiting for ${what}`); await delay(200); }
 }
+// Read both rectangles in one frame, once zoom/reveal has settled. Reading
+// them in separate protocol calls can measure different points of a transition.
+async function settledCardGap(page, firstId, secondId) {
+  let gap;
+  await waitFor(async () => {
+    gap = await page.locator(".waygoal-world").evaluate((world, [first, second]) => {
+      if (world.getAnimations().some(animation => animation.playState === "running" || animation.pending)) return null;
+      const a = world.querySelector(`[data-node="${first}"]`).getBoundingClientRect();
+      const b = world.querySelector(`[data-node="${second}"]`).getBoundingClientRect();
+      return { x: a.x - b.x, y: a.y - b.y };
+    }, [firstId, secondId]);
+    return gap !== null;
+  }, "canvas transition to settle");
+  return gap;
+}
+
 const checks = [];
 const check = (name, ok, detail = "") => { checks.push({ name, ok: Boolean(ok), detail }); assert.ok(ok, `${name} ${detail}`); console.log(`PASS: ${name}`); };
 
@@ -194,9 +211,7 @@ try {
   await page.getByRole("button", { name: "放大" }).click();
   await delay(1200);
   const zoomBefore = await page.locator(".waygoal-zoom span").innerText();
-  const anchor = page.locator(`[data-node="${createdId}"]`);
-  const movedBox = await target.boundingBox();
-  const movedAnchor = await anchor.boundingBox();
+  const gapBefore = await settledCardGap(page, NAMED, createdId);
   const saved = await snapshot();
   const savedPos = saved.nodes.find((n) => n.id === NAMED).position;
   const origPos = twice.nodes.find((n) => n.id === NAMED).position;
@@ -209,6 +224,13 @@ try {
 
   // 7. Reload: view, positions and the last viewed session are restored; nothing auto-sent.
   const sent = model.requests.length; const userCount = userMessageCount(createdId);
+  // Keep a slow transition in this regression: restoration must be measured
+  // after animation, without disabling motion or loosening the position check.
+  await page.addInitScript(() => document.addEventListener("DOMContentLoaded", () => {
+    const style = document.createElement("style");
+    style.textContent = ".waygoal-world { transition-duration: 1s !important; }";
+    document.head.append(style);
+  }));
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.locator(".waygoal-panel").getByText(/E2E reply: 你好，画布/).waitFor();
   const scaleText = await page.locator(".waygoal-zoom span").innerText();
@@ -218,10 +240,9 @@ try {
   // dragged card's place on the canvas is what has to come back, so it is
   // measured against another card, at the same zoom, rather than in pixels
   // of the screen.
-  const restoredBox = await node(NAMED_TITLE).boundingBox();
-  const restoredAnchor = await anchor.boundingBox();
-  const offset = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
-  const gapBefore = offset(movedBox, movedAnchor), gapAfter = offset(restoredBox, restoredAnchor);
+  const gapAfter = await settledCardGap(page, NAMED, createdId);
+  const restored = await snapshot();
+  check("reload preserves saved canvas coordinates", JSON.stringify(restored.nodes.find(n => n.id === NAMED).position) === JSON.stringify(savedPos) && restored.view.scale === saved.view.scale);
   check("reload restores node position", Math.abs(gapAfter.x - gapBefore.x) < 2 && Math.abs(gapAfter.y - gapBefore.y) < 2, JSON.stringify({ gapBefore, gapAfter }));
   await delay(1500);
   check("restore does not send a message", model.requests.length === sent && userMessageCount(createdId) === userCount);

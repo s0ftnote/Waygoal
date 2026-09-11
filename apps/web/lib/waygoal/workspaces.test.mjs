@@ -4,8 +4,9 @@ import { mkdtempSync, mkdirSync, rmSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createJiti } from "jiti";
-const jiti = createJiti(import.meta.url, { alias: { "@": new URL("..", import.meta.url).pathname } });
-const ws = await jiti.import("./waygoal-workspaces.ts");
+import { fileURLToPath } from "node:url";
+const jiti = createJiti(import.meta.url, { alias: { "@": fileURLToPath(new URL("../../", import.meta.url)) } });
+const ws = await jiti.import("./workspaces.ts");
 
 function sandbox() {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "waygoal-ws-test-")));

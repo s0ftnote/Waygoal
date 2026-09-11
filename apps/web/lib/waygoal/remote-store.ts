@@ -1,12 +1,12 @@
 import { mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
-import { writePrivateFileAtomicSync } from "./atomic-file";
-import { readRemoteResult, remoteSourcePath, remoteTicketPath, supersedes } from "./waygoal-remote";
-import { sourceLinks } from "./waygoal-map";
-import { readRecord, workspaceDir } from "./waygoal-dirs";
-import { resolveBlockers, safePath, unsettledView } from "./waygoal-tickets";
-import { remoteSourceLabel } from "./waygoal-labels";
-import { type WaygoalReference, type WaygoalRemoteDelivery, type WaygoalRemoteId, type WaygoalTicketMapView, type WaygoalTicketView, type WaygoalWorkspaceRef } from "./waygoal-types";
+import { writePrivateFileAtomicSync } from "../atomic-file";
+import { readRemoteResult, remoteSourcePath, remoteTicketPath, supersedes } from "./remote";
+import { sourceLinks } from "./map";
+import { readRecord, workspaceDir } from "./dirs";
+import { resolveBlockers, safePath, unsettledView } from "./tickets";
+import { remoteSourceLabel } from "./labels";
+import { type WaygoalReference, type WaygoalRemoteDelivery, type WaygoalRemoteId, type WaygoalTicketMapView, type WaygoalTicketView, type WaygoalWorkspaceRef } from "./types";
 
 /** What one delivery says, and all it says: who the source is, which ticket
  *  there, and where the raw result it produced can be read. No body — the

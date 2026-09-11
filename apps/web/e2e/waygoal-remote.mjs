@@ -1,3 +1,4 @@
+import { evidenceDirectory } from "./waygoal-artifacts.mjs";
 // Browser verification for a remote ticket reaching the canvas: the Agent
 // finishes a normal read of a source, hands Waygoal only the source identity
 // and where its raw result is, and Waygoal reads that result itself and shows
@@ -10,7 +11,7 @@
 //
 // Delivery goes through the same `deliverRemoteTicket` the registered tool
 // calls; that the tool itself is registered and passes its arguments through
-// is covered by lib/waygoal-remote-store.test.mjs.
+// is covered by lib/waygoal/remote-store.test.mjs.
 //
 // Starts its own pi-web on a free loopback port with an isolated Pi data
 // directory and a fake OpenAI-compatible model; no real model and no Pi login
@@ -21,7 +22,7 @@ import { once } from "node:events";
 import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { createJiti } from "jiti";
@@ -30,14 +31,14 @@ import { modelsJson, startFakeModel } from "./fake-model.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 assert.ok(!existsSync(join(root, ".next/dev/lock")), "Use a checkout without an active dev server");
-const evidence = resolve(root, "../../docs/research/prototype-evidence/remote");
+const evidence = evidenceDirectory("remote");
 mkdirSync(evidence, { recursive: true });
 const artifacts = join(root, "test-results/e2e");
 mkdirSync(artifacts, { recursive: true });
 const serverLog = createWriteStream(join(artifacts, "waygoal-remote-server.log"));
 
 const jiti = createJiti(import.meta.url, { alias: { "@": join(root, "/") } });
-const { deliverRemoteTicket } = await jiti.import(join(root, "lib/waygoal-remote-store.ts"));
+const { deliverRemoteTicket } = await jiti.import(join(root, "lib/waygoal/remote-store.ts"));
 
 const agentDir = mkdtempSync(join(tmpdir(), "waygoal-remote-e2e-"));
 const work = join(agentDir, "work/放映会");

@@ -8,17 +8,17 @@
 
 ## 实现摘要
 
-- 依赖判断挪到了「画布正在显示的这张地图」上（`mergeTicketScan`，[lib/waygoal-tickets.ts](../../apps/web/lib/waygoal-tickets.ts)）。原来只在当次读到的票据之间判断，于是一个这次读不到的前置会被说成「这张地图里找不到」——那是两回事。现在读不到的前置也在地图上，它照样挡着下游，并且说的是「现在读不到它」。
-- 每条依赖记下它为什么还挡着（`holding`）：`waiting`（还在做）、`cancelled`（来源把它取消了）、`missing`、`ambiguous`、`unreadable`。满足是唯一一个空值，来自来源写着 `resolved`。除了 `waiting`，其余每一种都是「读不出结论」，需要用户在来源里核对（`needsCheck`，[lib/waygoal-types.ts](../../apps/web/lib/waygoal-types.ts)）。
+- 依赖判断挪到了「画布正在显示的这张地图」上（`mergeTicketScan`，[lib/waygoal/tickets.ts](../../apps/web/lib/waygoal/tickets.ts)）。原来只在当次读到的票据之间判断，于是一个这次读不到的前置会被说成「这张地图里找不到」——那是两回事。现在读不到的前置也在地图上，它照样挡着下游，并且说的是「现在读不到它」。
+- 每条依赖记下它为什么还挡着（`holding`）：`waiting`（还在做）、`cancelled`（来源把它取消了）、`missing`、`ambiguous`、`unreadable`。满足是唯一一个空值，来自来源写着 `resolved`。除了 `waiting`，其余每一种都是「读不出结论」，需要用户在来源里核对（`needsCheck`，[lib/waygoal/types.ts](../../apps/web/lib/waygoal/types.ts)）。
 - 票据自己的状态是 `waiting` / `unblocked` / `resolved` / `cancelled`（`unblocked` 用词表里「解锁」的说法）。来源对这张票据自己的结论优先：写着 resolved 就是已解决，写着取消就是已取消，都不因为它还名着一条依赖而被画布推翻。取消的写法只认一小组词（`cancelled`、`canceled`、`dropped`、`wontfix`、`out of scope`、`已取消`、`取消`、`移出范围`），和「只读一种本地布局」是同一个态度：认得的照实说，认不得的按原样显示、按未解决对待。
 - 票据自己的结论和它写着的依赖是两件事，卡片上就是两个标记：一张来源已经写成 resolved、却还名着一条没满足的依赖的票据，两个标记同时显示，而不是把后者藏起来。
-- 点亮记在画布记录里（`ticketWaiting`，[lib/waygoal-store.ts](../../apps/web/lib/waygoal-store.ts)）：记的是每张票据上次被看到时是不是在等。第一次看到它不再等的那份快照带上 `justUnblocked`，同时把新状态写回记录，因此后面的每次读取、以及重启后的宿主，都不会再说一遍。第一次就见到它不在等，不算变化，不点亮。只因为这次读不到前置而进入等待的，不记进这份记录——否则下一次读成功就会被当成「前置刚刚被满足」而亮一下，可来源根本没变。
+- 点亮记在画布记录里（`ticketWaiting`，[lib/waygoal/store.ts](../../apps/web/lib/waygoal/store.ts)）：记的是每张票据上次被看到时是不是在等。第一次看到它不再等的那份快照带上 `justUnblocked`，同时把新状态写回记录，因此后面的每次读取、以及重启后的宿主，都不会再说一遍。第一次就见到它不在等，不算变化，不点亮。只因为这次读不到前置而进入等待的，不记进这份记录——否则下一次读成功就会被当成「前置刚刚被满足」而亮一下，可来源根本没变。
 - 点亮是一次 CSS 动画加一个 `data-unblocked` 标记；说明文字（卡片上的「前提都满足了」、完整视图里的「前提都满足了，这张票可以往下走。」）来自状态本身，和动画无关。减少动态效果时画布已有的全局规则关掉动画，状态和文字照常显示，卡片全程可点。
 - 没有新建图执行引擎：依赖仍然是 `Blocked by:` 里的编号在同一张地图内解析，汇合就是「每一条都满足才放行」。
 
 ## 验证
 
-单元测试：[lib/waygoal-tickets.test.mjs](../../apps/web/lib/waygoal-tickets.test.mjs) 追加 4 项（两个前提要都解决才放行、取消的前置不等于满足且票据自己读作已取消、这次读不到的前置照样挡着且不被说成从来没有过、来源已经解决的票据读作已解决），并把原有两项依赖测试改成走画布看到的那份视图。[lib/waygoal-store.test.mjs](../../apps/web/lib/waygoal-store.test.mjs) 追加 3 项（解锁只点亮一次、重复读取与重启都不重放；第一次就不在等的不点亮，重新被挡住之后再放行会再点亮一次，且这两次都没有写过票据自己的状态；一次读不到前置之后读回来，不会被当成刚刚解锁）。
+单元测试：[lib/waygoal/tickets.test.mjs](../../apps/web/lib/waygoal/tickets.test.mjs) 追加 4 项（两个前提要都解决才放行、取消的前置不等于满足且票据自己读作已取消、这次读不到的前置照样挡着且不被说成从来没有过、来源已经解决的票据读作已解决），并把原有两项依赖测试改成走画布看到的那份视图。[lib/waygoal/store.test.mjs](../../apps/web/lib/waygoal/store.test.mjs) 追加 3 项（解锁只点亮一次、重复读取与重启都不重放；第一次就不在等的不点亮，重新被挡住之后再放行会再点亮一次，且这两次都没有写过票据自己的状态；一次读不到前置之后读回来，不会被当成刚刚解锁）。
 
 浏览器验证（`npm run test:waygoal-dependencies`，[e2e/waygoal-dependencies.mjs](../../apps/web/e2e/waygoal-dependencies.mjs)）：隔离的 `PI_CODING_AGENT_DIR`、独立 Next 宿主，不配置模型，改的只有工作目录里的真实来源文件。24 项检查全部通过：
 

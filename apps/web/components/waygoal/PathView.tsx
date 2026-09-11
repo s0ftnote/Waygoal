@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AgentMessage, SessionContext, ToolResultMessage } from "@/lib/types";
-import { MessageView } from "./MessageView";
+import { MessageView } from "../MessageView";
 
 interface Props {
   sessionId: string;

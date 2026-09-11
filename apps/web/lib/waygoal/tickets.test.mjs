@@ -4,8 +4,9 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync, symlinkSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createJiti } from "jiti";
-const jiti = createJiti(import.meta.url, { alias: { "@": new URL("..", import.meta.url).pathname } });
-const { readLocalTickets, mergeTicketScan, blockedByLine, parseTicket, safePath, section } = await jiti.import("./waygoal-tickets.ts");
+import { fileURLToPath } from "node:url";
+const jiti = createJiti(import.meta.url, { alias: { "@": fileURLToPath(new URL("../../", import.meta.url)) } });
+const { readLocalTickets, mergeTicketScan, blockedByLine, parseTicket, safePath, section } = await jiti.import("./tickets.ts");
 const at = (iso) => () => new Date(iso);
 
 /** One read of a workspace the way the canvas sees it. Dependencies are

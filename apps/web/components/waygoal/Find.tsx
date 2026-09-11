@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { findByTitle, recentSessions, type WaygoalCard } from "@/lib/waygoal-locate";
+import { findByTitle, recentSessions, type WaygoalCard } from "@/lib/waygoal/locate";
 
 interface Props {
   /** Everything on the canvas right now, so a hit is always somewhere to go. */

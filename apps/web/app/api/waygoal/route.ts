@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { allowFileRoot } from "@/lib/file-access";
 import { getRpcSessionInfos, getRunningRpcSessionIds } from "@/lib/rpc-manager";
 import { attachSessionProjectInfo, listAllSessions, mergeSessionLists } from "@/lib/session-reader";
-import { applyCanvasPatch, buildSnapshot, buildTicketSnapshot, canvasSessions, resolveWorkspaceCwd } from "@/lib/waygoal-store";
-import { readTreeInfos } from "@/lib/waygoal-tree";
-import { addCanvas, readWorkspaceRecord, recentWorkspaces, registerSession, rememberWorkspace, scopeFor } from "@/lib/waygoal-workspaces";
-import type { WaygoalCanvasPatch, WaygoalSnapshotResponse } from "@/lib/waygoal-types";
+import { applyCanvasPatch, buildSnapshot, buildTicketSnapshot, canvasSessions, resolveWorkspaceCwd } from "@/lib/waygoal/store";
+import { readTreeInfos } from "@/lib/waygoal/tree";
+import { addCanvas, readWorkspaceRecord, recentWorkspaces, registerSession, rememberWorkspace, scopeFor } from "@/lib/waygoal/workspaces";
+import type { WaygoalCanvasPatch, WaygoalSnapshotResponse } from "@/lib/waygoal/types";
 
 export const dynamic = "force-dynamic";
 

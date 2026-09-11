@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import type { WaygoalWorkspaceView } from "@/lib/waygoal-types";
+import type { WaygoalWorkspaceView } from "@/lib/waygoal/types";
 
 interface Props {
   workspace: WaygoalWorkspaceView | null;

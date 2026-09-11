@@ -9,17 +9,17 @@
 ## 实现摘要
 
 - 布局是明确的一种，不是「任意本地 tracker」：`.scratch/<地图>/map.md` 加 `issues/NN-*.md`，字段沿用本地 Markdown tracker 的 `Type:`、`Status:`、`Blocked by:`、`## Question`、`## Answer`。`.scratch/` 下没有 `map.md` 的目录会被照实报出「这里没有 map.md」，而不是静默忽略，也不假装支持别的格式。
-- 读取器 [lib/waygoal-tickets.ts](../../apps/web/lib/waygoal-tickets.ts) 只读不写，复用票据原型已有的扫描器（`parseTicket` 与路径检查 `safePath`，[lib/waygoal-tickets.ts](../../apps/web/lib/waygoal-tickets.ts)），不新造第二套解析。每次读文件前都确认路径仍在这个工作目录内：票据文件只读，但一条指向外面的符号链接照样会把内容带出去。
+- 读取器 [lib/waygoal/tickets.ts](../../apps/web/lib/waygoal/tickets.ts) 只读不写，复用票据原型已有的扫描器（`parseTicket` 与路径检查 `safePath`，[lib/waygoal/tickets.ts](../../apps/web/lib/waygoal/tickets.ts)），不新造第二套解析。每次读文件前都确认路径仍在这个工作目录内：票据文件只读，但一条指向外面的符号链接照样会把内容带出去。
 - 一份读不到不牵连其余：读不出的票据文件、读不出的 `map.md`、`.scratch/` 下不是这个布局的目录，都各自记下来并在画布上说明，其它地图、票据和会话节点照常显示。
 - 身份是「工作目录 + 来源文件相对路径」，不是标题，也不是票据编号：跨地图同号不会混淆，改标题只是同一张卡片换了名字。
 - 依赖关系复用现有阻塞判断：`Blocked by: 09, 02` 里指不到票据的编号标为 missing、指到多份的标为 ambiguous，两种都让票据保持被挡住的状态——读不出来的关系不等于没有关系。同号重复时地图上会带一条说明，指出依赖它的票据无法确定指向哪一份。编号按数值比较（`01` 与 `1` 同一张），显示时保留文件自己的写法。
 - 快照与布局保存在已有的画布记录里（`<agentDir>/waygoal/workspaces/<id>/canvas.json` 的 `tickets` 字段），和会话节点共用同一套位置分配与拖动；票据不会被算成会话节点。记录里的 `readAt` 记的是「这份内容是什么时候读到的」，文件没变就沿用上次的时间，因此每 2.5 秒一次的轮询不会反复重写记录。
 - 读不到时的降级在 `mergeTicketScan`：这次扫描没产出、但以前读到过的地图和票据都保留下来，带上 `lastReadAt`（上次成功读到的时间）与 `checkedAt`（这次读不到的时间）。界面上卡片变虚线并显示「读不到来源」，展开后先是一条说明，再是上次读到的正文。
-- 界面 [components/WaygoalTicketPanel.tsx](../../apps/web/components/WaygoalTicketPanel.tsx)：类型、状态、所属地图、依赖（已满足／等待中／未知分开标）、来源路径、读取时间，正文按原样呈现。
+- 界面 [components/waygoal/TicketPanel.tsx](../../apps/web/components/waygoal/TicketPanel.tsx)：类型、状态、所属地图、依赖（已满足／等待中／未知分开标）、来源路径、读取时间，正文按原样呈现。
 
 ## 验证
 
-单元测试：[lib/waygoal-tickets.test.mjs](../../apps/web/lib/waygoal-tickets.test.mjs) 12 项（布局与身份、依赖解析、同号重复、没有 map.md 的目录、读不出的单个票据文件不牵连邻居、读不出的 map.md 不牵连整张画布、空工作目录、读不到时的合并、改标题、整张地图消失、正文与来源文本、重复读取产出同一份记录）；[lib/waygoal-store.test.mjs](../../apps/web/lib/waygoal-store.test.mjs) 追加 3 项（卡片与布局按工作目录持久化且没变化时不重写记录、宿主重启后仍带上次读到的内容、票据不会混进会话节点且会缓存进画布记录）。
+单元测试：[lib/waygoal/tickets.test.mjs](../../apps/web/lib/waygoal/tickets.test.mjs) 12 项（布局与身份、依赖解析、同号重复、没有 map.md 的目录、读不出的单个票据文件不牵连邻居、读不出的 map.md 不牵连整张画布、空工作目录、读不到时的合并、改标题、整张地图消失、正文与来源文本、重复读取产出同一份记录）；[lib/waygoal/store.test.mjs](../../apps/web/lib/waygoal/store.test.mjs) 追加 3 项（卡片与布局按工作目录持久化且没变化时不重写记录、宿主重启后仍带上次读到的内容、票据不会混进会话节点且会缓存进画布记录）。
 
 浏览器验证（`npm run test:waygoal-tickets`，[e2e/waygoal-tickets.mjs](../../apps/web/e2e/waygoal-tickets.mjs)）：隔离的 `PI_CODING_AGENT_DIR`、独立 Next 宿主，不配置模型。16 项检查全部通过：
 
@@ -38,7 +38,7 @@
 
 ## 本票没有做的
 
-- 变更发现走画布已有的 2.5 秒轮询和页面刷新，没有接 `lib/waygoal-extension.ts` 里那条 extension 变更检查通道；在 Waygoal 之外改文件确实会被读到（e2e 有验证），但触发机制留给远程来源那张票（#10）一起定。
+- 变更发现走画布已有的 2.5 秒轮询和页面刷新，没有接 `lib/waygoal/extension.ts` 里那条 extension 变更检查通道；在 Waygoal 之外改文件确实会被读到（e2e 有验证），但触发机制留给远程来源那张票（#10）一起定。
 - 只支持 `.scratch/<地图>/map.md` 加 `issues/NN-*.md` 这一种布局。一个 `.scratch/` 下没有 `map.md` 的目录会被报成「没有读成地图」，这是照实说明，不是支持。（本仓库根上曾有一个装规格底稿的 `.scratch/`，2026-09-11 已搬到 `docs/spec/`，把这个名字还给工作目录里的 tracker。）
 - 票据和会话还没有挂在一起：票据卡片旁边不显示相关会话，也不能从票据开始讨论，那是票 #8。
 
