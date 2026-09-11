@@ -49,7 +49,7 @@ try {
   evidence.entries = { parent: parent.manager.getEntries(), child: child.manager.getEntries(), baseline: baseline.manager.getEntries(), changed: changed.manager.getEntries() };
   mkdirSync(here, { recursive: true });
   writeFileSync(output, JSON.stringify(evidence, null, 2));
-  const pagePath = resolve(here, '../../public/return-to-thread-prototype.html');
+  const pagePath = resolve(here, 'index.html');
   const { entries: _entries, ...replay } = evidence;
   const payload = JSON.stringify(replay).replaceAll('<', '\\u003c');
   writeFileSync(pagePath, readFileSync(pagePath, 'utf8').replace(/(<script id="evidence" type="application\/json">)[\s\S]*?(<\/script>)/, (_, start, end) => start + payload + end));

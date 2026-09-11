@@ -4,7 +4,7 @@
 
 用户选择 B 的平铺画布，票据是上层工作单元，会话挂在票下或收进票里；不继续 A 的大容器与 C 的路径布局。当前页面只保留改造后的 B，旧 A/C URL 会归到 B。下方 2026-09-09 内容是历史实验记录，不再是当前页面操作指南。
 
-运行命令仍为 `npm run prototype:canvas`，打开 [B 改造版](http://127.0.0.1:30145/canvas-space-prototype.html?variant=B)。
+运行命令仍为 `npm run prototype:canvas`，打开 [B 改造版](http://127.0.0.1:30145/canvas-space/index.html?variant=B)。
 
 - 默认显示 #12 和其三段讨论、尚无会话的 #13，以及两段未挂票的独立会话。票据来自虚构夹具，页面不分析聊天或自动开票。
 - 票据卡直接提供开始／继续讨论；点击标题可看原文和票下会话。已有讨论按明确记录的上次继续位置恢复，也可从票内选择其他会话。
@@ -14,13 +14,13 @@
 
 本机 Chrome 已实际操作空票创建、发送、分叉、收起后继续、只读回看、解锁、新开独立会话及纯会话切换。确认空票命令尚未发送；#13 在阻塞时可开始讨论但保持等待；收起后会话节点不在画布上重复显示，仍能继续同一分支。390px 无页面横向溢出，浏览器未出现 pageerror。未新增测试文件。截图为 `b-revised-overview.png`、`b-revised-inside.png`、`b-revised-mobile.png`。
 
-本地快照分支：`prototype/canvas-space-b-2026-09-10`，继承原三方案快照，分支本身未推送。快照完成后，用户于 2026-09-10 体验并反馈“对味了”，认可改造后的 B 作为后续设计基线。此确认不代表真实 Pi、模型、tracker 或持久化已接入。后续已发布 [Spec #1](https://github.com/s0ftnote/Waygoal/issues/1) 和[实现票清单](../../../../.scratch/waygoal-tickets/README.md)，本目录保留原型与实验依据。领域关系见 [ADR 0003](../../../../docs/adr/0003-discussion-and-ticket-map.md)，展示基线见[画布导航与状态](../../../../docs/design/canvas-navigation-and-states.md)。
+本地快照分支：`prototype/canvas-space-b-2026-09-10`，继承原三方案快照，分支本身未推送。快照完成后，用户于 2026-09-10 体验并反馈“对味了”，认可改造后的 B 作为后续设计基线。此确认不代表真实 Pi、模型、tracker 或持久化已接入。后续已发布 [Spec #1](https://github.com/s0ftnote/Waygoal/issues/1) 和[实现票清单](../../../../docs/spec/tickets.md)，本目录保留原型与实验依据。领域关系见 [ADR 0003](../../../../docs/adr/0003-discussion-and-ticket-map.md)，展示基线见[画布导航与状态](../../../../docs/design/canvas-navigation-and-states.md)。
 
 ## 历史：三方案比较（2026-09-09）
 
 2026-09-09。待回答的问题：**票据展开承载会话，还是票据与会话全部平铺，更容易让用户理解关系，并完成分叉、深入和返回？**
 
-这是 UI 分支的可丢弃原型，不是生产接入。采用静态页面，与既有 `return-to-thread-prototype.html` 相邻；当前 Beacon 页面固定以票据创建会话，其数据与入口限制不适合用来比较普通会话空间。这里不改动该页面或其真实会话操作。
+这是 UI 分支的可丢弃原型，不是生产接入。采用静态页面，与既有 `../return-to-thread/index.html` 相邻；当前 Beacon 页面固定以票据创建会话，其数据与入口限制不适合用来比较普通会话空间。这里不改动该页面或其真实会话操作。
 
 ## 运行与比较
 
@@ -30,7 +30,7 @@
 npm run prototype:canvas
 ```
 
-打开 [交互原型](http://127.0.0.1:30145/canvas-space-prototype.html?variant=A)。HTML 自包含，也可以直接打开 `../../public/canvas-space-prototype.html`。底部按钮或左右方向键切换方案，输入时不拦截方向键；URL 保留方案选择。其余状态仅在内存，刷新后重置。
+打开 [交互原型](http://127.0.0.1:30145/canvas-space/index.html?variant=A)。HTML 自包含，也可以直接打开本目录的 `index.html`。底部按钮或左右方向键切换方案，输入时不拦截方向键；URL 保留方案选择。其余状态仅在内存，刷新后重置。
 
 - **A / 容器**：#12 的关联讨论收在一个可展开的区域里，其他会话独立摆放。
 - **B / 平铺**：会话与票据各占一个位置，通过不同连线展示分叉、挂载、依赖。

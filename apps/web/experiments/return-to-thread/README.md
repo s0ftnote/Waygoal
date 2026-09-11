@@ -4,7 +4,7 @@
 
 ## 直接体验
 
-打开 `../../public/return-to-thread-prototype.html`。这是单文件 HTML，无需安装或联网；运行现有原型服务时也可访问 http://127.0.0.1:30142/return-to-thread-prototype.html 。页面有自由操作和四条引导路径：正常往返、预算变化、未完成就返回、重复返回。
+打开本目录的 `index.html`。这是单文件 HTML，无需安装或联网；在仓库根运行 `npm run prototype:canvas` 后也可访问 http://127.0.0.1:30145/return-to-thread/index.html 。页面有自由操作和四条引导路径：正常往返、预算变化、未完成就返回、重复返回。
 
 界面是可交互回放，按钮不调用模型。显示的模型回复来自本次真实 Pi SDK / gpt-5.6-luna 试跑；方案草稿、页面状态和依据展开是固定样例上的交互演示。
 
