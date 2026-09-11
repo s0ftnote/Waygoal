@@ -14,7 +14,7 @@
 
 本机 Chrome 已实际操作空票创建、发送、分叉、收起后继续、只读回看、解锁、新开独立会话及纯会话切换。确认空票命令尚未发送；#13 在阻塞时可开始讨论但保持等待；收起后会话节点不在画布上重复显示，仍能继续同一分支。390px 无页面横向溢出，浏览器未出现 pageerror。未新增测试文件。截图为 `b-revised-overview.png`、`b-revised-inside.png`、`b-revised-mobile.png`。
 
-本地快照分支：`prototype/canvas-space-b-2026-09-10`，继承原三方案快照，分支本身未推送。快照完成后，用户于 2026-09-10 体验并反馈“对味了”，认可改造后的 B 作为后续设计基线。此确认不代表真实 Pi、模型、tracker 或持久化已接入。后续已发布 [Spec #1](https://github.com/s0ftnote/Waygoal/issues/1) 和[实现票清单](../../../../docs/spec/tickets.md)，本目录保留原型与实验依据。领域关系见 [ADR 0003](../../../../docs/adr/0003-discussion-and-ticket-map.md)，展示基线见[画布导航与状态](../../../../docs/design/canvas-navigation-and-states.md)。
+本地快照分支 `prototype/canvas-space-b-2026-09-10` 曾在上游 pi-web 的嵌套 checkout 里，该 checkout 已于 2026-09-11 移除；文件本身在本目录。快照完成后，用户于 2026-09-10 体验并反馈“对味了”，认可改造后的 B 作为后续设计基线。此确认不代表真实 Pi、模型、tracker 或持久化已接入。后续已发布 [Spec #1](https://github.com/s0ftnote/Waygoal/issues/1) 和[实现票清单](../../../../docs/spec/tickets.md)，本目录保留原型与实验依据。领域关系见 [ADR 0003](../../../../docs/adr/0003-discussion-and-ticket-map.md)，展示基线见[画布导航与状态](../../../../docs/design/canvas-navigation-and-states.md)。
 
 ## 历史：三方案比较（2026-09-09）
 
@@ -68,6 +68,6 @@ npm run prototype:canvas
 
 ## 原型保留
 
-独立本地快照分支：`prototype/canvas-space-2026-09-09`。快照仅收录本次 HTML、运行命令与实验资料，不包含其他未提交文档和原型改动；未推送远端，也未合入 main。工作文件留在原位置供当前预览服务读取。
+独立本地快照分支 `prototype/canvas-space-2026-09-09` 曾在上游 pi-web 的嵌套 checkout 里，该 checkout 已于 2026-09-11 移除；本目录就是那份快照的内容。
 
 目前没有已定稿的实现票，也没有获确认的胜出方案，所以尚未向实现票发布指针或把原型代码合入实际业务。获得体验反馈后，将结论写回设计，再由 spec / 实现票引用此分支。

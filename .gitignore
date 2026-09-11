@@ -12,6 +12,3 @@ test-results/
 # Credentials and machine-specific session bindings
 .env*
 *.pem
-
-# Keep the web host's original upstream checkout local.
-apps/web/.git

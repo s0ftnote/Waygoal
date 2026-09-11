@@ -43,4 +43,4 @@
 
 在 pi-web 目录运行 `node experiments/return-to-thread/run.mjs`，会发起五次真实模型调用，更新本目录证据和单文件页面里的回复；需要现有 Pi 登录。所有调用固定使用 `openai-codex/gpt-5.6-luna`，禁用工具、skills 和 extensions。
 
-本实验的独立本地快照分支为 `prototype/return-to-thread-2026-09-09`；仅保留实验文件，不包含当前其他未提交的原型改动。没有推送远端。
+本实验的独立本地快照分支 `prototype/return-to-thread-2026-09-09` 曾在上游 pi-web 的嵌套 checkout 里，该 checkout 已于 2026-09-11 移除；本目录就是那份快照的内容。
