@@ -228,7 +228,8 @@
 .waygoal-tag.origin { border-style: dashed; }
 .waygoal-tag.branch { background: var(--wg-accent-soft); border-color: var(--wg-accent); color: var(--wg-ink); }
 .waygoal-tag.continuing { background: var(--wg-ink); border-color: var(--wg-ink); color: var(--wg-canvas); font-weight: 600; }
-.waygoal-tag.reading { background: var(--wg-action); border-color: var(--wg-action); color: #fff; font-weight: 600; }
+/* Reading is a state, not an action: light teal with ink text, never the vermilion. */
+.waygoal-tag.reading { background: var(--wg-accent); border-color: var(--wg-accent); color: var(--wg-ink); font-weight: 600; }
 .waygoal-tag.done { background: var(--wg-accent-soft); border-color: var(--wg-accent); color: var(--wg-ink); }
 .waygoal-tag.waiting { border-style: dashed; }
 .waygoal-tag.unknown { border-style: dotted; color: var(--wg-danger); border-color: var(--wg-danger); }
@@ -238,14 +239,14 @@
 
 .waygoal-node-marks { display: flex; flex-wrap: wrap; gap: 6px; }
 .waygoal-node-marks .waygoal-tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: block; }
-.waygoal-node.viewing { border-color: var(--wg-action); box-shadow: 0 0 0 4px rgb(229 58 70 / 18%); }
+.waygoal-node.viewing { border-color: var(--wg-accent); box-shadow: 0 0 0 4px var(--wg-accent-soft); }
 
 /* One in-session path of the open node, kept on the canvas so branches stay
    findable here and not only inside the chat panel. Clicking one reads it. */
 .waygoal-chip { position: absolute; height: 26px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-radius: 13px; background: var(--wg-surface); border: 1px dashed var(--wg-path); font-size: 11px; text-align: left; box-shadow: var(--wg-shadow); }
 .waygoal-chip:hover { border-style: solid; background: var(--wg-accent-soft); }
 .waygoal-chip.active { border-style: solid; border-color: var(--wg-ink); }
-.waygoal-chip.viewing { border-style: solid; border-color: var(--wg-action); }
+.waygoal-chip.viewing { border-style: solid; border-color: var(--wg-accent); background: var(--wg-accent-soft); }
 .waygoal-chip-label { color: var(--wg-muted); flex-shrink: 0; }
 .waygoal-chip-preview { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .waygoal-chip .waygoal-tag { flex-shrink: 0; }
@@ -286,10 +287,11 @@
 @keyframes waygoal-panel-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
 @keyframes waygoal-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 /* A ticket that has just stopped waiting is lit once. The state and the words
-   on the card are there either way, and the card stays clickable throughout:
-   with reduced motion the rule below simply skips the light. */
-@keyframes waygoal-unblocked { from { box-shadow: 0 0 0 0 var(--wg-accent); } 50% { box-shadow: 0 0 0 7px var(--wg-accent-soft); } to { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); } }
-.waygoal-ticket-card.unblocked { animation: waygoal-unblocked 1.8s ease-out 1; }
+   on the card are there either way, and the card stays clickable throughout;
+   with reduced motion the light is simply not drawn. The light is a static
+   soft layer that only fades (opacity), so nothing repaints a growing shadow. */
+@keyframes waygoal-unblocked { from { opacity: 1; } to { opacity: 0; } }
+.waygoal-ticket-card.unblocked::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none; box-shadow: 0 0 0 7px var(--wg-accent-soft), 0 0 0 1px var(--wg-accent); animation: waygoal-unblocked 900ms ease-out 1 forwards; }
 
 @media (max-width: 1100px) {
   .waygoal-top { padding: 0 20px; gap: 18px; }
@@ -320,6 +322,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .waygoal-app *, .waygoal-app *::before, .waygoal-app *::after { animation: none !important; transition: none !important; }
+  .waygoal-ticket-card.unblocked::after { display: none; }
 }
 
 /* Switching working directory, and the canvases of the one that is open. */
