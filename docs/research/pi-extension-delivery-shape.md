@@ -4,7 +4,7 @@
 
 ## 版本与证据边界
 
-证据来自本机已安装的 **Pi SDK 0.85.1**（`prototypes/pi-web/node_modules/@earendil-works/pi-coding-agent`，`package.json:1-4`）随包发布的官方文档 `docs/` 与编译产物 `dist/`，以及 pi-web fork（上游 `agegr/pi-web@a26cc68`）。下文路径均相对仓库根目录 `/Users/neuron/文稿/2 私人/beacon`。`dist/*.js` 是 `src/*.ts` 的 tsgo 输出，行为一致但行号与上游源码不同；引用行号以本机文件为准。
+证据来自本机已安装的 **Pi SDK 0.85.1**（`apps/web/node_modules/@earendil-works/pi-coding-agent`，`package.json:1-4`）随包发布的官方文档 `docs/` 与编译产物 `dist/`，以及 pi-web fork（上游 `agegr/pi-web@a26cc68`）。下文路径均相对仓库根目录 `/Users/neuron/文稿/2 私人/beacon`。`dist/*.js` 是 `src/*.ts` 的 tsgo 输出，行为一致但行号与上游源码不同；引用行号以本机文件为准。
 
 标记：**事实**来自官方文档与源码；**推断/建议**是针对 Waygoal 的判断；**待验证**未在本次跑通。
 
@@ -18,7 +18,7 @@
 
 **事实：包可以带自己的依赖，但有约束。** 运行时依赖写 `dependencies`；Pi 安装时执行生产安装 `npm install --omit=dev`，`devDependencies` 运行时不存在（`docs/extensions.md:149-152`，`dist/core/package-manager.js:1449-1453`）。实际 npm 分支用的是 `install <spec> --prefix <root> --legacy-peer-deps`（`dist/core/package-manager.js:1459-1484`），即在共享安装根做一次普通 npm 安装，依赖按 npm 常规提升到 `<root>/node_modules`。引用 Pi 自身的包（`@earendil-works/pi-ai`、`pi-agent-core`、`pi-coding-agent`、`pi-tui`、`typebox`）必须放 `peerDependencies: "*"` 且不打包，加载器会把这些说明符 alias 到宿主 Pi 的实现（`docs/packages.md:171-173`，`dist/core/extensions/loader.js:90-113`）。
 
-**事实：大体积预构建资产没有被禁止，但不会被 Pi 当作资源扫描。** extension 自动发现明确跳过 `node_modules` 和点开头目录（`dist/core/package-manager.js:404-440`）；`.next` 这类目录只是普通文件，随 npm tarball 一起落到 `~/.pi/agent/npm/node_modules/waygoal/.next`。**推断：**这意味着「npm 包里塞一份 `next build` 产物」在机制上可行，代价是 Pi 的包更新流程要搬运整包体积。pi-web 自己就是这么发的：`files` 只带 `bin`、`.next`（排除 cache/dev/map）、`public`、`next.config.ts`、`package.json`（`prototypes/pi-web/package.json:20-27`）。
+**事实：大体积预构建资产没有被禁止，但不会被 Pi 当作资源扫描。** extension 自动发现明确跳过 `node_modules` 和点开头目录（`dist/core/package-manager.js:404-440`）；`.next` 这类目录只是普通文件，随 npm tarball 一起落到 `~/.pi/agent/npm/node_modules/waygoal/.next`。**推断：**这意味着「npm 包里塞一份 `next build` 产物」在机制上可行，代价是 Pi 的包更新流程要搬运整包体积。pi-web 自己就是这么发的：`files` 只带 `bin`、`.next`（排除 cache/dev/map）、`public`、`next.config.ts`、`package.json`（`apps/web/package.json:20-27`）。
 
 **事实：`/reload` 与设置里的本地路径。** 官方要求放在 `~/.pi/agent/extensions/` 或 `.pi/extensions/` 才能被 `/reload` 热重载（`docs/extensions.md:7`）；`settings.json` 的 `extensions` 字段是「本地 extension 文件或目录路径」列表（`docs/settings.md:279-286`），加载器默认还扫 agentDir 下的 `skills/prompts/themes/extensions`（`dist/core/resource-loader.js:620-626`）。`reload()` 在已加载过的情况下调用 `clearExtensionCache()`（`dist/core/resource-loader.js:263-267`），而缓存清空会让 jiti 重新 import 模块（`dist/core/extensions/loader.js:118-124`、`409-437`，注意 `moduleCache: false`）。**推断：**`/reload` 后 extension 的模块级变量（例如缓存的子进程句柄）全部丢失，因此任何跨 reload 的状态必须落到进程外（端口文件/socket），不能靠模块单例。
 
@@ -30,9 +30,9 @@
 
 **事实：extension 就是普通 Node 代码，没有沙箱。** 可用 Node 内建模块，npm 依赖照常解析（`docs/extensions.md:145-152`）；包文档在安全提示里直接写「Pi 包以完整系统权限运行，extension 执行任意代码」（`docs/packages.md:20`）。**推断：**因此 `child_process.spawn(..., { detached: true, stdio: "ignore" })` + `unref()` 让 host 活过 Pi 进程，在能力上没有障碍；文档层面的约束只是「别在 factory 里起，起了要能关」。而 Waygoal 的 host 恰恰**不**应该在 `session_shutdown` 里被关掉——这与官方给出的「session-scoped 资源」范式相反，属于要自己承担的偏离：需要一个进程外的 owner 标记（PID/端口文件）而不是靠 Pi 的生命周期管理。
 
-**事实：打开浏览器没有专门限制，pi-web 已有先例。** pi-web 的 CLI 在 Next 输出 `Ready` 后用 `spawn("open"|"xdg-open"|cmd /c start, [url], { stdio: "ignore", detached: true })` 再 `unref()`（`prototypes/pi-web/bin/pi-web.js:94-131`）。`pi.registerCommand` 的 handler 是普通 async 函数（`docs/extensions.md:1525-1546`），文档未对其可执行的 Node 操作设限。
+**事实：打开浏览器没有专门限制，pi-web 已有先例。** pi-web 的 CLI 在 Next 输出 `Ready` 后用 `spawn("open"|"xdg-open"|cmd /c start, [url], { stdio: "ignore", detached: true })` 再 `unref()`（`apps/web/bin/pi-web.js:94-131`）。`pi.registerCommand` 的 handler 是普通 async 函数（`docs/extensions.md:1525-1546`），文档未对其可执行的 Node 操作设限。
 
-**事实：pi-web 的正常启动方式。** bin 是 `bin/pi-web.js`（`prototypes/pi-web/package.json:17-19`），它检查包目录下的 `.next` 是否存在，然后 `spawn(process.execPath, [nextBin, "start", "-p", port, "-H", host], { cwd: pkgDir })`，即标准 `next start`，不是自定义 server（`prototypes/pi-web/bin/pi-web.js:41-64`、`80-89`）。子进程通过 `wireChildProcessLifecycle` 绑定父进程 SIGINT/SIGTERM（`prototypes/pi-web/bin/process-lifecycle.js:14-60`）。**推断：**构建产物是「可搬运但需固定 cwd」的：`next start` 必须以包根为 cwd 且 `.next` 在旁边；`next.config.ts` 只设了 `outputFileTracingRoot`，没有 `output: "standalone"`（`prototypes/pi-web/next.config.ts:15`），所以运行时仍依赖包的 `node_modules`。
+**事实：pi-web 的正常启动方式。** bin 是 `bin/pi-web.js`（`apps/web/package.json:17-19`），它检查包目录下的 `.next` 是否存在，然后 `spawn(process.execPath, [nextBin, "start", "-p", port, "-H", host], { cwd: pkgDir })`，即标准 `next start`，不是自定义 server（`apps/web/bin/pi-web.js:41-64`、`80-89`）。子进程通过 `wireChildProcessLifecycle` 绑定父进程 SIGINT/SIGTERM（`apps/web/bin/process-lifecycle.js:14-60`）。**推断：**构建产物是「可搬运但需固定 cwd」的：`next start` 必须以包根为 cwd 且 `.next` 在旁边；`next.config.ts` 只设了 `outputFileTracingRoot`，没有 `output: "standalone"`（`apps/web/next.config.ts:15`），所以运行时仍依赖包的 `node_modules`。
 
 ## 3. 会话文件并发
 
@@ -44,13 +44,13 @@
 
 **事实：TUI 恢复方式。** `pi --session <path|id>` 指定会话文件或部分 id，`pi -c` / `--continue` 继续最近一次，`/resume` 打开选择器（`docs/sessions.md:7-14`、`26`、`39`）。会话默认存 `~/.pi/agent/sessions/--<路径>--/<时间戳>_<uuid>.jsonl`（`docs/session-format.md:5-11`）。
 
-**事实：pi-web 目前只做进程内的「正在运行」判定。** `lib/session-liveness.ts` 是挂在 `globalThis` 上的注册表，只用来防止空闲驱逐（`prototypes/pi-web/lib/session-liveness.ts:42-110`）；`startRpcSession` 用进程内 registry + inflight locks 去重（`prototypes/pi-web/lib/rpc-manager.ts:1937-1951`）。**没有任何跨进程的「这个会话正被别的进程写」检测**。`lib/session-reader.ts` 则直接以只读方式扫 jsonl（`prototypes/pi-web/lib/session-reader.ts:1-16`）。
+**事实：pi-web 目前只做进程内的「正在运行」判定。** `lib/session-liveness.ts` 是挂在 `globalThis` 上的注册表，只用来防止空闲驱逐（`apps/web/lib/session-liveness.ts:42-110`）；`startRpcSession` 用进程内 registry + inflight locks 去重（`apps/web/lib/rpc-manager.ts:1937-1951`）。**没有任何跨进程的「这个会话正被别的进程写」检测**。`lib/session-reader.ts` 则直接以只读方式扫 jsonl（`apps/web/lib/session-reader.ts:1-16`）。
 
 **待验证：**并发追加的实际破坏形态（交错、截断、还是仅分支分裂）需要一个不跑模型的实验即可确认，见文末。
 
 ## 4. Extension 与 host 的通信
 
-**事实：现成的三个出口。** `pi.events` 是共享事件总线，host 侧把同一个 `eventBus` 传给 `DefaultResourceLoader` 就能在 Pi 之外收发（`docs/sdk.md:656-670`）——但它是同进程 `EventEmitter`，跨不了进程。`pi.appendEntry(customType, data)` 把自定义数据写进会话且不进模型上下文，`session_start` 时可回读（`docs/extensions.md:1471-1486`）；Waygoal 现有 extension 就用它发 `beacon:map-changed`（`prototypes/pi-web/lib/beacon-extension.ts:55-65`）。`session_start` 事件带 `reason` 和 `previousSessionFile`（`docs/extensions.md:393-399`、`432`）。
+**事实：现成的三个出口。** `pi.events` 是共享事件总线，host 侧把同一个 `eventBus` 传给 `DefaultResourceLoader` 就能在 Pi 之外收发（`docs/sdk.md:656-670`）——但它是同进程 `EventEmitter`，跨不了进程。`pi.appendEntry(customType, data)` 把自定义数据写进会话且不进模型上下文，`session_start` 时可回读（`docs/extensions.md:1471-1486`）；Waygoal 现有 extension 就用它发 `beacon:map-changed`（`apps/web/lib/beacon-extension.ts:55-65`）。`session_start` 事件带 `reason` 和 `previousSessionFile`（`docs/extensions.md:393-399`、`432`）。
 
 **事实：Pi 没有为 extension 约定「每个 extension 自己的状态目录」。** agentDir 下 Pi 自用的是 `auth.json`、`models.json`、`keybindings.json`、`settings.json`、`sessions/`、`skills/`、`prompts/`、`themes/`、`extensions/`、`npm/`、`git/`、`tmp/extensions/`（`dist/core/config.js:421-440`，`dist/core/resource-loader.js:620-626`，`dist/core/package-manager.js:81-86`、`1686-1692`、`1765-1767`）。`getAgentDir()` 是公开导出，且尊重环境变量覆盖（`dist/index.d.ts:2`，`dist/core/config.js:421-427`）。
 
@@ -58,7 +58,7 @@
 
 ## 5. host 侧的 SDK 能力
 
-**事实：单进程托管多会话已经在跑。** pi-web 每个会话调用 `SessionManager.open(file)` 或 `SessionManager.create(cwd)`，再 `createAgentSessionServices({cwd, agentDir, settingsManager, resourceLoaderOptions})` 和 `createAgentSessionFromServices({services, sessionManager, ...})`，用进程内 registry 管理多个 wrapper（`prototypes/pi-web/lib/rpc-manager.ts:1937-2070`）。Waygoal 的 extension 正是通过 `resourceLoaderOptions.extensionFactories` 注入的（`prototypes/pi-web/lib/rpc-manager.ts:2026-2040`）。
+**事实：单进程托管多会话已经在跑。** pi-web 每个会话调用 `SessionManager.open(file)` 或 `SessionManager.create(cwd)`，再 `createAgentSessionServices({cwd, agentDir, settingsManager, resourceLoaderOptions})` 和 `createAgentSessionFromServices({services, sessionManager, ...})`，用进程内 registry 管理多个 wrapper（`apps/web/lib/rpc-manager.ts:1937-2070`）。Waygoal 的 extension 正是通过 `resourceLoaderOptions.extensionFactories` 注入的（`apps/web/lib/rpc-manager.ts:2026-2040`）。
 
 **事实：SDK 提供 `createAgentSession()`（`dist/core/sdk.d.ts:107`）、`AgentSessionRuntime` / `createAgentSessionRuntime()` 负责 new/resume/fork/import 的会话替换（`docs/sdk.md:114-153`）、以及 `SessionManager` 的 `create/open/continueRecent/inMemory/forkFrom/list/listAll` 静态工厂（`dist/core/session-manager.d.ts:319-355`）。**
 

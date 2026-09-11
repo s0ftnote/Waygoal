@@ -70,7 +70,7 @@ Waygoal 是通过 Pi extension 接入的本地无限画布会话空间。用户�
 ## 启动
 
 ```sh
-npm --prefix prototypes/pi-web ci --ignore-scripts
+npm --prefix apps/web ci --ignore-scripts
 npm run dev
 ```
 
@@ -105,7 +105,7 @@ npm run dev
 
 ## 验证
 
-在 `prototypes/pi-web` 中：
+在 `apps/web` 中：
 
 ```sh
 node_modules/.bin/tsc --noEmit

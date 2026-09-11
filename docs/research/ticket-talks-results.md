@@ -9,20 +9,20 @@
 ## 实现摘要
 
 - 关联存在已有的画布记录里（`<agentDir>/waygoal/workspaces/<id>/canvas.json`）：`ticketSessions`（会话 → 票据来源路径）、`ticketExpanded`（票据 → 摊开还是收起）、`ticketLast`（票据 → 上次在聊的会话与位置）。三者都按工作目录隔离，替掉了票据原型里「一票只绑一段会话」的限制。
-- 分叉沿用票据：`applyCanvasPatch` 记下 `origin` 的同时，把来源会话所属的票据带给新会话（[lib/waygoal-store.ts](../../prototypes/pi-web/lib/waygoal-store.ts)）。规则只写在这一处，浏览器之外也测得到。
-- 开始入口复用宿主已有的「新建会话不发送」和草稿能力：草稿键是「票据来源路径 + 工作目录」，稳定不随点击变化。宿主会在新建会话的输入框卸载时清掉它的草稿，所以未发送的票据草稿在没有输入框拿着它的时候寄存在票据自己的键下，下次打开再交回来（`liveTicketDraft` / `parkedTicketDraft`，[components/WaygoalCanvas.tsx](../../prototypes/pi-web/components/WaygoalCanvas.tsx)）。交回要在输入框渲染之前做——它是在渲染期读草稿的，放进 effect 就晚了一帧。
+- 分叉沿用票据：`applyCanvasPatch` 记下 `origin` 的同时，把来源会话所属的票据带给新会话（[lib/waygoal-store.ts](../../apps/web/lib/waygoal-store.ts)）。规则只写在这一处，浏览器之外也测得到。
+- 开始入口复用宿主已有的「新建会话不发送」和草稿能力：草稿键是「票据来源路径 + 工作目录」，稳定不随点击变化。宿主会在新建会话的输入框卸载时清掉它的草稿，所以未发送的票据草稿在没有输入框拿着它的时候寄存在票据自己的键下，下次打开再交回来（`liveTicketDraft` / `parkedTicketDraft`，[components/WaygoalCanvas.tsx](../../apps/web/components/WaygoalCanvas.tsx)）。交回要在输入框渲染之前做——它是在渲染期读草稿的，放进 effect 就晚了一帧。
 - 票据卡片下摊开的是这张票据的讨论：一枚「N 段讨论 · 收起／展开」，每段讨论一枚，最后一枚是「另开一段讨论」。票据仍然平铺，没有把会话套进大容器；没挂票据的会话照旧是独立卡片。收起时这些 chip 和票据到会话的关联线一起安静下来，关联本身不变。
-- 画布位置分配把票据卡片算作更高的一块（`TICKET_CARD_HEIGHT`，[lib/waygoal-types.ts](../../prototypes/pi-web/lib/waygoal-types.ts)）：讨论 chip 挂在票据下面，新会话不该被摆在它们头上。「回到全景」同样把票据卡片和它摊开的讨论算进去。
-- 完整视图里列出这张票据下的讨论（[components/WaygoalTicketPanel.tsx](../../prototypes/pi-web/components/WaygoalTicketPanel.tsx)）：上次在聊哪一段、哪一段正在运行、哪一段是从这张票据的另一段分出来的、哪一段已经打不开。收起之后从这里接着聊，不用先重新摊开。
+- 画布位置分配把票据卡片算作更高的一块（`TICKET_CARD_HEIGHT`，[lib/waygoal-types.ts](../../apps/web/lib/waygoal-types.ts)）：讨论 chip 挂在票据下面，新会话不该被摆在它们头上。「回到全景」同样把票据卡片和它摊开的讨论算进去。
+- 完整视图里列出这张票据下的讨论（[components/WaygoalTicketPanel.tsx](../../apps/web/components/WaygoalTicketPanel.tsx)）：上次在聊哪一段、哪一段正在运行、哪一段是从这张票据的另一段分出来的、哪一段已经打不开。收起之后从这里接着聊，不用先重新摊开。
 - 操作提示是写死的一句话，句子里就写着它的出处（「Waygoal 对这个入口的说明，不是从你的对话里总结的」），可关可再开（记在 `localStorage`）。它不读聊天内容、不调用模型、不注入聊天上下文；关掉之后开始、分叉、继续都照常。
 - 回看和在聊是分开的（沿用票 [#3](https://github.com/s0ftnote/Waygoal/issues/3) 立下的区分）：只读回看只移动画布层面的「正在看」，不改票据记着的「上次在聊的那一段」；在某条路径上发送才改，而且连那条路径一起记下。
 - Pi 有时只说得出分叉来自哪段会话、说不出来自哪条消息。这种分叉画布会直接写下它属于哪张票据，不靠来源记录带过去——否则它会悄悄掉出票据。
 
 ## 验证
 
-单元测试：[lib/waygoal-store.test.mjs](../../prototypes/pi-web/lib/waygoal-store.test.mjs) 追加 6 项（票据带着它的讨论并跨重启保留、从讨论分叉出去仍属同一张票据、会话不在了显示为打不开而不静默替换、记住上次在聊的一段与摊开／收起、跨工作目录或空票据路径的关联被拒、会话卡片不会被摆在票据的讨论上；只说得出来源会话的分叉也留在同一张票据下），并把已有的位置分配那项改成按真实高度断言。
+单元测试：[lib/waygoal-store.test.mjs](../../apps/web/lib/waygoal-store.test.mjs) 追加 6 项（票据带着它的讨论并跨重启保留、从讨论分叉出去仍属同一张票据、会话不在了显示为打不开而不静默替换、记住上次在聊的一段与摊开／收起、跨工作目录或空票据路径的关联被拒、会话卡片不会被摆在票据的讨论上；只说得出来源会话的分叉也留在同一张票据下），并把已有的位置分配那项改成按真实高度断言。
 
-浏览器验证（`npm run test:waygoal-ticket-talks`，[e2e/waygoal-ticket-talks.mjs](../../prototypes/pi-web/e2e/waygoal-ticket-talks.mjs)）：隔离的 `PI_CODING_AGENT_DIR`、独立 Next 宿主、本机假模型，工作目录里是真实布局的地图与票据。26 项检查全部通过：
+浏览器验证（`npm run test:waygoal-ticket-talks`，[e2e/waygoal-ticket-talks.mjs](../../apps/web/e2e/waygoal-ticket-talks.mjs)）：隔离的 `PI_CODING_AGENT_DIR`、独立 Next 宿主、本机假模型，工作目录里是真实布局的地图与票据。26 项检查全部通过：
 
 - 没有讨论的票据照实说「还没有讨论」，不看着像已经聊过。
 - 从票据开始聊只打开输入框：没有会话文件，也没有一次模型请求。

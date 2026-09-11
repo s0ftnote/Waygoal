@@ -8,15 +8,15 @@ Pi 本身已支持非线性会话，不需要 Matt skills 或 tracker 才能分�
 
 ## 核对范围与来源
 
-当前安装包为 `@earendil-works/pi-coding-agent` **0.85.1**，见 [package.json](../../prototypes/pi-web/node_modules/@earendil-works/pi-coding-agent/package.json)。Pi-web 当前 HEAD 为 `a26cc68df9227cb74253bddd7c59624aa475e61f`，工作区含本地修改；以下 pi-web 结论以当前文件为准。
+当前安装包为 `@earendil-works/pi-coding-agent` **0.85.1**，见 [package.json](../../apps/web/node_modules/@earendil-works/pi-coding-agent/package.json)。Pi-web 当前 HEAD 为 `a26cc68df9227cb74253bddd7c59624aa475e61f`，工作区含本地修改；以下 pi-web 结论以当前文件为准。
 
-- **S1 — 官方会话说明**：[本地 sessions.md](../../prototypes/pi-web/node_modules/@earendil-works/pi-coding-agent/docs/sessions.md)，第 69–140 行；[官方在线版本](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/sessions.md)。本版已没有单独的 `docs/tree.md`，相关内容集中在 sessions.md。
-- **S2 — 格式与 SDK**：[session-format.md](../../prototypes/pi-web/node_modules/@earendil-works/pi-coding-agent/docs/session-format.md)，第 191–200、308–338 行；[sdk.md](../../prototypes/pi-web/node_modules/@earendil-works/pi-coding-agent/docs/sdk.md)，第 755–855 行。
-- **S3 — 上下文构建**：[session-manager.js](../../prototypes/pi-web/node_modules/@earendil-works/pi-coding-agent/dist/core/session-manager.js)，第 124–236 行。
-- **S4 — 树导航实现**：[agent-session.js](../../prototypes/pi-web/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js)，第 2471–2633 行。
-- **S5 — 独立分支实现**：[session-manager.js](../../prototypes/pi-web/node_modules/@earendil-works/pi-coding-agent/dist/core/session-manager.js)，第 1093–1183 行；[agent-session-runtime.js](../../prototypes/pi-web/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session-runtime.js)，`fork()` 第 174 行起。
-- **S6 — Pi-web 接入**：[rpc-manager.ts](../../prototypes/pi-web/lib/rpc-manager.ts)，第 720–814 行；[session GET API](../../prototypes/pi-web/app/api/sessions/[id]/route.ts)，第 35–105 行。
-- **S7 — Pi-web 导航界面**：[BranchNavigator.tsx](../../prototypes/pi-web/components/BranchNavigator.tsx)，第 26–110、256 行起；[useAgentSession.ts](../../prototypes/pi-web/hooks/useAgentSession.ts)，第 1453–1493 行；[project-tree.ts](../../prototypes/pi-web/lib/project-tree.ts)，第 1–95 行；[AppShell.tsx](../../prototypes/pi-web/components/AppShell.tsx)，第 995–1007 行。
+- **S1 — 官方会话说明**：[本地 sessions.md](../../apps/web/node_modules/@earendil-works/pi-coding-agent/docs/sessions.md)，第 69–140 行；[官方在线版本](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/sessions.md)。本版已没有单独的 `docs/tree.md`，相关内容集中在 sessions.md。
+- **S2 — 格式与 SDK**：[session-format.md](../../apps/web/node_modules/@earendil-works/pi-coding-agent/docs/session-format.md)，第 191–200、308–338 行；[sdk.md](../../apps/web/node_modules/@earendil-works/pi-coding-agent/docs/sdk.md)，第 755–855 行。
+- **S3 — 上下文构建**：[session-manager.js](../../apps/web/node_modules/@earendil-works/pi-coding-agent/dist/core/session-manager.js)，第 124–236 行。
+- **S4 — 树导航实现**：[agent-session.js](../../apps/web/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js)，第 2471–2633 行。
+- **S5 — 独立分支实现**：[session-manager.js](../../apps/web/node_modules/@earendil-works/pi-coding-agent/dist/core/session-manager.js)，第 1093–1183 行；[agent-session-runtime.js](../../apps/web/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session-runtime.js)，`fork()` 第 174 行起。
+- **S6 — Pi-web 接入**：[rpc-manager.ts](../../apps/web/lib/rpc-manager.ts)，第 720–814 行；[session GET API](../../apps/web/app/api/sessions/[id]/route.ts)，第 35–105 行。
+- **S7 — Pi-web 导航界面**：[BranchNavigator.tsx](../../apps/web/components/BranchNavigator.tsx)，第 26–110、256 行起；[useAgentSession.ts](../../apps/web/hooks/useAgentSession.ts)，第 1453–1493 行；[project-tree.ts](../../apps/web/lib/project-tree.ts)，第 1–95 行；[AppShell.tsx](../../apps/web/components/AppShell.tsx)，第 995–1007 行。
 
 ## Pi 的三种分支动作
 
@@ -79,7 +79,7 @@ Waygoal 应据此区分两个意图（建议，未实现）：
 
 ## 随产品附带 skills 与首次配置
 
-Pi 0.85.1 支持从 `~/.pi/agent/skills/`、`~/.agents/skills/`、工作目录资源以及包内的 `skills/` 或 `pi.skills` 声明加载技能；SDK 资源加载器也提供 `additionalSkillPaths` 和 `skillsOverride`。因此 Waygoal 可以随产品提供原始技能资源，由宿主加载，并不必须在首次启动时替用户全局安装。依据：[本地技能文档](../../prototypes/pi-web/node_modules/@earendil-works/pi-coding-agent/docs/skills.md)、[SDK 类型](../../prototypes/pi-web/node_modules/@earendil-works/pi-coding-agent/dist/core/resource-loader.d.ts)、[官方 skills 文档](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/skills.md)、[官方包文档](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/packages.md)。
+Pi 0.85.1 支持从 `~/.pi/agent/skills/`、`~/.agents/skills/`、工作目录资源以及包内的 `skills/` 或 `pi.skills` 声明加载技能；SDK 资源加载器也提供 `additionalSkillPaths` 和 `skillsOverride`。因此 Waygoal 可以随产品提供原始技能资源，由宿主加载，并不必须在首次启动时替用户全局安装。依据：[本地技能文档](../../apps/web/node_modules/@earendil-works/pi-coding-agent/docs/skills.md)、[SDK 类型](../../apps/web/node_modules/@earendil-works/pi-coding-agent/dist/core/resource-loader.d.ts)、[官方 skills 文档](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/skills.md)、[官方包文档](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/packages.md)。
 
 内置 Matt、可选择使用、保留用户自有技能是可行的交付方向；同名技能默认采用发现顺序中的第一份，所以“用户版本优先”需要宿主明确处理，不能假设已自带该优先级。打包时固定所提供的版本，保留完整技能依赖、资源及原始版权许可。Matt 当前仓库提供 [MIT 许可证](https://github.com/mattpocock/skills/blob/main/LICENSE)。本轮没有执行安装或修改任何全局配置。
 

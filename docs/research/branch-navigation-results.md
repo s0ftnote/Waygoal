@@ -8,8 +8,8 @@
 
 ## 实现摘要
 
-- 分支投影：[lib/waygoal-branches.ts](../../prototypes/pi-web/lib/waygoal-branches.ts) 是纯函数，把 Pi tree 折算成分叉点与路径选项（每条路径的首个可见条目、最深条目、预览、步数、是否含活动叶子）。遍历一律迭代，线性会话的链长等于条目数，递归会爆栈。位置标识是「会话 + 条目」：Pi 的 fork 会把条目 id 复制进新文件，单独的条目 id 不是全局位置，见 [pi-tree-and-waygoal.md](pi-tree-and-waygoal.md)。展示用的条目和发送时用的叶子分开：Pi 的 `navigateTree` 对用户消息会把叶子移到它的父条目、把正文放回输入框（这正是「从此处编辑」），所以发送一定接在路径的叶子后面，不能用正在显示的那条。
-- 读取适配：[lib/waygoal-tree.ts](../../prototypes/pi-web/lib/waygoal-tree.ts) 优先用进程内活着的 `AgentSession` 的 `SessionManager`（Pi 的活动叶子只在内存里），否则按文件打开并按 `mtime + size` 缓存。读不出来的会话被略过，而不是当成「没有分支」。
+- 分支投影：[lib/waygoal-branches.ts](../../apps/web/lib/waygoal-branches.ts) 是纯函数，把 Pi tree 折算成分叉点与路径选项（每条路径的首个可见条目、最深条目、预览、步数、是否含活动叶子）。遍历一律迭代，线性会话的链长等于条目数，递归会爆栈。位置标识是「会话 + 条目」：Pi 的 fork 会把条目 id 复制进新文件，单独的条目 id 不是全局位置，见 [pi-tree-and-waygoal.md](pi-tree-and-waygoal.md)。展示用的条目和发送时用的叶子分开：Pi 的 `navigateTree` 对用户消息会把叶子移到它的父条目、把正文放回输入框（这正是「从此处编辑」），所以发送一定接在路径的叶子后面，不能用正在显示的那条。
+- 读取适配：[lib/waygoal-tree.ts](../../apps/web/lib/waygoal-tree.ts) 优先用进程内活着的 `AgentSession` 的 `SessionManager`（Pi 的活动叶子只在内存里），否则按文件打开并按 `mtime + size` 缓存。读不出来的会话被略过，而不是当成「没有分支」。
 - 接口：`GET /api/waygoal/session/[id]?entry=` 返回该会话的分叉点、各路径叶子与活动叶子；带 `entry` 时还回答这个位置在这段会话里是否仍然存在。全程只读，不做 `navigate_tree`。画布快照 `GET /api/waygoal` 增加每个节点的分叉点数量、活动叶子与来源。
 - 来源记录：客户端在真实 fork 成功后立刻 `PATCH /api/waygoal { origin }` 写下来源会话与来源条目。记录不完整或自指的来源直接丢弃；没有记录时退回 Pi header 的 `parentSession`，只知道来源会话、不知道来源消息，界面照实说明。
 - 界面：面板顶部把「正在看」和「在聊这条」分成两个标记，每条路径只有「打开这段」一个按钮；打开后是这条路径的完整历史加一个输入框，在这里说一句，这段会话就转到这条路径里继续，消息也落在这条上。画布节点上有「分叉自「…」」和「N 处会话内分叉」标记，选中节点下方列出会话内路径，跨会话来源用虚线连到来源节点。运行中沿用 Pi 的限制，分叉按钮与回看输入框置灰，不静默打断任务。
@@ -17,9 +17,9 @@
 
 ## 验证
 
-单元测试：[lib/waygoal-branches.test.mjs](../../prototypes/pi-web/lib/waygoal-branches.test.mjs) 8 项（无分支、单分叉点的叶子与预览、活动叶子落在被折叠的链里、多根分叉点、嵌套分叉点由外到内、活动叶子未知时不标记、两万层线性链不爆栈、祖先路径）；[lib/waygoal-store.test.mjs](../../prototypes/pi-web/lib/waygoal-store.test.mjs) 追加 6 项（记录的来源、Waygoal 之外做的 fork 只给出来源会话、来源不在本工作区时照实说明且不按标题匹配、不完整或自指的来源被拒绝、最近查看位置随会话消失而清除、分叉数与活动叶子来自真实会话树）。
+单元测试：[lib/waygoal-branches.test.mjs](../../apps/web/lib/waygoal-branches.test.mjs) 8 项（无分支、单分叉点的叶子与预览、活动叶子落在被折叠的链里、多根分叉点、嵌套分叉点由外到内、活动叶子未知时不标记、两万层线性链不爆栈、祖先路径）；[lib/waygoal-store.test.mjs](../../apps/web/lib/waygoal-store.test.mjs) 追加 6 项（记录的来源、Waygoal 之外做的 fork 只给出来源会话、来源不在本工作区时照实说明且不按标题匹配、不完整或自指的来源被拒绝、最近查看位置随会话消失而清除、分叉数与活动叶子来自真实会话树）。
 
-浏览器验证（`npm run test:waygoal-branches`，[e2e/waygoal-branches.mjs](../../prototypes/pi-web/e2e/waygoal-branches.mjs)）：隔离的 `PI_CODING_AGENT_DIR`、可控输出的假模型、独立 Next 宿主。26 项检查全部通过：
+浏览器验证（`npm run test:waygoal-branches`，[e2e/waygoal-branches.mjs](../../apps/web/e2e/waygoal-branches.mjs)）：隔离的 `PI_CODING_AGENT_DIR`、可控输出的假模型、独立 Next 宿主。26 项检查全部通过：
 
 - 一段普通会话没有分支；用 Pi 自己的「Edit from here」分出第二个方向后，真实 Pi tree 里是一个分叉点、两条路径，而不是两个会话文件；共享的那条消息就是分叉点。
 - 画布把这段会话标为有会话内分叉并列出两条路径，标出当前从哪条继续。
@@ -70,7 +70,7 @@
 
 ## 代码审查后的修正
 
-按 `/code-review` 结果做了六处修正：只读回看条上的「从这里继续」原来把正在显示的条目当成导航目标，Pi 对用户消息会改跳到它的父条目，因此改为记录并使用这条路径的叶子，并补了一项 e2e 检查；来源只知道会话时用空字符串占位（会发出 `leafId=`、也可能导航到空 id），改成显式的 `null` 并隐藏「从这里继续」；`navigate_tree` 返回的 `cancelled` 原来没看，现在明确提示没有切换；画布小标签和面板里的「路径 N」原来一个按全局编号、一个按分叉点内编号，统一成分叉点内编号；只有测试用到的 `branchRef`/`parseBranchRef` 删除，身份约束由 `WaygoalOriginRecord` 的会话+条目字段承担；接口返回体改为共用一个导出类型，`chatSessionId` 的赋值移出渲染体。`prototypes/pi-web/AGENTS.md` 的 fork 文件清单和 `CONTEXT.md` 的术语（路径、继续位置、查看位置）同时补齐。上面那次真实模型核验在这些修正之前跑，涉及的位置在那段会话里两个 id 恰好相同，结论不受影响；两者的区别由新增的那项浏览器检查覆盖。
+按 `/code-review` 结果做了六处修正：只读回看条上的「从这里继续」原来把正在显示的条目当成导航目标，Pi 对用户消息会改跳到它的父条目，因此改为记录并使用这条路径的叶子，并补了一项 e2e 检查；来源只知道会话时用空字符串占位（会发出 `leafId=`、也可能导航到空 id），改成显式的 `null` 并隐藏「从这里继续」；`navigate_tree` 返回的 `cancelled` 原来没看，现在明确提示没有切换；画布小标签和面板里的「路径 N」原来一个按全局编号、一个按分叉点内编号，统一成分叉点内编号；只有测试用到的 `branchRef`/`parseBranchRef` 删除，身份约束由 `WaygoalOriginRecord` 的会话+条目字段承担；接口返回体改为共用一个导出类型，`chatSessionId` 的赋值移出渲染体。`apps/web/AGENTS.md` 的 fork 文件清单和 `CONTEXT.md` 的术语（路径、继续位置、查看位置）同时补齐。上面那次真实模型核验在这些修正之前跑，涉及的位置在那段会话里两个 id 恰好相同，结论不受影响；两者的区别由新增的那项浏览器检查覆盖。
 
 ## 审查之后的简化：发送即继续
 

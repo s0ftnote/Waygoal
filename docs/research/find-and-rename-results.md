@@ -8,22 +8,22 @@
 
 ## 实现摘要
 
-- 定位、查找和缩略图的算式抽在一处纯函数里（[lib/waygoal-locate.ts](../../prototypes/pi-web/lib/waygoal-locate.ts)），画布只负责把卡片交给它并把结果画出来。卡片是一种形状：会话、地图、票据都是「标题 + 位置 + 真实高度 + 修改时间」，票据和地图没有「上次说话的时间」，所以它们的时间是 null，也因此不进最近访问。
+- 定位、查找和缩略图的算式抽在一处纯函数里（[lib/waygoal-locate.ts](../../apps/web/lib/waygoal-locate.ts)），画布只负责把卡片交给它并把结果画出来。卡片是一种形状：会话、地图、票据都是「标题 + 位置 + 真实高度 + 修改时间」，票据和地图没有「上次说话的时间」，所以它们的时间是 null，也因此不进最近访问。
 - 「回到全景」改成用同一个 `cardBounds`：票 #8 里两处各写一遍票据高度算式已经错过一次，现在摆放、全景、缩略图共用同一份。
 - 改名走宿主自己的 `PATCH /api/sessions/[id]`（`SessionManager.appendSessionInfo`），起名字走宿主自己的 `POST /api/sessions/[id]/auto-name`（`generateSessionTitle` + `setSessionName`）。Waygoal 没有第二套命名服务，也没有自己的标题缓存：改完就 `refresh(true)`，名字从同一个快照里回来。
 - 改名框空着时不预填回退标题：输入框的 placeholder 显示回退，值是空的，空值提交直接作废。这样「未命名」不会因为点开又保存就变成正式名字——和宿主 `SessionSidebar.commitRename` 的做法一致。
-- 「查找」是画布上的一个小框（[components/WaygoalFind.tsx](../../prototypes/pi-web/components/WaygoalFind.tsx)），不是把会话列表搬回来当主界面：画布始终在，框可以关掉。输入的字按标题做不区分大小写的子串匹配，匹配不到就照实说没有，不推荐相近的一条。匹配到的全都列出来、框自己滚动——为了列表短而丢掉一条，等于那条根本找不回来。
+- 「查找」是画布上的一个小框（[components/WaygoalFind.tsx](../../apps/web/components/WaygoalFind.tsx)），不是把会话列表搬回来当主界面：画布始终在，框可以关掉。输入的字按标题做不区分大小写的子串匹配，匹配不到就照实说没有，不推荐相近的一条。匹配到的全都列出来、框自己滚动——为了列表短而丢掉一条，等于那条根本找不回来。
 - 「最近聊过的」按会话文件上次变动排序，也就是上次在里面说过话的顺序；它不是「最近打开过的」，画布也没有为此另记一份访问历史。
 - 「回到上次看的地方」回到画布记录停在的那张卡片。票 [#3](https://github.com/s0ftnote/Waygoal/issues/3) 把「看」和「在聊」分成两件事，这个入口是「看」的那件，所以它就叫这个名字。每张票据「上次在聊哪一段」另有自己的记录，在票据的完整视图里。
-- 改名和起名字也是一块（[components/WaygoalRename.tsx](../../prototypes/pi-web/components/WaygoalRename.tsx)），只在打开某段会话时出现。改名失败时输入框留着不关：改名没成，不该连刚写的名字一起丢掉。
+- 改名和起名字也是一块（[components/WaygoalRename.tsx](../../apps/web/components/WaygoalRename.tsx)），只在打开某段会话时出现。改名失败时输入框留着不关：改名没成，不该连刚写的名字一起丢掉。
 - 缩略图把所有卡片和「当前视野」一起装进去：视野也算一块要放得下的框，所以把画布拖到卡片之外时，缩略图上仍看得出自己在哪。点击按缩略图的比例换算回画布坐标，只调 `setView`。
 - 会话内的多条路径仍旧是「路径 1 / 路径 2」加一句预览，没有给分支另起一套名字：改名和起名字的入口只在打开某段会话时出现，读某条路径时不出现。
 
 ## 验证
 
-单元测试：[lib/waygoal-locate.test.mjs](../../prototypes/pi-web/lib/waygoal-locate.test.mjs) 5 项（按标题匹配的大小写、空输入与不收相近项；最近访问按时间排序且只有会话带时间；卡片范围按真实高度算、卡片中心；居中不改缩放；缩略图装得下每张卡片、把视野画成一个框、坐标换算能来回）。
+单元测试：[lib/waygoal-locate.test.mjs](../../apps/web/lib/waygoal-locate.test.mjs) 5 项（按标题匹配的大小写、空输入与不收相近项；最近访问按时间排序且只有会话带时间；卡片范围按真实高度算、卡片中心；居中不改缩放；缩略图装得下每张卡片、把视野画成一个框、坐标换算能来回）。
 
-浏览器验证（`npm run test:waygoal-find`，[e2e/waygoal-find.mjs](../../prototypes/pi-web/e2e/waygoal-find.mjs)）：隔离的 `PI_CODING_AGENT_DIR`、独立 Next 宿主、本机假模型，工作目录里是真实布局的地图与票据。22 项检查全部通过：
+浏览器验证（`npm run test:waygoal-find`，[e2e/waygoal-find.mjs](../../apps/web/e2e/waygoal-find.mjs)）：隔离的 `PI_CODING_AGENT_DIR`、独立 Next 宿主、本机假模型，工作目录里是真实布局的地图与票据。22 项检查全部通过：
 
 - 没起名字的会话回退到第一句话，并且这句话没有变成它的名字。
 - 改名框不预填回退标题。
