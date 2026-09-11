@@ -334,6 +334,8 @@ export interface WaygoalRemoteRead {
   format: WaygoalRemoteFormat;
   number: string;
   title: string;
+  /** The tracker convention's `wayfinder:<type>` label; "" when there is none. */
+  type: string;
   /** The source's own conclusion, in the words the local tracker uses, so the
    *  canvas settles remote and local tickets the same way. */
   status: string;

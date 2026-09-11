@@ -48,6 +48,18 @@ test("关掉的票分成做完了和不做了", () => {
 
 test("前提按来源自己写的编号读出", () => {
   assert.deepEqual(readRemoteResult("github", GITHUB).blockers, ["7"]);
+  // The tracker convention (docs/agents/issue-tracker.md) is one line at the
+  // top of the body, the way a local ticket writes it; both spellings count.
+  const lined = JSON.parse(GITHUB);
+  lined.body = "Blocked by: #3, #5\n\n" + lined.body;
+  assert.deepEqual(readRemoteResult("github", JSON.stringify(lined)).blockers, ["3", "5", "7"]);
+});
+
+test("票据类型来自 wayfinder:<type> 标签，没有这种标签就不猜", () => {
+  assert.equal(readRemoteResult("github", GITHUB).type, "");
+  const labelled = JSON.parse(GITHUB);
+  labelled.labels = [{ name: "ready-for-agent" }, { name: "wayfinder:grilling" }];
+  assert.equal(readRemoteResult("github", JSON.stringify(labelled)).type, "grilling");
 });
 
 test("离线自定义样本走同一个入口", () => {

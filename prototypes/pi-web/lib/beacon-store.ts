@@ -24,12 +24,17 @@ export function section(body: string, name: string): string {
 function field(body: string, name: string): string {
   return body.match(new RegExp(`^(?:\\*\\*)?${name}:(?:\\*\\*)?\\s*([^\\n]*)`, "mi"))?.[1]?.trim() ?? "";
 }
+/** The numbers a `Blocked by:` line names, as written — `01, 09` in a local
+ *  ticket, `#3, #5` in a tracker body — before they are matched to tickets. */
+export function blockedByLine(body: string): string[] {
+  return (field(body, "Blocked by").match(/\d+/g) ?? []).map(n => String(Number(n)));
+}
 export function parseTicket(id: string, body: string): BeaconTicket {
   const number = id.split("/").at(-1)!.match(/^\d+/)?.[0] ?? id;
   return { id, number, title: body.match(/^# (.+)$/m)?.[1] ?? id,
     type: field(body, "Type") || "grilling", status: field(body, "Status").toLowerCase() || "open",
     question: section(body, "Question"), answer: section(body, "Answer"),
-    blockers: (field(body, "Blocked by").match(/\d+/g) ?? []).map(n => String(Number(n))), blocked: false };
+    blockers: blockedByLine(body), blocked: false };
 }
 function bindingPath(cwd: string) {
   const folder = join(cwd, ".beacon-prototype");

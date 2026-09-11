@@ -1,17 +1,18 @@
+import { blockedByLine } from "./beacon-store";
 import { mapSections } from "./waygoal-map";
 import type { WaygoalRemoteComment, WaygoalRemoteId, WaygoalRemoteRead } from "./waygoal-types";
 
 /** The one GitHub shape Waygoal reads: what `gh issue view <n> --json …`
  *  answers. Anything else from `gh` is left unsupported rather than guessed
  *  at — a body scraped out of prose is not the source's own text. */
-const GITHUB_COMMAND = "gh issue view <编号> --json number,title,state,stateReason,body,url,updatedAt,comments";
+export const GITHUB_COMMAND = "gh issue view <编号> --json number,title,state,stateReason,labels,body,url,updatedAt,comments";
 
 /** The offline sample's shape, which exists to hold the boundary: one file,
  *  the same fields, no second platform integration behind it. */
 const CUSTOM_SHAPE = "{ \"tracker\": \"custom\", \"id\", \"title\", \"state\", \"body\", \"updatedAt\" }";
 
 const unsupported = (reason: string): WaygoalRemoteRead => ({
-  format: "unknown", number: "", title: "", status: "open", body: "",
+  format: "unknown", number: "", title: "", type: "", status: "open", body: "",
   url: null, updatedAt: null, comments: null, blockers: [], reason,
 });
 
@@ -35,13 +36,26 @@ function commentsOf(value: unknown): WaygoalRemoteComment[] | null {
   }));
 }
 
-/** The premises the source's own text names, in that source's own numbering.
- *  They are settled later against that source's tickets only, so a bare `7`
- *  here never binds to a `7` somewhere else. */
+/** The premises the source's own text names, in that source's own numbering:
+ *  the `Blocked by: #n, #n` line the tracker convention puts at the top of a
+ *  body — read the same way a local ticket's line is — and the issue links
+ *  under a `## Blocked by` heading. They are settled later against that
+ *  source's tickets only, so a bare `7` here never binds to a `7` elsewhere. */
 function githubBlockers(body: string): string[] {
   const section = mapSections(body).find(s => /^blocked by$/i.test(s.heading.trim()));
-  const numbers = section?.body.match(/\/issues\/(\d+)/g) ?? [];
-  return [...new Set(numbers.map(match => String(Number(match.split("/").at(-1)))))];
+  const linked = (section?.body.match(/\/issues\/(\d+)/g) ?? []).map(match => String(Number(match.split("/").at(-1))));
+  return [...new Set([...blockedByLine(body), ...linked])];
+}
+
+/** The ticket type the tracker convention carries as a `wayfinder:<type>`
+ *  label. No such label means no type, not a guessed one. */
+function wayfinderType(labels: unknown): string {
+  if (!Array.isArray(labels)) return "";
+  for (const label of labels as { name?: unknown }[]) {
+    const match = typeof label?.name === "string" ? /^wayfinder:(\S+)$/.exec(label.name) : null;
+    if (match) return match[1];
+  }
+  return "";
 }
 
 /** One `gh issue view --json` result. Closed is said twice over there — the
@@ -57,6 +71,7 @@ function readGithub(parsed: Record<string, unknown>): WaygoalRemoteRead | null {
     format: "github",
     number: String(Number(parsed.number)),
     title: String(parsed.title ?? ""),
+    type: wayfinderType(parsed.labels),
     status: !closed ? "open" : String(parsed.stateReason ?? "").toUpperCase() === "NOT_PLANNED" ? "cancelled" : "resolved",
     body,
     url: typeof parsed.url === "string" && parsed.url ? parsed.url : null,
@@ -78,6 +93,7 @@ function readCustom(parsed: Record<string, unknown>): WaygoalRemoteRead | null {
     format: "custom",
     number: String(parsed.id),
     title: String(parsed.title ?? ""),
+    type: typeof parsed.type === "string" ? parsed.type : "",
     status: CUSTOM_STATUS[state] ?? state,
     body: String(parsed.body ?? ""),
     url: typeof parsed.url === "string" && parsed.url ? parsed.url : null,

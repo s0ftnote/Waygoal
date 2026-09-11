@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { Type } from "typebox";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { beaconSnapshot } from "./beacon-store";
+import { GITHUB_COMMAND } from "./waygoal-remote";
 import { deliverRemoteTicket } from "./waygoal-remote-store";
 import { loadSkillsWithInstallInfo } from "./skills-service";
 
@@ -54,7 +55,7 @@ export function createBeaconExtension(cwd: string, skillNames: SkillNameLoader =
     pi.registerTool({
       name: "waygoal_remote_ticket",
       label: "Waygoal 来源票据",
-      description: "把刚读到的远程票据交给 Waygoal 画布。只给来源身份和原始结果所在的文件，正文由 Waygoal 自己读；不要复述或改写票据正文。原始结果必须先写在工作目录里，例如 gh issue view <编号> --json number,title,state,stateReason,body,url,updatedAt,comments > .scratch/remote/<编号>.json。",
+      description: `把刚读到的远程票据交给 Waygoal 画布。只给来源身份和原始结果所在的文件，正文由 Waygoal 自己读；不要复述或改写票据正文。原始结果必须先写在工作目录里，例如 ${GITHUB_COMMAND} > .scratch/remote/<编号>.json。`,
       promptSnippet: "读到远程票据后，用 waygoal_remote_ticket 把来源和结果文件交给画布",
       parameters: Type.Object({
         source: StringEnum(["github", "custom"] as const),

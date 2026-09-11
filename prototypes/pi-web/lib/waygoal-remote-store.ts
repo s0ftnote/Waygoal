@@ -148,7 +148,7 @@ export function remoteMapViews(ref: WaygoalWorkspaceRef): WaygoalTicketMapView[]
         id, path: id, mapPath,
         number: delivery.number,
         title: read?.title || `#${delivery.number}`,
-        type: "", status: read?.status ?? "open", question: "", answer: "",
+        type: read?.type ?? "", status: read?.status ?? "open", question: "", answer: "",
         body,
         rawBlockers: read?.blockers ?? [],
       }),
