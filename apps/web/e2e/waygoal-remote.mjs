@@ -132,6 +132,9 @@ async function stopServer(child) {
   if (!child || child.exitCode !== null) return;
   const exited = once(child, "exit"); child.kill("SIGTERM");
   await Promise.race([exited, delay(15_000).then(() => child.kill("SIGKILL"))]);
+  // A host killed before its own cleanup leaves the dev lock behind, and the
+  // next start (this suite's restart or the next suite) would refuse to run.
+  rmSync(join(root, ".next/dev/lock"), { force: true });
 }
 
 // Deliberately the unresolved path: on macOS the temp directory is a symlink,
