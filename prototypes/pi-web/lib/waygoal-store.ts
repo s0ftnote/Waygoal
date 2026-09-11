@@ -7,7 +7,7 @@ import { isPathWithinRoots } from "./path-security";
 import { samePath } from "./paths";
 import { projectIdentityKey } from "./project-identity";
 import { normalizeWorkspaceInput, readRecord, workspaceDir, workspaceId } from "./waygoal-dirs";
-import { claimSessionsOn, registerSession, rememberedWorkspace } from "./waygoal-workspaces";
+import { claimSessionsOn, rememberedWorkspace } from "./waygoal-workspaces";
 import type { SessionInfo } from "./types";
 import { REMOTE_PREFIX } from "./waygoal-remote";
 import { remoteMapViews } from "./waygoal-remote-store";
@@ -142,11 +142,6 @@ export function applyCanvasPatch(scope: WaygoalScope, patch: WaygoalCanvasPatch)
   const { cwd } = scope;
   const record = readCanvasRecord(scope);
   let changed = false;
-  // Which canvas a session is on is the workspace's business, not this
-  // canvas's record: a session must not end up on two of them.
-  // It is written to the workspace record, so it leaves this canvas's own
-  // record unchanged and does not mark it as changed.
-  if (typeof patch.registerSession === "string" && patch.registerSession) registerSession(scope, patch.registerSession);
   for (const [id, point] of Object.entries(patch.positions ?? {})) {
     if (!isPoint(point) || typeof id !== "string" || !id) continue;
     record.nodes[id] = { x: Math.round(point.x), y: Math.round(point.y) };

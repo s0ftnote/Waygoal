@@ -139,9 +139,6 @@ export interface WaygoalCanvasPatch {
   ticketSession?: { sessionId: string; ticket: string | null };
   ticketExpanded?: { ticket: string; expanded: boolean };
   ticketLast?: WaygoalPlace & { ticket: string };
-  /** Put this session on the canvas the patch is addressed to. A session
-   *  started from a canvas belongs to that canvas and no other. */
-  registerSession?: string;
   /** Group these cards under this name. The id is made here, and a card
    *  joining a group leaves the one it was in. */
   addGroup?: { name: string; members: string[] };

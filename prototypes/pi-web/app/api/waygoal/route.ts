@@ -4,7 +4,7 @@ import { getRpcSessionInfos, getRunningRpcSessionIds } from "@/lib/rpc-manager";
 import { attachSessionProjectInfo, listAllSessions, mergeSessionLists } from "@/lib/session-reader";
 import { applyCanvasPatch, buildSnapshot, buildTicketSnapshot, canvasSessions, resolveWorkspaceCwd } from "@/lib/waygoal-store";
 import { readTreeInfos } from "@/lib/waygoal-tree";
-import { addCanvas, readWorkspaceRecord, recentWorkspaces, rememberWorkspace, scopeFor } from "@/lib/waygoal-workspaces";
+import { addCanvas, readWorkspaceRecord, recentWorkspaces, registerSession, rememberWorkspace, scopeFor } from "@/lib/waygoal-workspaces";
 import type { WaygoalCanvasPatch, WaygoalSnapshotResponse } from "@/lib/waygoal-types";
 
 export const dynamic = "force-dynamic";
@@ -47,21 +47,27 @@ export async function GET(req: Request) {
 }
 
 // PATCH /api/waygoal
-// body: { cwd, canvas?, positions?, view?, lastViewed?, lastViewedEntry?,
-//         origin?, ticketSession?, ticketExpanded?, ticketLast?,
-//         registerSession? }
+// body: { cwd, canvas?, registerSession?, positions?, view?, lastViewed?,
+//         lastViewedEntry?, origin?, ticketSession?, ticketExpanded?,
+//         ticketLast?, addGroup?, groupCollapsed?, removeGroup?, addLink?,
+//         removeLink?, mapCheck? }
 // Stores layout, the last viewed position, where a fork came from, and which
 // ticket a discussion is held under. Restoring later reads only.
 export async function PATCH(req: Request) {
   try {
-    const { cwd: given, canvas, ...patch } = await req.json() as { cwd?: unknown; canvas?: unknown } & WaygoalCanvasPatch;
+    const { cwd: given, canvas, registerSession: started, ...patch } = await req.json() as { cwd?: unknown; canvas?: unknown; registerSession?: unknown } & WaygoalCanvasPatch;
     if (typeof given !== "string" || !given) throw new Error("cwd is required");
-    // The patch goes on whole: applyCanvasPatch checks every field it accepts
-    // and ignores the rest, so re-listing the fields here would only be a
-    // second place to forget when one is added.
     const cwd = resolveWorkspaceCwd(given);
     allowFileRoot(cwd);
-    const record = applyCanvasPatch(scopeFor(cwd, typeof canvas === "string" ? canvas : null), patch);
+    const scope = scopeFor(cwd, typeof canvas === "string" ? canvas : null);
+    // Which canvas a session is on is the workspace's record, not the
+    // canvas's: a session started from a canvas belongs to that canvas and no
+    // other, and must not end up on two of them.
+    if (typeof started === "string" && started) registerSession(scope, started);
+    // The rest of the patch goes on whole: applyCanvasPatch checks every field
+    // it accepts and ignores the rest, so re-listing the fields here would
+    // only be a second place to forget when one is added.
+    const record = applyCanvasPatch(scope, patch);
     return NextResponse.json({ ok: true, updatedAt: record.updatedAt });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400 });

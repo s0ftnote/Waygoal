@@ -42,7 +42,9 @@ test("canvases of one working directory keep separate layouts and separate sessi
     const second = workspaces.addCanvas(s.a, "选片", s.agentDir).id;
     const other = { cwd: s.a, canvasId: second, agentDir: s.agentDir };
     store.applyCanvasPatch(s.sa, { view: { x: 1, y: 2, scale: 1.5 } });
-    store.applyCanvasPatch(other, { view: { x: 9, y: 9, scale: 0.5 }, registerSession: "two" });
+    // Which canvas a session is on is the workspace's record, not the canvas's.
+    workspaces.registerSession(other, "two");
+    store.applyCanvasPatch(other, { view: { x: 9, y: 9, scale: 0.5 } });
     assert.deepEqual(store.readCanvasRecord(s.sa).view, { x: 1, y: 2, scale: 1.5 });
     assert.deepEqual(store.readCanvasRecord(other).view, { x: 9, y: 9, scale: 0.5 }, "one canvas's view is not the other's");
     assert.ok(existsSync(join(s.agentDir, "waygoal/workspaces", paths.workspaceId(s.a), `canvas-${second}.json`)));

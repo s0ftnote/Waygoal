@@ -157,7 +157,9 @@ export function WaygoalCanvas() {
   // Whether the error on screen came from reading the canvas.
   const readError = useRef(false);
 
-  const patch = useCallback(async (body: WaygoalCanvasPatch) => {
+  /** One PATCH: the canvas's own patch, plus — for a session that was just
+   *  started here — the workspace's note of which canvas it belongs on. */
+  const patch = useCallback(async (body: WaygoalCanvasPatch & { registerSession?: string }) => {
     if (!snapshot?.cwd) return;
     try {
       // The canvas comes from the snapshot, not from the URL: a patch belongs
