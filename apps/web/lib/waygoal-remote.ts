@@ -1,4 +1,4 @@
-import { blockedByLine } from "./beacon-store";
+import { blockedByLine } from "./waygoal-tickets";
 import { mapSections } from "./waygoal-map";
 import type { WaygoalRemoteComment, WaygoalRemoteId, WaygoalRemoteRead } from "./waygoal-types";
 

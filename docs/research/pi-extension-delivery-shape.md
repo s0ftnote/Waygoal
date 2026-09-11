@@ -50,7 +50,7 @@
 
 ## 4. Extension 与 host 的通信
 
-**事实：现成的三个出口。** `pi.events` 是共享事件总线，host 侧把同一个 `eventBus` 传给 `DefaultResourceLoader` 就能在 Pi 之外收发（`docs/sdk.md:656-670`）——但它是同进程 `EventEmitter`，跨不了进程。`pi.appendEntry(customType, data)` 把自定义数据写进会话且不进模型上下文，`session_start` 时可回读（`docs/extensions.md:1471-1486`）；Waygoal 现有 extension 就用它发 `beacon:map-changed`（`apps/web/lib/beacon-extension.ts:55-65`）。`session_start` 事件带 `reason` 和 `previousSessionFile`（`docs/extensions.md:393-399`、`432`）。
+**事实：现成的三个出口。** `pi.events` 是共享事件总线，host 侧把同一个 `eventBus` 传给 `DefaultResourceLoader` 就能在 Pi 之外收发（`docs/sdk.md:656-670`）——但它是同进程 `EventEmitter`，跨不了进程。`pi.appendEntry(customType, data)` 把自定义数据写进会话且不进模型上下文，`session_start` 时可回读（`docs/extensions.md:1471-1486`）；Waygoal 现有 extension 就用它发 `beacon:map-changed`（`apps/web/lib/waygoal-extension.ts:55-65`）。`session_start` 事件带 `reason` 和 `previousSessionFile`（`docs/extensions.md:393-399`、`432`）。
 
 **事实：Pi 没有为 extension 约定「每个 extension 自己的状态目录」。** agentDir 下 Pi 自用的是 `auth.json`、`models.json`、`keybindings.json`、`settings.json`、`sessions/`、`skills/`、`prompts/`、`themes/`、`extensions/`、`npm/`、`git/`、`tmp/extensions/`（`dist/core/config.js:421-440`，`dist/core/resource-loader.js:620-626`，`dist/core/package-manager.js:81-86`、`1686-1692`、`1765-1767`）。`getAgentDir()` 是公开导出，且尊重环境变量覆盖（`dist/index.d.ts:2`，`dist/core/config.js:421-427`）。
 

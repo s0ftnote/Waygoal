@@ -16,7 +16,7 @@
 
 ## 验证
 
-单元测试（`node --test lib/waygoal-store.test.mjs lib/beacon-store.test.mjs`）：工作区身份隔离、目录解析回退、发现去重与子代理排除、标题回退、位置分配与持久化、视野与最近查看的写入和缺失提示、损坏记录容错、extension 对缺失/存在 skill 的处理。
+单元测试（`node --test lib/waygoal-store.test.mjs lib/waygoal-tickets.test.mjs`）：工作区身份隔离、目录解析回退、发现去重与子代理排除、标题回退、位置分配与持久化、视野与最近查看的写入和缺失提示、损坏记录容错、extension 对缺失/存在 skill 的处理。
 
 浏览器验证（`npm run test:waygoal`，[e2e/waygoal.mjs](../../apps/web/e2e/waygoal.mjs)）：在临时 `PI_CODING_AGENT_DIR` 中预置两段本工作区会话（一段有 `session_info` 名称，一段只有首条消息）和一段其他目录的会话，写入指向假模型的 `models.json`/`settings.json` 和一个 skill 夹具，再启动独立的 Next 宿主。假模型是最小的 OpenAI 兼容 SSE 服务（[e2e/fake-model.mjs](../../apps/web/e2e/fake-model.mjs)），回复内容可控并记录每次请求。23 项检查全部通过：
 

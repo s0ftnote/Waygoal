@@ -9,7 +9,7 @@
 ## 实现摘要
 
 - 布局是明确的一种，不是「任意本地 tracker」：`.scratch/<地图>/map.md` 加 `issues/NN-*.md`，字段沿用本地 Markdown tracker 的 `Type:`、`Status:`、`Blocked by:`、`## Question`、`## Answer`。`.scratch/` 下没有 `map.md` 的目录会被照实报出「这里没有 map.md」，而不是静默忽略，也不假装支持别的格式。
-- 读取器 [lib/waygoal-tickets.ts](../../apps/web/lib/waygoal-tickets.ts) 只读不写，复用票据原型已有的扫描器（`parseTicket` 与路径检查 `safePath`，[lib/beacon-store.ts](../../apps/web/lib/beacon-store.ts)），不新造第二套解析。每次读文件前都确认路径仍在这个工作目录内：票据文件只读，但一条指向外面的符号链接照样会把内容带出去。
+- 读取器 [lib/waygoal-tickets.ts](../../apps/web/lib/waygoal-tickets.ts) 只读不写，复用票据原型已有的扫描器（`parseTicket` 与路径检查 `safePath`，[lib/waygoal-tickets.ts](../../apps/web/lib/waygoal-tickets.ts)），不新造第二套解析。每次读文件前都确认路径仍在这个工作目录内：票据文件只读，但一条指向外面的符号链接照样会把内容带出去。
 - 一份读不到不牵连其余：读不出的票据文件、读不出的 `map.md`、`.scratch/` 下不是这个布局的目录，都各自记下来并在画布上说明，其它地图、票据和会话节点照常显示。
 - 身份是「工作目录 + 来源文件相对路径」，不是标题，也不是票据编号：跨地图同号不会混淆，改标题只是同一张卡片换了名字。
 - 依赖关系复用现有阻塞判断：`Blocked by: 09, 02` 里指不到票据的编号标为 missing、指到多份的标为 ambiguous，两种都让票据保持被挡住的状态——读不出来的关系不等于没有关系。同号重复时地图上会带一条说明，指出依赖它的票据无法确定指向哪一份。编号按数值比较（`01` 与 `1` 同一张），显示时保留文件自己的写法。
@@ -38,7 +38,7 @@
 
 ## 本票没有做的
 
-- 变更发现走画布已有的 2.5 秒轮询和页面刷新，没有接 `lib/beacon-extension.ts` 里那条 extension 变更检查通道；在 Waygoal 之外改文件确实会被读到（e2e 有验证），但触发机制留给远程来源那张票（#10）一起定。
+- 变更发现走画布已有的 2.5 秒轮询和页面刷新，没有接 `lib/waygoal-extension.ts` 里那条 extension 变更检查通道；在 Waygoal 之外改文件确实会被读到（e2e 有验证），但触发机制留给远程来源那张票（#10）一起定。
 - 只支持 `.scratch/<地图>/map.md` 加 `issues/NN-*.md` 这一种布局。一个 `.scratch/` 下没有 `map.md` 的目录会被报成「没有读成地图」，这是照实说明，不是支持。（本仓库根上曾有一个装规格底稿的 `.scratch/`，2026-09-11 已搬到 `docs/spec/`，把这个名字还给工作目录里的 tracker。）
 - 票据和会话还没有挂在一起：票据卡片旁边不显示相关会话，也不能从票据开始讨论，那是票 #8。
 

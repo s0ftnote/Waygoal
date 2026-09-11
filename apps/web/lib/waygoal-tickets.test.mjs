@@ -1,11 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createJiti } from "jiti";
 const jiti = createJiti(import.meta.url, { alias: { "@": new URL("..", import.meta.url).pathname } });
-const { readLocalTickets, mergeTicketScan } = await jiti.import("./waygoal-tickets.ts");
+const { readLocalTickets, mergeTicketScan, blockedByLine, parseTicket, safePath, section } = await jiti.import("./waygoal-tickets.ts");
 const at = (iso) => () => new Date(iso);
 
 /** One read of a workspace the way the canvas sees it. Dependencies are
@@ -408,4 +408,23 @@ test("第一个 `##` 之前的开场白单独交出来，不塞进任何一个�
     assert.equal(map.lead, "# 放映会\n\n只办一场，在客厅。");
     assert.deepEqual(map.sections.map(s => s.heading), ["Destination"]);
   } finally { w.done(); }
+});
+
+test("reads a ticket file's sections, fields and dependencies as written", () => {
+  assert.equal(section("## Answer\n\n结论\n", "Answer"), "结论");
+  assert.equal(parseTicket("01-x.md", "# 标题\n**Type:** research\n").type, "research");
+  const ticket = parseTicket(".scratch/a/issues/02-next.md", "# 后续\nType: prototype\nStatus: Open\nBlocked by: 01, 09\n\n## Question\n\n问题\n");
+  assert.deepEqual([ticket.number, ticket.status, ticket.question, ticket.blockers], ["02", "open", "问题", ["1", "9"]]);
+  assert.deepEqual(blockedByLine("Blocked by: #3, #5\n"), ["3", "5"]);
+});
+test("does not follow tracker symlinks out of the chosen directory", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "waygoal-test-"));
+  const outside = mkdtempSync(join(tmpdir(), "waygoal-outside-"));
+  try {
+    symlinkSync(outside, join(cwd, ".scratch"));
+    writeFileSync(join(outside, "map.md"), "# 外面\n");
+    assert.throws(() => safePath(cwd, join(cwd, ".scratch/map.md")), /工作目录/);
+    assert.throws(() => safePath(cwd, join(cwd, "missing.md")), Error, "a file that is not there is not inside either");
+  }
+  finally { rmSync(cwd, { recursive: true, force: true }); rmSync(outside, { recursive: true, force: true }); }
 });

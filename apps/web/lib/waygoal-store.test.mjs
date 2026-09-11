@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { createJiti } from "jiti";
 const jiti = createJiti(import.meta.url, { alias: { "@": new URL("..", import.meta.url).pathname } });
 const store = await jiti.import("./waygoal-store.ts");
-const { createBeaconExtension, MISSING_SKILL_NOTICE, parseSkillCommand } = await jiti.import("./beacon-extension.ts");
+const { createWaygoalExtension, MISSING_SKILL_NOTICE, parseSkillCommand } = await jiti.import("./waygoal-extension.ts");
 const workspaces = await jiti.import("./waygoal-workspaces.ts");
 const paths = await jiti.import("./waygoal-dirs.ts");
 
@@ -134,7 +134,7 @@ test("extension: unknown /skill: gets feedback and is not sent; known skills pas
   try {
     const handlers = {};
     const pi = { on: (name, fn) => { handlers[name] = fn; }, appendEntry() {} };
-    createBeaconExtension(s.a, async () => ["e2e-skill"])({ ...pi, registerTool: () => {} });
+    createWaygoalExtension(s.a, async () => ["e2e-skill"])({ ...pi, registerTool: () => {} });
     const notices = [];
     const ctx = { ui: { notify: (m, level) => notices.push([m, level]) } };
     assert.deepEqual(await handlers.input({ text: "/skill:missing hi", source: "rpc" }, ctx), { action: "handled" });

@@ -42,7 +42,7 @@ const defaultSkillNames: SkillNameLoader = async (cwd) => (await loadSkillsWithI
 //    loaded, instead of letting the literal text go to the model.
 // 2. Take delivery of a remote ticket the Agent has just read, as a registered
 //    tool: the source identity and where the raw result is, nothing else.
-export function createBeaconExtension(cwd: string, skillNames: SkillNameLoader = defaultSkillNames, agentDir = getAgentDir()): ExtensionFactory {
+export function createWaygoalExtension(cwd: string, skillNames: SkillNameLoader = defaultSkillNames, agentDir = getAgentDir()): ExtensionFactory {
   return (pi) => {
     // A registered tool is the one trigger that fires reliably: Pi calls it
     // with checked arguments. Nothing here reads the Agent's prose, and the

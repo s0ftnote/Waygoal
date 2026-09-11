@@ -265,8 +265,7 @@ lib/waygoal-tickets.ts           reads .scratch/<map>/map.md + issues/NN-*.md in
 lib/waygoal-map.ts               a source file's own `##` sections, its opening line and the links it wrote itself; pure, nothing summarised or renamed (ticket #11)
 lib/waygoal-remote.ts            reads one raw result from a source into the fields a ticket shows; only `gh issue view --json` output and an offline sample are supported, everything else is named unsupported. supersedes() is the whole ordering rule: older, or no time at all, never replaces a confirmed state. Pure (ticket #10)
 lib/waygoal-remote-store.ts      takes delivery of a remote ticket — source identity and where its raw result is, never its text — captures that result at once through safePath, and lays the sources out as ticket maps. remote.json sits beside canvas.json in the workspace directory (ticket #10)
-lib/beacon-extension.ts          in-process Pi extension: /skill: feedback (all sessions), the waygoal_remote_ticket delivery tool — the one trigger that fires reliably, with no prose parsed and no long system prompt (ticket #10)
-lib/beacon-store.ts              local Markdown ticket file parsing and the in-workspace path check
+lib/waygoal-extension.ts         in-process Pi extension: /skill: feedback (all sessions), the waygoal_remote_ticket delivery tool — the one trigger that fires reliably, with no prose parsed and no long system prompt (ticket #10)
 e2e/waygoal.mjs                  npm run test:waygoal — own server, temp PI_CODING_AGENT_DIR, fake model (e2e/fake-model.mjs)
 e2e/waygoal-branches.mjs         npm run test:waygoal-branches — fork / read-only review / explicit continue (ticket #3)
 e2e/waygoal-tickets.mjs          npm run test:waygoal-tickets — local maps and tickets on the canvas, no model, no Pi session (ticket #7)

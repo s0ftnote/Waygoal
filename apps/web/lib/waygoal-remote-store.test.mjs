@@ -179,13 +179,13 @@ test("来源身份里不能藏路径", (t) => {
   assert.throws(() => deliverRemoteTicket(ref, { source: "github", origin: "a/b", number: "n/../1", ref: "x" }), /编号/);
 });
 
-const { createBeaconExtension } = await jiti.import("./beacon-extension.ts");
+const { createWaygoalExtension } = await jiti.import("./waygoal-extension.ts");
 
 /** Drive the registered tool exactly as Pi would: the Agent calls it with the
  *  source identity and where it left the raw result, and nothing else. */
 function remoteTool(ref) {
   let tool;
-  createBeaconExtension(ref.cwd, async () => [], ref.agentDir)({
+  createWaygoalExtension(ref.cwd, async () => [], ref.agentDir)({
     on: () => {}, appendEntry: () => {},
     registerTool: (definition) => { if (definition.name === "waygoal_remote_ticket") tool = definition; },
   });

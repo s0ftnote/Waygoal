@@ -107,7 +107,7 @@ npm run dev
 
 ```sh
 node_modules/.bin/tsc --noEmit
-node --test lib/beacon-store.test.mjs lib/waygoal-store.test.mjs lib/waygoal-workspaces.test.mjs lib/waygoal-tickets.test.mjs lib/startup-preferences.test.mjs lib/subagent-settings.test.mjs
+node --test lib/waygoal-store.test.mjs lib/waygoal-workspaces.test.mjs lib/waygoal-tickets.test.mjs lib/startup-preferences.test.mjs lib/subagent-settings.test.mjs
 npm run test:waygoal
 npm run test:waygoal-tickets
 npm run test:waygoal-ticket-talks

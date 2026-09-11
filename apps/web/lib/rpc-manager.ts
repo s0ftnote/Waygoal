@@ -1,5 +1,5 @@
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
-import { createBeaconExtension } from "./beacon-extension";
+import { createWaygoalExtension } from "./waygoal-extension";
 import { createAgentSessionFromServices, createAgentSessionServices, getAgentDir, initTheme, SessionManager, SettingsManager, Theme } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager as TuiKeybindingsManager, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
 import { randomUUID } from "crypto";
@@ -2024,7 +2024,7 @@ export async function startRpcSession(
           ? CHAT_ONLY_RESOURCE_LOADER_OPTIONS
         : {
             extensionFactories: [
-              createBeaconExtension(sessionCwd, () => sessionSkillNames()),
+              createWaygoalExtension(sessionCwd, () => sessionSkillNames()),
               createProjectCommandBashExtension({
                 cwd: sessionCwd,
                 settings: settingsManager,
