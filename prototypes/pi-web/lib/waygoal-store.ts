@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, statSync } from "nod
 import { join, resolve } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { writePrivateFileAtomicSync } from "./atomic-file";
+import { samePath } from "./paths";
 import { projectIdentityKey } from "./project-identity";
 import { normalizeWorkspaceInput, workspaceDir, workspaceId } from "./waygoal-paths";
 import { claimSessionsOn, registerSession, rememberedWorkspace } from "./waygoal-workspaces";
@@ -290,11 +291,11 @@ export function sessionTitle(session: Pick<SessionInfo, "name" | "firstMessage" 
   return { title: "还没有内容的会话", titleSource: "empty" };
 }
 
-/** Same workspace identity: pi-web's project identity key, else the same real path.
- *  Distinct from `samePath()` in lib/paths.ts, which compares path strings only. */
+/** Same workspace identity: pi-web's project identity key, else the same real path
+ *  (resolved through symlinks, then compared the way every other path is). */
 function sameWorkspace(a: string, b: string): boolean {
   if (projectIdentityKey(a) === projectIdentityKey(b)) return true;
-  try { return realpathSync(a) === realpathSync(b); } catch { return false; }
+  try { return samePath(realpathSync(a), realpathSync(b)); } catch { return false; }
 }
 
 /** Sessions whose cwd is this workspace, one node per real session id. */
