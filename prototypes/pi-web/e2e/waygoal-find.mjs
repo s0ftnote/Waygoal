@@ -207,10 +207,14 @@ try {
   await page.locator("[data-rename-save]").click();
   await waitFor(async () => (await nodeOf(roomId)).title === "放映会场地", "the second renamed title");
 
-  // 5. A host restart, then finding it by title.
+  // 5. A host restart, then finding it by title. The tab is closed before
+  //    the host stops, so what it logs while the host is away is not
+  //    mistaken for a page error.
   await closePanel();
+  await page.close().catch(() => {});
   await stopServer(server);
   server = await startServer();
+  page = await openPage();
   await page.goto(canvasUrl, { waitUntil: "domcontentloaded" });
   await page.locator(`[data-node="${filmId}"]`).getByText("放映会选片").waitFor();
   check("the names survive a host restart", (await nodeOf(filmId)).title === "放映会选片" && (await nodeOf(roomId)).title === "放映会场地");
