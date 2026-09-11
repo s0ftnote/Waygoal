@@ -45,7 +45,7 @@
 - 「回到上次看的地方」回到画布上次停在的那张卡片，并把它选中。
 - 无页面脚本或控制台错误。
 
-证据：截图 `prototype-evidence/find/01-renamed.png`、`02-finding.png`、`03-thumbnail.png`，检查记录 `checks.json`。同时通过全项目 TypeScript 检查和改动文件的 ESLint。另外重跑了其余五套浏览器验证：分叉 26 项、本地票据 16 项、票据下的讨论 26 项、依赖变动 24 项全部通过；会话画布那套的 `reload restores node position` 一项在本次改动前的提交 `b3f3b7a` 上以同样方式失败（在独立 worktree 里跑过），是既有问题，所以那套的证据留着上次通过时的那份，没有用这次的失败记录覆盖。全量单元测试 987/991 通过，其余 4 个文件（`lib/rpc-manager-*.test.mjs`、`lib/rpc-session-info.test.mjs`）仍以既有的 `Cannot find module '@/lib/skill-lock'` 失败。
+证据：截图 `prototype-evidence/find/01-renamed.png`、`02-finding.png`、`03-thumbnail.png`，检查记录 `checks.json`。同时通过全项目 TypeScript 检查和改动文件的 ESLint。另外重跑了其余五套浏览器验证：分叉 26 项、本地票据 16 项、票据下的讨论 26 项、依赖变动 24 项全部通过；会话画布那套的 `reload restores node position` 一项在本次改动前的提交 `b3f3b7a` 上以同样方式失败（在独立 worktree 里跑过），是既有问题，所以那套的证据留着上次通过时的那份，没有用这次的失败记录覆盖。（后记 2026-09-10：这一项并非画布的问题，而是检查本身假设重载后视野与重载前完全一致；票 #5 起画布会把打开的卡片挪回视野，所以视野可以不同。检查已改为在同一缩放下比较两张卡片之间的相对位置，`test:waygoal` 23 项现全部通过。）全量单元测试 987/991 通过，其余 4 个文件（`lib/rpc-manager-*.test.mjs`、`lib/rpc-session-info.test.mjs`）仍以既有的 `Cannot find module '@/lib/skill-lock'` 失败。
 
 ## 本票没有做的
 

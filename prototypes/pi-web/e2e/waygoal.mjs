@@ -191,6 +191,9 @@ try {
   await page.getByRole("button", { name: "放大" }).click();
   await delay(1200);
   const zoomBefore = await page.locator(".waygoal-zoom span").innerText();
+  const anchor = page.locator(`[data-node="${createdId}"]`);
+  const movedBox = await target.boundingBox();
+  const movedAnchor = await anchor.boundingBox();
   const saved = await snapshot();
   const savedPos = saved.nodes.find((n) => n.id === NAMED).position;
   const origPos = twice.nodes.find((n) => n.id === NAMED).position;
@@ -207,16 +210,26 @@ try {
   await page.locator(".waygoal-panel").getByText(/E2E reply: 你好，画布/).waitFor();
   const scaleText = await page.locator(".waygoal-zoom span").innerText();
   check("reload restores zoom and reopens the last viewed session", scaleText === zoomBefore, `${scaleText} vs ${zoomBefore}`);
+  // Where the view lands after a reload is the canvas's business: an opened
+  // card that is outside the viewport is brought back in (ticket #5). The
+  // dragged card's place on the canvas is what has to come back, so it is
+  // measured against another card, at the same zoom, rather than in pixels
+  // of the screen.
   const restoredBox = await node(NAMED_TITLE).boundingBox();
-  check("reload restores node position", Math.abs(restoredBox.x - box.x) > 50);
+  const restoredAnchor = await anchor.boundingBox();
+  const offset = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
+  const gapBefore = offset(movedBox, movedAnchor), gapAfter = offset(restoredBox, restoredAnchor);
+  check("reload restores node position", Math.abs(gapAfter.x - gapBefore.x) < 2 && Math.abs(gapAfter.y - gapBefore.y) < 2, JSON.stringify({ gapBefore, gapAfter }));
   await delay(1500);
   check("restore does not send a message", model.requests.length === sent && userMessageCount(createdId) === userCount);
   await page.screenshot({ animations: "disabled", path: join(evidence, "05-after-reload.png") });
 
-  // 8. Host restart: same record, still no auto-send.
+  // 8. Host restart: same record, still no auto-send. The tab is closed
+  //    before the host stops, so what it logs while the host is away is not
+  //    mistaken for a page error.
+  await page.close().catch(() => {});
   await stopServer(server); server = await startServer();
   // A user reopening the canvas after a host restart: fresh tab, same URL.
-  await page.close().catch(() => {});
   page = await openPage();
   await page.goto(canvasUrl, { waitUntil: "domcontentloaded" });
   await page.locator(".waygoal-panel").getByText(/E2E reply: 你好，画布/).waitFor();

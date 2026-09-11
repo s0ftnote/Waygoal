@@ -51,7 +51,7 @@ GitHub 和离线自定义样本走同一个入口，各自成一组，用的是�
 
 检查记录写入 `docs/research/prototype-evidence/remote/checks.json`。
 
-回归：其余八套端到端在这次改动之后重跑，`test:waygoal-branches`（26）、`-tickets`（16）、`-ticket-talks`（26）、`-dependencies`（24）、`-find`（22）、`-workspaces`（20）、`-groups`（24）、`-map`（32）全绿。`test:waygoal` 的「reload restores node position」这一项不过——把 `986fb20`（本票的起点）签进独立 worktree 重跑，同一项以同样的方式不过，所以它是既有问题，不是这次改出来的。单元测试 1043 通过 / 4 不过，那 4 项是 `lib/rpc-*` 的 `Cannot find module '@/lib/skill-lock'`，同样在起点上一模一样地不过。
+回归：其余八套端到端在这次改动之后重跑，`test:waygoal-branches`（26）、`-tickets`（16）、`-ticket-talks`（26）、`-dependencies`（24）、`-find`（22）、`-workspaces`（20）、`-groups`（24）、`-map`（32）全绿。`test:waygoal` 的「reload restores node position」这一项不过——把 `986fb20`（本票的起点）签进独立 worktree 重跑，同一项以同样的方式不过，所以它是既有问题，不是这次改出来的。（后记 2026-09-10：这一项并非画布的问题，而是检查本身假设重载后视野与重载前完全一致；票 #5 起画布会把打开的卡片挪回视野，所以视野可以不同。检查已改为在同一缩放下比较两张卡片之间的相对位置，`test:waygoal` 23 项现全部通过。）单元测试 1043 通过 / 4 不过，那 4 项是 `lib/rpc-*` 的 `Cannot find module '@/lib/skill-lock'`，同样在起点上一模一样地不过。
 
 ## 有意的偏离
 

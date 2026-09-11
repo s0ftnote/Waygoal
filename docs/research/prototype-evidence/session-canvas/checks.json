@@ -1,5 +1,5 @@
 {
-  "ranAt": "2026-09-10T08:49:13.078Z",
+  "ranAt": "2026-09-11T03:08:07.784Z",
   "checks": [
     {
       "name": "discovery shows both workspace sessions with real titles",
@@ -84,7 +84,7 @@
     {
       "name": "reload restores node position",
       "ok": true,
-      "detail": ""
+      "detail": "{\"gapBefore\":{\"x\":-262.16766357421875,\"y\":229.87722778320312},\"gapAfter\":{\"x\":-261.7818908691406,\"y\":229.76409912109375}}"
     },
     {
       "name": "restore does not send a message",

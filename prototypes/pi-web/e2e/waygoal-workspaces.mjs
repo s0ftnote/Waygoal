@@ -239,13 +239,14 @@ try {
   // 9. A restart comes back to the directory and canvas last opened.
   await page.goto(canvasUrl(workA), { waitUntil: "domcontentloaded" });
   await goToCanvas(second);
+  // The tab is closed before the host stops, so what it logs while the host
+  // is away is not mistaken for a page error; and a fresh tab afterwards, so
+  // that nothing but the record says which directory to open: the tab that
+  // was already on one writes it back into its own URL.
+  await page.close();
   await stopServer(server);
   server = await startServer();
-  // A fresh tab, so that nothing but the record says which directory to open:
-  // the tab that was already on one writes it back into its own URL.
-  const fresh = await openPage();
-  await page.close();
-  page = fresh;
+  page = await openPage();
   await page.goto(`${base}/beacon`, { waitUntil: "domcontentloaded" });
   await waitFor(async () => (await shownCwd()).includes("one/放映会"), "the remembered working directory");
   check("a restart comes back to the directory and the canvas last opened, without being told which",
