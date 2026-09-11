@@ -1,8 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { writePrivateFileAtomicSync } from "./atomic-file";
+import { isPathWithinRoots } from "./path-security";
 import { samePath } from "./paths";
 import { projectIdentityKey } from "./project-identity";
 import { normalizeWorkspaceInput, workspaceDir, workspaceId } from "./waygoal-paths";
@@ -60,9 +61,11 @@ function validSavedTickets(value: unknown): WaygoalSavedTickets {
 }
 
 /** A ticket is named by its path inside this workspace, which is how the
- *  reader identifies it. Anything reaching outside is not this workspace's. */
-function isTicketPath(value: unknown): value is string {
-  return typeof value === "string" && Boolean(value) && !value.startsWith("/") && !value.split("/").includes("..");
+ *  reader identifies it: relative, and staying inside once resolved against
+ *  the workspace. The same boundary as every other path check answers that. */
+function isTicketPath(cwd: string, value: unknown): value is string {
+  return typeof value === "string" && Boolean(value) && !isAbsolute(value)
+    && isPathWithinRoots(resolve(cwd, value), new Set([cwd]));
 }
 
 function isOrigin(value: unknown): value is WaygoalOriginRecord {
@@ -116,11 +119,11 @@ export function readCanvasRecord(scope: WaygoalScope): WaygoalCanvasRecord {
       nodes,
       origins,
       tickets: validSavedTickets(parsed.tickets),
-      ticketSessions: Object.fromEntries(Object.entries(parsed.ticketSessions ?? {}).filter(([id, ticket]) => id && isTicketPath(ticket))),
-      ticketExpanded: Object.fromEntries(Object.entries(parsed.ticketExpanded ?? {}).filter(([t, open]) => isTicketPath(t) && typeof open === "boolean")),
-      mapCheckDismissed: Object.fromEntries(Object.entries(parsed.mapCheckDismissed ?? {}).filter(([map, dismissed]) => isTicketPath(map) && typeof dismissed === "boolean")),
-      ticketWaiting: Object.fromEntries(Object.entries(parsed.ticketWaiting ?? {}).filter(([t, waiting]) => isTicketPath(t) && typeof waiting === "boolean")),
-      ticketLast: Object.fromEntries(Object.entries(parsed.ticketLast ?? {}).filter(([t, place]) => isTicketPath(t) && place && typeof place.sessionId === "string" && Boolean(place.sessionId))
+      ticketSessions: Object.fromEntries(Object.entries(parsed.ticketSessions ?? {}).filter(([id, ticket]) => id && isTicketPath(cwd, ticket))),
+      ticketExpanded: Object.fromEntries(Object.entries(parsed.ticketExpanded ?? {}).filter(([t, open]) => isTicketPath(cwd, t) && typeof open === "boolean")),
+      mapCheckDismissed: Object.fromEntries(Object.entries(parsed.mapCheckDismissed ?? {}).filter(([map, dismissed]) => isTicketPath(cwd, map) && typeof dismissed === "boolean")),
+      ticketWaiting: Object.fromEntries(Object.entries(parsed.ticketWaiting ?? {}).filter(([t, waiting]) => isTicketPath(cwd, t) && typeof waiting === "boolean")),
+      ticketLast: Object.fromEntries(Object.entries(parsed.ticketLast ?? {}).filter(([t, place]) => isTicketPath(cwd, t) && place && typeof place.sessionId === "string" && Boolean(place.sessionId))
         .map(([t, place]) => [t, { sessionId: place.sessionId, entryId: typeof place.entryId === "string" && place.entryId ? place.entryId : null }])),
       groups: validGroups(parsed.groups),
       links: validLinks(parsed.links),
@@ -141,6 +144,7 @@ export function writeCanvasRecord(record: WaygoalCanvasRecord, scope: WaygoalSco
 }
 
 export function applyCanvasPatch(scope: WaygoalScope, patch: WaygoalCanvasPatch): WaygoalCanvasRecord {
+  const { cwd } = scope;
   const record = readCanvasRecord(scope);
   let changed = false;
   // Which canvas a session is on is the workspace's business, not this
@@ -180,7 +184,7 @@ export function applyCanvasPatch(scope: WaygoalScope, patch: WaygoalCanvasPatch)
   const held = patch.ticketSession;
   if (held && typeof held.sessionId === "string" && held.sessionId) {
     if (held.ticket === null) { delete record.ticketSessions[held.sessionId]; changed = true; }
-    else if (isTicketPath(held.ticket)) { record.ticketSessions[held.sessionId] = held.ticket; changed = true; }
+    else if (isTicketPath(cwd, held.ticket)) { record.ticketSessions[held.sessionId] = held.ticket; changed = true; }
   }
   const group = patch.addGroup;
   if (group && Array.isArray(group.members)) {
@@ -226,16 +230,16 @@ export function applyCanvasPatch(scope: WaygoalScope, patch: WaygoalCanvasPatch)
     record.links = record.links.filter(l => l.id !== patch.removeLink);
     changed = true;
   }
-  if (patch.mapCheck && isTicketPath(patch.mapCheck.map) && typeof patch.mapCheck.dismissed === "boolean") {
+  if (patch.mapCheck && isTicketPath(cwd, patch.mapCheck.map) && typeof patch.mapCheck.dismissed === "boolean") {
     record.mapCheckDismissed[patch.mapCheck.map] = patch.mapCheck.dismissed;
     changed = true;
   }
-  if (patch.ticketExpanded && isTicketPath(patch.ticketExpanded.ticket) && typeof patch.ticketExpanded.expanded === "boolean") {
+  if (patch.ticketExpanded && isTicketPath(cwd, patch.ticketExpanded.ticket) && typeof patch.ticketExpanded.expanded === "boolean") {
     record.ticketExpanded[patch.ticketExpanded.ticket] = patch.ticketExpanded.expanded;
     changed = true;
   }
   const last = patch.ticketLast;
-  if (last && isTicketPath(last.ticket) && typeof last.sessionId === "string" && last.sessionId) {
+  if (last && isTicketPath(cwd, last.ticket) && typeof last.sessionId === "string" && last.sessionId) {
     record.ticketLast[last.ticket] = { sessionId: last.sessionId, entryId: typeof last.entryId === "string" && last.entryId ? last.entryId : null };
     changed = true;
   }

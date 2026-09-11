@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createJiti } from "jiti";
-const { beaconSnapshot, parseTicket, section, saveBinding } = await createJiti(import.meta.url).import("./beacon-store.ts");
+const { beaconSnapshot, parseTicket, safePath, section, saveBinding } = await createJiti(import.meta.url).import("./beacon-store.ts");
 const { createBeaconExtension } = await createJiti(import.meta.url, { alias: { "@": new URL("..", import.meta.url).pathname } }).import("./beacon-extension.ts");
 test("reads sections, scoped dependencies, answers and persistent session bindings", () => {
   const cwd = mkdtempSync(join(tmpdir(), "beacon-test-"));
@@ -38,7 +38,13 @@ test("reads sections, scoped dependencies, answers and persistent session bindin
 test("does not follow tracker symlinks out of the chosen directory", () => {
   const cwd = mkdtempSync(join(tmpdir(), "beacon-test-"));
   const outside = mkdtempSync(join(tmpdir(), "beacon-outside-"));
-  try { symlinkSync(outside, join(cwd, ".scratch")); assert.throws(() => beaconSnapshot(cwd), /工作目录/); }
+  try {
+    symlinkSync(outside, join(cwd, ".scratch"));
+    assert.throws(() => beaconSnapshot(cwd), /工作目录/);
+    writeFileSync(join(outside, "map.md"), "# 外面\n");
+    assert.throws(() => safePath(cwd, join(cwd, ".scratch/map.md")), /工作目录/);
+    assert.throws(() => safePath(cwd, join(cwd, "missing.md")), Error, "a file that is not there is not inside either");
+  }
   finally { rmSync(cwd, { recursive: true, force: true }); rmSync(outside, { recursive: true, force: true }); }
 });
 test("extension emits once for actual ticket edits, never for session binding changes", () => {

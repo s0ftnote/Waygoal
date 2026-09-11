@@ -388,7 +388,9 @@ test("associations to sessions of another workspace, or to no ticket, are refuse
     localMap(s.a, "screening", { "01-feeling.md": ticketBody("感受") });
     store.applyCanvasPatch(s.sa, { ticketSession: { sessionId: "", ticket: ".scratch/screening/issues/01-feeling.md" } });
     store.applyCanvasPatch(s.sa, { ticketSession: { sessionId: "talk-1", ticket: "../outside/map.md" } });
-    assert.deepEqual(store.readCanvasRecord(s.sa).ticketSessions, {});
+    store.applyCanvasPatch(s.sa, { ticketSession: { sessionId: "talk-1", ticket: ".scratch/../../outside/map.md" } });
+    store.applyCanvasPatch(s.sa, { ticketSession: { sessionId: "talk-1", ticket: join(s.a, ".scratch/screening/issues/01-feeling.md") } });
+    assert.deepEqual(store.readCanvasRecord(s.sa).ticketSessions, {}, "a ticket is named by its path inside the workspace, never by an absolute one");
 
     store.applyCanvasPatch(s.sa, { ticketSession: { sessionId: "talk-1", ticket: ".scratch/screening/issues/01-feeling.md" } });
     store.applyCanvasPatch(s.sa, { ticketSession: { sessionId: "talk-1", ticket: null } });

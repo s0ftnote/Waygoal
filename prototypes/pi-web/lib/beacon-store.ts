@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { join, resolve, relative, isAbsolute, dirname } from "node:path";
+import { join, resolve, relative, dirname } from "node:path";
 import { homedir } from "node:os";
 import { writePrivateFileAtomicSync } from "./atomic-file";
+import { isExistingPathWithinRoots } from "./path-security";
 import type { BeaconBinding, BeaconSnapshot, BeaconTicket } from "./beacon-types";
 
 export function beaconCwd(input?: string): string {
@@ -9,10 +10,12 @@ export function beaconCwd(input?: string): string {
   if (!statSync(cwd).isDirectory()) throw new Error("请选择一个工作目录");
   return cwd;
 }
+/** The real path of a tracker file, or a throw when it is not inside this
+ *  working directory. Containment is decided by pi-web's one path boundary
+ *  (lib/path-security.ts), after both sides are resolved through symlinks. */
 export function safePath(cwd: string, path: string): string {
   const resolved = realpathSync(path);
-  const rel = relative(realpathSync(cwd), resolved);
-  if (rel.startsWith("..") || isAbsolute(rel)) throw new Error("地图文件必须位于工作目录内");
+  if (!isExistingPathWithinRoots(resolved, new Set([cwd]))) throw new Error("地图文件必须位于工作目录内");
   return resolved;
 }
 export function section(body: string, name: string): string {
