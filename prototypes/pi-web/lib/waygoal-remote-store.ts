@@ -6,7 +6,8 @@ import { readRemoteResult, remoteSourcePath, remoteTicketPath, supersedes } from
 import { sourceLinks } from "./waygoal-map";
 import { workspaceDir } from "./waygoal-dirs";
 import { resolveBlockers } from "./waygoal-tickets";
-import { remoteSourceLabel, type WaygoalReference, type WaygoalRemoteDelivery, type WaygoalRemoteId, type WaygoalTicketMapView, type WaygoalTicketView, type WaygoalWorkspaceRef } from "./waygoal-types";
+import { remoteSourceLabel } from "./waygoal-labels";
+import { type WaygoalReference, type WaygoalRemoteDelivery, type WaygoalRemoteId, type WaygoalTicketMapView, type WaygoalTicketView, type WaygoalWorkspaceRef } from "./waygoal-types";
 
 /** What one delivery says, and all it says: who the source is, which ticket
  *  there, and where the raw result it produced can be read. No body — the

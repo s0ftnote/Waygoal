@@ -320,16 +320,6 @@ export interface WaygoalRemoteId {
   number: string;
 }
 
-/** What a source is called on screen. One map, so the card and the panel
- *  never disagree; a source Waygoal has no reader for is called by its own
- *  name rather than renamed into something it is not. */
-export const remoteSourceLabel = (source: string): string =>
-  ({ github: "GitHub", custom: "离线样本" } as Record<string, string>)[source] ?? source;
-
-/** What a card is, in the two places that say it. */
-export const mapKind = (remote: boolean): string => (remote ? "来源" : "本地地图");
-export const ticketKind = (remote: boolean): string => (remote ? "来源票据" : "本地票据");
-
 /** One comment as the source wrote it. Waygoal never writes one back. */
 export interface WaygoalRemoteComment {
   author: string;

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { canOpen, needsCheck, remoteSourceLabel, type WaygoalReference, type WaygoalRemoteInfo, type WaygoalTicketBlocker, type WaygoalTicketCard, type WaygoalTicketMapCard, type WaygoalTicketState } from "@/lib/waygoal-types";
+import { remoteSourceLabel } from "@/lib/waygoal-labels";
+import { canOpen, needsCheck, type WaygoalReference, type WaygoalRemoteInfo, type WaygoalTicketBlocker, type WaygoalTicketCard, type WaygoalTicketMapCard, type WaygoalTicketState } from "@/lib/waygoal-types";
 
 interface Props {
   map: WaygoalTicketMapCard;

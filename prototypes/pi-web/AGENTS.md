@@ -263,6 +263,7 @@ lib/waygoal-branches.ts          pure projection of a Pi tree into branch points
 lib/waygoal-tree.ts              reads the real Pi tree for a session (live manager, else the file), mtime-cached
 lib/waygoal-locate.ts            pure card geometry the canvas shares: title search, 最近访问, bounds for 回到全景, centring a point, and the thumbnail (ticket #5)
 lib/waygoal-types.ts             record / snapshot / patch types, plus the few rules both the reader and the canvas have to agree on (card geometry, needsCheck)
+lib/waygoal-labels.ts            the words for a source and a card that the canvas, the panel and the remote reader all say the same way; copy only
 lib/waygoal-tickets.ts           reads .scratch/<map>/map.md + issues/NN-*.md into tickets; pure, no writes (ticket #7). Dependencies are settled in mergeTicketScan, over what the canvas shows: only a premise read as resolved releases (ticket #9). referencesFor settles each source link against this working directory (ticket #11)
 lib/waygoal-map.ts               a source file's own `##` sections, its opening line and the links it wrote itself; pure, nothing summarised or renamed (ticket #11)
 lib/waygoal-remote.ts            reads one raw result from a source into the fields a ticket shows; only `gh issue view --json` output and an offline sample are supported, everything else is named unsupported. supersedes() is the whole ordering rule: older, or no time at all, never replaces a confirmed state. Pure (ticket #10)
