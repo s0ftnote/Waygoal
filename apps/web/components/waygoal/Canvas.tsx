@@ -1143,13 +1143,13 @@ export function WaygoalCanvas() {
         </div>}
         <div className="waygoal-statusline"><span>拖动卡片摆放 · 拖动空白处平移 · 滚轮缩放 · 点击卡片定位原文 · Tree 选择路径后继续聊天</span><span className="waygoal-id">{snapshot?.workspaceId}</span></div>
         {panelSession && turnsOpen && !openTicketMap && <WaygoalTurnCanvas
-          sessionId={panelSession.id} layouts={snapshot?.turnLayouts}
+          sessionId={panelSession.id} targetVersion={panelKey} layouts={snapshot?.turnLayouts}
           onSaveLayout={(sessionId, layout) => void patch({ turnLayout: { sessionId, layout } })} sessions={nodes.map(node => ({ id: node.id, title: node.title }))}
           locateEntry={locateEntry} busy={Boolean(busyReason) || navigating}
           onOverview={() => setTurnsOpen(false)}
           onLocate={(sessionId, turn) => {
             if (sessionId === panelSession.id && turn.active) {
-              setSearchTarget({ sessionId, entryId: turn.id }); setViewing(null);
+              setSearchTarget({ sessionId, entryId: turn.id }); stopViewing();
             } else viewPath(sessionId, turn.endId, turn.question, turn.endId);
           }}
           onContinue={(sessionId, leafId) => void continueAt(sessionId, leafId)}

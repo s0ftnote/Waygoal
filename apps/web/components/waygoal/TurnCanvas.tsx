@@ -6,6 +6,7 @@ import { MATERIAL_SCOPES, type MaterialScope, type MaterialSnapshot } from "@/li
 
 interface Props {
   sessionId: string;
+  targetVersion: number;
   layouts?: Record<string, WaygoalTurnLayout>;
   onSaveLayout: (sessionId: string, layout: WaygoalTurnLayout) => void;
   sessions: { id: string; title: string }[];
@@ -23,7 +24,7 @@ const emptyLayout = (): WaygoalTurnLayout => ({ positions: {}, links: [] });
 
 /** The session tree is a presentation of Pi entries. ChatWindow lives beside
  * this module, and never depends on its selected card, camera or preview. */
-export function WaygoalTurnCanvas({ sessionId, layouts, onSaveLayout, sessions, locateEntry, busy, onLocate, onContinue, onMaterial, onOverview }: Props) {
+export function WaygoalTurnCanvas({ sessionId, targetVersion, layouts, onSaveLayout, sessions, locateEntry, busy, onLocate, onContinue, onMaterial, onOverview }: Props) {
   const [sourceId, setSourceId] = useState(sessionId);
   const [data, setData] = useState<WaygoalTurns | null>(null);
   const [camera, setCamera] = useState({ x: 38, y: 35, scale: 1 });
@@ -36,6 +37,13 @@ export function WaygoalTurnCanvas({ sessionId, layouts, onSaveLayout, sessions, 
   const [treeOpen, setTreeOpen] = useState(false);
   const [error, setError] = useState("");
   const [capturing, setCapturing] = useState(false);
+  const captureRequest = useRef<AbortController | null>(null);
+  // A material response belongs to the composer that requested it. Navigation,
+  // sending, and unmounting invalidate that destination before a late response.
+  useEffect(() => {
+    captureRequest.current?.abort(); setCapturing(false);
+    return () => { captureRequest.current?.abort(); };
+  }, [sessionId, targetVersion, busy]);
   const viewport = useRef<HTMLDivElement>(null);
   const gesture = useRef<{ id?: string; start: Point; origin: Point; moved: boolean } | null>(null);
   const layoutRef = useRef(layout); layoutRef.current = layout;
@@ -110,15 +118,18 @@ export function WaygoalTurnCanvas({ sessionId, layouts, onSaveLayout, sessions, 
 
   const reference = async (turnId: string) => {
     if (capturing || busy) return;
+    const controller = new AbortController();
+    captureRequest.current = controller;
     setCapturing(true); setError("");
     try {
       const query = new URLSearchParams({ turn: turnId, target: sessionId, scope, ...(scope === "excerpt" ? { excerpt } : {}) });
-      const response = await fetch(`/api/waygoal/session/${encodeURIComponent(sourceId)}/materials?${query}`, { cache: "no-store" });
+      const response = await fetch(`/api/waygoal/session/${encodeURIComponent(sourceId)}/materials?${query}`, { cache: "no-store", signal: controller.signal });
       const body = await response.json();
+      if (controller.signal.aborted) return;
       if (!response.ok) throw new Error(body.error);
       onMaterial(body); setFrom(null);
-    } catch (error) { setError(error instanceof Error ? error.message : String(error)); }
-    finally { setCapturing(false); }
+    } catch (error) { if (!controller.signal.aborted) setError(error instanceof Error ? error.message : String(error)); }
+    finally { if (captureRequest.current === controller) setCapturing(false); }
   };
   const connect = (to: string) => {
     if (!from || from === to) { setFrom(to); return; }

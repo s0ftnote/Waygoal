@@ -160,7 +160,9 @@ try {
   await page.getByRole("region", { name: "会话画布区域" }).locator(".waygoal-canvas-preview").waitFor();
   check("sibling preview stays on the canvas and preserves the active composer", await composer.inputValue() === "B 路径草稿" && await page.evaluate(() => window.keptInput === document.querySelector(".waygoal-panel textarea")));
   check("preview does not change Pi's active leaf", (await turns(id)).activeLeafId === branched.activeLeafId);
-  await page.getByRole("button", { name: "关闭预览" }).click();
+  await page.locator('[data-turn="'+firstTurn.id+'"] .waygoal-turn-content').click();
+  await waitFor(async () => !(await snapshot()).preview, "card location clears saved preview");
+  check("locating an active card dismisses and clears the saved preview", await page.locator(".waygoal-canvas-preview").count() === 0);
   await page.getByRole("button", { name: "Tree", exact: true }).click();
   await page.getByRole("navigation", { name: "Tree 路径选择" }).getByRole("button", { name: /继续第三轮/ }).click();
   await waitFor(async () => (await turns(id)).activeLeafId === lastA, "explicit Tree selects A");
@@ -176,6 +178,24 @@ try {
   await page.getByRole("button", { name: "引用连线", exact: true }).click();
   await page.locator(`[data-turn="${sibling.id}"] .waygoal-turn-port`).click();
   // Next turn can lie outside the viewport; locate current, then zoom out.
+  await page.getByRole("button", { name: "当前轮次", exact: true }).click();
+  let releaseMaterial, capturedMaterial;
+  const materialHeld = new Promise(resolve => { capturedMaterial = resolve; });
+  const materialGate = new Promise(resolve => { releaseMaterial = resolve; });
+  await page.route("**/materials?**", async route => {
+    const response = await route.fetch(); capturedMaterial(); await materialGate;
+    await route.fulfill({ response }).catch(() => {});
+  });
+  await page.locator("[data-next-turn]").click();
+  await materialHeld;
+  await page.getByRole("button", { name: "Tree", exact: true }).click();
+  await page.getByRole("navigation", { name: "Tree 路径选择" }).getByRole("button", { name: /另一条路径的材料/ }).click();
+  await waitFor(async () => await composer.inputValue() === "B 路径草稿", "switch while material response is held");
+  releaseMaterial(); await page.unrouteAll({ behavior: "wait" });
+  check("a delayed material response cannot enter another path's draft", await page.getByLabel("下一轮引用材料").count() === 0);
+  await page.getByRole("button", { name: "Tree", exact: true }).click();
+  await page.getByRole("navigation", { name: "Tree 路径选择" }).getByRole("button", { name: /继续第三轮/ }).click();
+  await waitFor(async () => await composer.inputValue() === "A 路径草稿", "return after canceled capture");
   await page.getByRole("button", { name: "当前轮次", exact: true }).click();
   await page.locator("[data-next-turn]").click();
   const tray = page.getByLabel("下一轮引用材料"); await tray.waitFor();
@@ -256,7 +276,7 @@ try {
   await page.locator(`[data-turn="${firstTurn.id}"]`).waitFor();
   await page.locator(`[data-turn="${firstTurn.id}"] .waygoal-turn-content`).click();
   const preview = page.locator(".waygoal-canvas-preview");
-  await preview.getByText("共同问题", { exact: true }).first().hover();
+  await preview.getByText("共同问题", { exact: true }).last().hover();
   await preview.getByRole("button", { name: "从这里分叉", exact: true }).first().click();
   await waitFor(async () => await composer.inputValue() === "共同问题", "preview fork restores original user message");
   const emptyFork = await waitFor(async () => (await snapshot()).nodes.find(node => ![id, forkId, longId].includes(node.id)), "fork before first answer");
@@ -266,6 +286,14 @@ try {
   check("no browser errors", errors.length === 0, errors.join("\n"));
   writeFileSync(join(evidence, "checks.json"), JSON.stringify(checks, null, 2));
   await context.close();
+} catch (error) {
+  for (const context of browser?.contexts() ?? []) for (const page of context.pages()) {
+    await page.screenshot({ path: join(evidence, "failure.png") }).catch(() => {});
+    console.log(await page.locator('.waygoal-canvas-preview button').evaluateAll(buttons => buttons.map(b => {
+      const r = b.getBoundingClientRect(); return { text: b.textContent, rect: r.toJSON(), hit: document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.outerHTML.slice(0,600) };
+    })).catch(() => []));
+  }
+  throw error;
 } finally {
   await browser?.close().catch(() => {});
   await stopServer(server);
