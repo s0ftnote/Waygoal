@@ -149,23 +149,12 @@ try {
     await delay(400);
   };
   const clickOnHover = async (messageText, buttonName) => {
-    const message = panel().getByText(messageText, { exact: true }).first();
+    const message = panel().locator("[data-entry-id]").filter({ has: page.getByText(messageText, { exact: true }) }).first();
     await message.waitFor();
-    // The message list keeps scrolling for a moment after a reply renders, and
-    // controls an earlier hover revealed have to go before this one's show —
-    // otherwise the click lands on some other message's fork button.
-    await delay(800);
-    await page.mouse.move(4, 4);
-    await panel().getByRole("button", { name: buttonName }).first().waitFor({ state: "hidden" }).catch(() => {});
+    // User and assistant messages both expose fork controls. Match the source
+    // row before hovering and clicking so other controls cannot take its place.
     await message.hover();
-    const button = panel().getByRole("button", { name: buttonName }).first();
-    await button.waitFor();
-    const box = await waitFor(async () => {
-      const b = await button.boundingBox();
-      return b && b.width > 0 ? b : null;
-    }, `${buttonName} to be laid out`, 10_000);
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.down(); await page.mouse.up();
+    await message.getByRole("button", { name: buttonName, exact: true }).click();
   };
 
   // 1. An empty ticket says so, and starting from it opens a composer only.
@@ -203,8 +192,8 @@ try {
   check("and draws the relation to it", await page.locator(".waygoal-links .waygoal-link.ticket").count() === 1);
   await page.screenshot({ animations: "disabled", path: join(evidence, "01-first-discussion.png") });
 
-  // 4. A branch of that discussion is still this ticket's discussion. Pi offers
-  //    no fork from the very first message, so the branch comes off the second.
+  // 4. A branch of that discussion is still this ticket's discussion. Fork the
+  //    second user message and retain the first turn in the new session.
   await send("再想想开头那句");
   await clickOnHover("再想想开头那句", "从这里分叉");
   const forked = await waitFor(async () => {
