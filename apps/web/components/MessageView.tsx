@@ -194,7 +194,7 @@ interface Props {
   /** Overrides the fork control's label where the host names the action
    *  differently. The action itself is unchanged. */
   forkLabel?: string;
-  onNavigate?: (entryId: string) => void | Promise<boolean>;
+  onNavigate?: (entryId: string, message?: UserMessage) => void | Promise<boolean>;
   prevAssistantEntryId?: string;
   onEditContent?: (message: UserMessage) => void;
   showTimestamp?: boolean;
@@ -306,7 +306,7 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, f
   onFork?: (entryId: string) => void;
   forking?: boolean;
   forkLabel?: string;
-  onNavigate?: (entryId: string) => void | Promise<boolean>;
+  onNavigate?: (entryId: string, message?: UserMessage) => void | Promise<boolean>;
   prevAssistantEntryId?: string;
   onEditContent?: (message: UserMessage) => void;
 }) {
@@ -520,7 +520,7 @@ function UserMessageView({ message, cwd, onOpenFile, entryId, onFork, forking, f
             }}>
               {canNavigate && (
                 <button
-                  onClick={async () => { if (await onNavigate!(prevAssistantEntryId!) !== false) onEditContent?.(editTarget); }}
+                  onClick={async () => { if (await onNavigate!(prevAssistantEntryId!, editTarget) !== false) onEditContent?.(editTarget); }}
                    title={t("i18n.editFromHereTitle")}
                   style={{
                     display: "flex", alignItems: "center", gap: 4,

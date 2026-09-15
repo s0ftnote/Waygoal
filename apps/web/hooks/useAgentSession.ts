@@ -13,10 +13,11 @@ import type {
 } from "@/lib/types";
 import { isBlockingExtensionUiRequest } from "@/lib/browser-notifications";
 import { materialPrompt, type MaterialSnapshot } from "@/lib/waygoal/materials";
+import { retainChatAncestors } from "@/lib/retained-chat-history";
 import { getUserMessageText, getUserMessageDraftImages } from "@/components/ChatInput";
 import { normalizeToolCalls } from "@/lib/normalize";
 import { isPromptRejectedError, sendAgentCommand } from "@/lib/agent-client";
-import { clearDraft, rekeyDraft, restoreDraftSubmission, setDraft, getDraft } from "@/lib/draft-store";
+import { clearDraft, rekeyDraft, restoreDraftSubmission, setDraft } from "@/lib/draft-store";
 import { getPreferredToolPreset, setPreferredToolPreset } from "@/lib/tool-preset-preference";
 import { getPresetFromToolNames, getToolNamesForPreset, type ToolEntry, type ToolPreset } from "@/lib/tool-presets";
 import type { SessionStatsInfo } from "@/lib/pi-types";
@@ -292,6 +293,18 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const [activeLeafId, setActiveLeafId] = useState<string | null>(null);
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [entryIds, setEntryIds] = useState<string[]>([]);
+  const messageIdentities = useRef(new Map<number, { message?: AgentMessage; entryId?: string }>());
+  const [identityRevision, setIdentityRevision] = useState(0);
+  useEffect(() => {
+    const resolved: [number, string][] = [];
+    for (const [identity, value] of messageIdentities.current) {
+      if (!value.message || !value.entryId) continue;
+      const index = messages.indexOf(value.message);
+      if (index >= 0) resolved.push([index, value.entryId]);
+      messageIdentities.current.delete(identity);
+    }
+    if (resolved.length) setEntryIds(current => { const next = [...current]; for (const [index, id] of resolved) next[index] = id; return next; });
+  }, [messages, identityRevision]);
   const [historyCursor, setHistoryCursor] = useState<string | null>(null);
   const [hasEarlierMessages, setHasEarlierMessages] = useState(false);
   const [streamState, dispatch] = useReducer(streamReducer, INITIAL_STREAMING_STATE);
@@ -463,6 +476,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     } satisfies SessionStatsInfo;
   }, [messages, sessionStatsOverride, contextUsage, data?.context.messages, data?.filePath, data?.totalActiveMs, data?.stats, session?.id, session?.name]);
 
+  const retainedHistoryRef = useRef({ sessionId: session?.id, messages, entryIds, oldestEntryId: historyCursor, hasMore: hasEarlierMessages });
+  retainedHistoryRef.current = { sessionId: session?.id, messages, entryIds, oldestEntryId: historyCursor, hasMore: hasEarlierMessages };
   const loadSession = useCallback(async (sid: string, showLoading = false, includeState = false) => {
     let messagesLoaded = false;
     try {
@@ -484,6 +499,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const d = await res.json() as SessionData;
       if (sessionIdRef.current !== sid) return null;
+      if (retainedHistoryRef.current.sessionId === sid) d.context = retainChatAncestors(retainedHistoryRef.current, d.context);
       const persistedMessages = d.context.messages;
       setData(d);
       setActiveLeafId(d.leafId);
@@ -1189,6 +1205,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         // appending it again would duplicate it.
         if (!agentRunningRef.current) break;
         const completed = event.message as AgentMessage | undefined;
+        const identity = typeof event.messageEventId === "number" ? event.messageEventId : null;
+        const remember = (message: AgentMessage) => {
+          if (identity !== null) messageIdentities.current.set(identity, { ...messageIdentities.current.get(identity), message });
+        };
         if (completed && completed.role === "user") {
           // Delivered steering/follow-up messages surface here as user
           // messages. The run's initial prompt also emits one, but handleSend
@@ -1201,17 +1221,28 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           setMessages((prev) => {
             const last = prev[prev.length - 1];
             if (optimisticKey && last?.role === "user" && userMessageKey(last) === optimisticKey) {
+              remember(optimisticKey === deliveredKey ? last : delivered);
               return optimisticKey === deliveredKey
                 ? prev
                 : [...prev.slice(0, -1), delivered];
             }
+            remember(delivered);
             return [...prev, delivered];
           });
         } else if (completed) {
-          setMessages((prev) => [...prev, normalizeToolCalls(completed)]);
+          const delivered = normalizeToolCalls(completed);
+          remember(delivered);
+          setMessages((prev) => [...prev, delivered]);
         }
         dispatch({ type: "end" });
         setAgentPhase({ kind: "waiting_model" });
+        break;
+      }
+      case "message_entry": {
+        const identity = event.messageEventId;
+        if (typeof identity !== "number" || typeof event.entryId !== "string") break;
+        messageIdentities.current.set(identity, { ...messageIdentities.current.get(identity), entryId: event.entryId });
+        setIdentityRevision(value => value + 1);
         break;
       }
       case "tool_execution_start": {
@@ -1501,11 +1532,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     if (agentRunningRef.current || bashRunningRef.current) return false;
     const sid = sessionIdRef.current;
     if (!sid) return false;
-    const draft = getDraft(sid);
     try {
       const result = await sendAgentCommand<{ cancelled?: boolean; leafId?: string | null }>(sid, { type: "navigate_tree", targetId: entryId });
       if (result?.cancelled) return false;
-      if (draft) setDraft(`waygoal-path:${sid}:${activeLeafId ?? "root"}`, draft);
       setActiveLeafId(result?.leafId ?? entryId);
       await loadContext(sid, result?.leafId ?? entryId);
       return true;
@@ -1513,7 +1542,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       addNotice({ type: "error", message: error instanceof Error ? error.message : String(error) });
       return false;
     }
-  }, [activeLeafId, loadContext, addNotice]);
+  }, [loadContext, addNotice]);
 
   const handleLeafChange = useCallback(async (leafId: string | null) => {
     if (leafId) await handleNavigate(leafId);

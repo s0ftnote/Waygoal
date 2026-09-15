@@ -17,7 +17,7 @@ async function managerFor(id: string) {
 /** Resolve scope against real entries once. The returned immutable text is
  * both the review surface and the eventual prompt; sending does not re-read. */
 export async function captureMaterial(sourceId: string, turnId: string, targetId: string, scope: MaterialScope, excerpt?: string): Promise<MaterialSnapshot> {
-  if (!(scope in MATERIAL_SCOPES)) throw new Error("未知引用范围。");
+  if (!Object.hasOwn(MATERIAL_SCOPES, scope)) throw new Error("未知引用范围。");
   const source = await managerFor(sourceId);
   const target = sourceId === targetId ? source : await managerFor(targetId);
   const entries = source.getEntries() as SessionEntry[];

@@ -28,6 +28,9 @@ export async function GET(
     }
 
     const sm = liveRpc?.inner.sessionManager ?? SessionManager.open(filePath!);
+    if ((leafId && !sm.getEntry(leafId)) || (before && !sm.getEntry(before))) {
+      return NextResponse.json({ error: "History entry not found" }, { status: 404 });
+    }
     // `before` is the oldest entry already on the client; fetch its ancestors
     // only (excludeLeaf) so prepending the page does not duplicate `before`.
     const context = buildSessionContext(sm.getEntries() as never, before ?? leafId ?? sm.getLeafId(), {

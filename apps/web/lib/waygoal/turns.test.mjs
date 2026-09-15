@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createJiti } from "jiti";
 const jiti = createJiti(import.meta.url);
 const { projectTurns } = await jiti.import("./turns.ts");
-const { materialPrompt, materialSources } = await jiti.import("./materials.ts");
+const { materialPrompt, materialSources, addMaterial } = await jiti.import("./materials.ts");
 const message = (id, parentId, role, text) => ({ type: "message", id, parentId, message: { role, content: [{ type: "text", text }] } });
 
 test("continuous turns retain original identity as history grows and siblings are added", () => {
@@ -46,4 +46,17 @@ test("sending preserves the reviewed snapshot and original scoped source identit
   assert.equal(parsed.sources[0].turnId, "same-id");
   assert.equal(materialPrompt("ordinary", []), "ordinary");
   assert.equal(materialSources("not a reference").question, "not a reference");
+});
+
+
+test("overlapping material ranges are deduplicated on the review surface", () => {
+  const base = { sessionId: "s", turnId: "a", scope: "answer", capturedAt: "now", targetLeafId: "leaf", parts: [{ entryId: "answer", role: "assistant", text: "whole answer" }] };
+  const path = { ...base, turnId: "b", scope: "path", parts: [...base.parts, { entryId: "other", role: "user", text: "next" }] };
+  const selected = addMaterial([base], path);
+  assert.deepEqual(selected.flatMap(item => item.parts.map(part => part.entryId)), ["answer", "other"]);
+});
+
+test("a fork through metadata cannot overwrite another path's answer", () => {
+  const entries = [message("u", null, "user", "question"), message("a", "u", "assistant", "first"), { type: "model_change", id: "model", parentId: "u", provider: "e2e", modelId: "other" }, message("b", "model", "assistant", "second")];
+  assert.deepEqual(projectTurns("s", entries, "b").turns.map(turn => [turn.id, turn.answer, turn.active]), [["u", "first", false], ["b", "second", true]]);
 });

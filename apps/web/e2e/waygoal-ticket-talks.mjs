@@ -238,7 +238,7 @@ try {
   const lastBefore = twice.lastDiscussion?.sessionId;
   const sentBeforeReview = model.requests.length;
   await panel().getByRole("button", { name: "回到来源这条消息" }).click();
-  await panel().getByText("来源那边的历史，这里只看不发").waitFor();
+  await page.locator(".waygoal-canvas-preview").getByText("只读预览 · 通过 Tree 选择继续路径").waitFor();
   await delay(1500);
   const reviewed = await ticketOf("开场怎么说");
   check("reading a branch's source history sends nothing and stays read-only",

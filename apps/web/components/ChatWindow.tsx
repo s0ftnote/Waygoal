@@ -50,6 +50,7 @@ interface Props {
   onSessionForked?: (newSessionId: string, originEntryId?: string) => void;
   /** Label for the per-message fork control; the action is unchanged. */
   forkLabel?: string;
+  onNavigateEntry?: (entryId: string, message?: UserMessage) => Promise<boolean>;
   onLocateEntry?: (entryId: string) => void;
   onForkAfter?: (entryId: string) => void;
   modelsRefreshKey?: number;
@@ -247,7 +248,7 @@ function ProcessDetailsGroup({ messageCount, toolCallCount, defaultExpanded = fa
   );
 }
 
-export function ChatWindow({ promptMaterials, onPromptAccepted, composerAccessory, session, searchTarget, onSearchTargetHandled, initialScrollPosition, onScrollPositionChange, sessionRunning, newSessionCwd, newSessionDraftKey, onAgentEnd, onAttentionNeeded, onSessionCreated, onSessionForked, forkLabel, onLocateEntry, onForkAfter, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemToolsChange, onSystemInfoLoaderChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, onOpenFile, onOpenSession, onAskInNewChat, quoteSelectionEnabled = false, initialPrompt, onInitialPromptConsumed, soundEnabled = true, onSoundToggle, playDoneSound = () => {}, unlockAudio }: Props) {
+export function ChatWindow({ promptMaterials, onPromptAccepted, composerAccessory, session, searchTarget, onSearchTargetHandled, initialScrollPosition, onScrollPositionChange, sessionRunning, newSessionCwd, newSessionDraftKey, onAgentEnd, onAttentionNeeded, onSessionCreated, onSessionForked, forkLabel, onNavigateEntry, onLocateEntry, onForkAfter, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemToolsChange, onSystemInfoLoaderChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, onOpenFile, onOpenSession, onAskInNewChat, quoteSelectionEnabled = false, initialPrompt, onInitialPromptConsumed, soundEnabled = true, onSoundToggle, playDoneSound = () => {}, unlockAudio }: Props) {
   const fallbackInputRef = useRef<ChatInputHandle | null>(null);
   chatInputRef ??= fallbackInputRef;
   const { t } = useI18n();
@@ -602,7 +603,7 @@ export function ChatWindow({ promptMaterials, onPromptAccepted, composerAccessor
       let found = history.entryIds.includes(searchTarget.entryId);
       let cursor = history.historyCursor;
       let hasMore = history.hasEarlierMessages;
-      while (!found && !sessionBusy && hasMore && cursor && !loadingOlderRef.current && !controller.signal.aborted) {
+      while (!found && hasMore && cursor && !loadingOlderRef.current && !controller.signal.aborted) {
         loadingOlderRef.current = true;
         const container = scrollContainerRef.current;
         if (container) prevScrollDistanceRef.current = captureScrollDistance(container.scrollHeight, container.scrollTop);
@@ -618,13 +619,17 @@ export function ChatWindow({ promptMaterials, onPromptAccepted, composerAccessor
         prevScrollDistanceRef.current = null;
         setVisibleCount((current) => Math.max(current, (searchHistoryRef.current.entryIds.length + 200) * 2));
         setPendingSearchScroll(searchTarget);
-      } else {
+      } else if (!sessionBusy) {
         onSearchTargetHandled?.(searchTarget);
       }
     };
     void locate();
     return () => controller.abort();
   }, [searchTarget, loading, activeLeafId, sessionBusy, loadContext, onSearchTargetHandled, scrollContainerRef]);
+
+  useEffect(() => {
+    if (sessionBusy && searchTarget && entryIds.includes(searchTarget.entryId)) setPendingSearchScroll(searchTarget);
+  }, [entryIds, searchTarget, sessionBusy]);
 
   useLayoutEffect(() => {
     if (!pendingSearchScroll || pendingSearchScroll !== searchTarget) return;
@@ -1067,12 +1072,12 @@ export function ChatWindow({ promptMaterials, onPromptAccepted, composerAccessor
                     onOpenSession={onOpenSession}
                     entryId={entryIds[idx]}
                     searchBlock={entryIds[idx] === pendingSearchScroll?.entryId ? searchBlock : undefined}
-                    onFork={sessionBusy || isNew || (idx === 0 && msg.role === "user") ? undefined : handleFork}
+                    onFork={sessionBusy || isNew ? undefined : handleFork}
                     forking={forkingEntryId === entryIds[idx]}
                     forkLabel={forkLabel}
-                    onNavigate={sessionBusy ? undefined : handleNavigate}
+                    onNavigate={sessionBusy ? undefined : onNavigateEntry ?? handleNavigate}
                     prevAssistantEntryId={sessionBusy ? undefined : prevAssistantEntryId}
-                    onEditContent={handleEditContent}
+                    onEditContent={onNavigateEntry ? undefined : handleEditContent}
                     showTimestamp={showTimestamp}
                     prevTimestamp={idx > 0 ? (messages[idx - 1] as AgentMessage & { timestamp?: number }).timestamp : undefined}
                     sessionId={session?.id ?? sessionIdRef.current ?? undefined}

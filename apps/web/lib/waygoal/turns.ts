@@ -37,13 +37,16 @@ export function projectTurns(sessionId: string, entries: SessionEntry[], activeL
   const firstChildren = new Map<string | null, string>();
   for (const entry of entries) if (!firstChildren.has(entry.parentId)) firstChildren.set(entry.parentId, entry.id);
   const owners = new Map<string, WaygoalTurn>();
+  const divergentMetadata = new Set<string>();
   const turns: WaygoalTurn[] = [];
   for (const entry of entries) {
     const parent = entry.parentId ? owners.get(entry.parentId) : undefined;
     const isUser = entry.type === "message" && entry.message.role === "user";
     const kind = entry.type === "compaction" ? "compaction" : entry.type === "branch_summary" ? "summary" : isUser ? "turn" : "continuation";
-    const visible = entry.type === "message" || entry.type === "compaction" || entry.type === "branch_summary" || entry.type === "custom_message";
-    const starts = isUser || kind === "compaction" || kind === "summary" || (visible && (!parent || firstChildren.get(entry.parentId) !== entry.id));
+    const visible = entry.type === "message" || entry.type === "compaction" || entry.type === "branch_summary" || (entry.type === "custom_message" && entry.display);
+    const divergent = firstChildren.get(entry.parentId) !== entry.id || Boolean(entry.parentId && divergentMetadata.has(entry.parentId));
+    const starts = isUser || kind === "compaction" || kind === "summary" || (visible && (!parent || divergent));
+    if (!visible && divergent) divergentMetadata.add(entry.id);
     let turn = parent;
     if (starts) {
       turn = { id: entry.id, parentId: parent?.id ?? null, entryIds: [], endId: entry.id,
@@ -56,7 +59,7 @@ export function projectTurns(sessionId: string, entries: SessionEntry[], activeL
     }
     if (!turn) continue;
     owners.set(entry.id, turn);
-    turn.endId = entry.id;
+    if (!divergent || starts) turn.endId = entry.id;
     turn.active ||= activeIds.has(entry.id);
     if (visible) turn.entryIds.push(entry.id);
     if (entry.type === "compaction" || entry.type === "branch_summary") turn.answer = entry.summary;

@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { WaygoalTurnLayout } from "@/lib/waygoal/types";
 import type { WaygoalTurns, WaygoalTurn } from "@/lib/waygoal/turns";
 import { MATERIAL_SCOPES, type MaterialScope, type MaterialSnapshot } from "@/lib/waygoal/materials";
@@ -173,7 +173,7 @@ export function WaygoalTurnCanvas({ sessionId, layouts, onSaveLayout, sessions, 
         else setCamera(camera => ({ ...camera, x: drag.origin.x + dx, y: drag.origin.y + dy }));
       }}
       onPointerUp={() => { if (gesture.current?.id && gesture.current.moved) onSaveLayout(sourceId, layoutRef.current); requestAnimationFrame(() => { gesture.current = null; }); }} onPointerCancel={() => { gesture.current = null; }}>
-      <div className="waygoal-turn-world" style={{ transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.scale})` }}>
+      <div className="waygoal-turn-world" style={{ "--turn-scale": camera.scale, transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.scale})` } as CSSProperties}>
         <svg className="waygoal-turn-lines" width="1" height="1" aria-hidden="true">
           {cards.map(card => { const parent = cards.find(parent => parent.id === card.parentId); return parent ? <path key={card.id} d={edge(parent.position, card.position)} className={card.active ? "active" : ""} /> : null; })}
           {layout.links.map(([a, b]) => { const from = cards.find(card => card.id === a), to = cards.find(card => card.id === b); return from && to ? <path key={`${a}:${b}`} d={edge(from.position, to.position)} className="association" /> : null; })}

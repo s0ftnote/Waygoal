@@ -400,3 +400,5 @@
   .waygoal-stage:has(.waygoal-turn-canvas) .waygoal-panel-head .waygoal-eyebrow { display: none; }
 }
 .waygoal-canvas-area:has(.waygoal-turn-canvas) > .waygoal-thumb-box { display: none; }
+/* Keep the dot small while its pointer target remains usable at any zoom. */
+.waygoal-turn-port::before { content: ""; position: absolute; width: calc(44px / var(--turn-scale, 1)); height: calc(44px / var(--turn-scale, 1)); min-width: 44px; min-height: 44px; left: 50%; top: 50%; transform: translate(-50%, -50%); }

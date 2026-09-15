@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import type { AgentMessage, SessionContext, ToolResultMessage } from "@/lib/types";
+import type { AgentMessage, SessionContext, ToolResultMessage, UserMessage } from "@/lib/types";
 import { MessageView } from "../MessageView";
 
 interface Props {
@@ -14,7 +14,7 @@ interface Props {
   /** Continuing or forking is refused while Pi is working on this session. */
   busyReason: string | null;
   forkingEntryId: string | null;
-  onFork: (entryId: string) => void;
+  onFork: (entryId: string, message?: UserMessage) => void;
 }
 
 /** Read-only, paginated history inside the canvas; never mounts a composer. */
@@ -70,7 +70,7 @@ export function WaygoalPathView({ sessionId, leafId, cwd, label, busyReason, for
         cwd={cwd}
         entryId={context.entryIds[index]}
         sessionId={sessionId}
-        onFork={busyReason || (index === 0 && message.role === "user") ? undefined : onFork}
+        onFork={busyReason ? undefined : entryId => onFork(entryId, message.role === "user" ? message : undefined)}
         forking={forkingEntryId === context.entryIds[index]}
         forkLabel="从这里分叉"
       />)}

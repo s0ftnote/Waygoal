@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 import { existsSync, realpathSync, writeFileSync } from "fs";
 import { resolve } from "path";
 import { validateAgentImages } from "./image-attachments";
+import { writePrivateFileAtomicSync } from "./atomic-file";
 import { invalidateModelsCache } from "./models-cache";
 import { resolveVisibleModels, selectInitialModelScope } from "./model-scope";
 import {
@@ -43,6 +44,15 @@ import { createSubagentController } from "./subagent-runtime";
 import { isBuiltInSubagentsEnabled } from "./subagent-settings";
 import { resolveShellTools } from "./powershell-settings";
 import { CHAT_ONLY_RESOURCE_LOADER_OPTIONS, contextFilesSystemPrompt } from "./chat-only";
+
+/** Pi defers files with no assistant message. A fork is already an explicit
+ * user action, so materialize its header/path before handing its ID to the UI. */
+function persistForkFile(manager: SessionManager, filePath: string): void {
+  if (existsSync(filePath)) return;
+  const header = manager.getHeader();
+  if (!header) throw new Error("Forked session is missing its header");
+  writePrivateFileAtomicSync(filePath, [header, ...manager.getEntries()].map(entry => JSON.stringify(entry)).join("\n") + "\n");
+}
 import {
   appendSessionToolSelection,
   readSessionToolSelection,
@@ -296,13 +306,23 @@ export class AgentSessionWrapper {
   }
 
   start(): void {
+    let messageEventId = 0;
     this.unsubscribe = this.inner.subscribe((event: AgentEvent) => {
       if (event.type === "agent_start") this.agentRunNeedsCompletion = true;
       if (event.type === "agent_end") {
         invalidateSessionListCache();
       }
       if (IDLE_RESET_EVENT_TYPES.has(event.type)) this.resetIdleTimer();
-      this.emit(event);
+      if (event.type === "message_end") {
+        const identity = ++messageEventId;
+        this.emit({ ...event, messageEventId: identity });
+        // Pi 0.85 persists immediately AFTER notifying listeners. Defer only
+        // the identity notification; original event ordering stays unchanged.
+        queueMicrotask(() => {
+          const entry = this.inner.sessionManager.getEntries().findLast(entry => entry.type === "message" && entry.message === event.message);
+          if (entry) this.emit({ type: "message_entry", messageEventId: identity, entryId: entry.id });
+        });
+      } else this.emit(event);
       if (event.type === "agent_settled") this.notifyAgentRunCompleteIfIdle();
     });
     this.resetIdleTimer();
@@ -737,21 +757,25 @@ export class AgentSessionWrapper {
 
           const sessionDir = sessionManager.getSessionDir();
           let newSessionFile: string;
+          let forkManager: SessionManager;
 
           if (!entry.parentId) {
             // Fork before the first message: create an empty session linked to this one
             const newManager = SessionManager.create(sessionManager.getCwd(), sessionDir);
             newManager.newSession({ parentSession: currentSessionFile });
             newSessionFile = newManager.getSessionFile() as string;
+            forkManager = newManager;
           } else {
             // Fork after some history: copy path up to (but not including) the fork point
             const sourceManager = SessionManager.open(currentSessionFile, sessionDir);
             const forkedPath = sourceManager.createBranchedSession(entry.parentId);
             if (!forkedPath) throw new Error("Failed to create forked session");
             newSessionFile = forkedPath;
+            forkManager = sourceManager;
           }
 
-          const newSessionId = SessionManager.open(newSessionFile, sessionDir).getSessionId();
+          persistForkFile(forkManager, newSessionFile);
+          const newSessionId = forkManager.getSessionId();
           cacheSessionPath(newSessionId, newSessionFile);
           invalidateSessionListCache();
           await this.shutdownAfterSessionReplacement("fork");
@@ -774,6 +798,7 @@ export class AgentSessionWrapper {
         const sourceManager = SessionManager.open(currentSessionFile, sessionDir);
         const forkedPath = sourceManager.createBranchedSession(entryId);
         if (!forkedPath) throw new Error("Failed to create forked session");
+        persistForkFile(sourceManager, forkedPath);
 
         const newSessionId = SessionManager.open(forkedPath, sessionDir).getSessionId();
         cacheSessionPath(newSessionId, forkedPath);
