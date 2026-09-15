@@ -182,7 +182,18 @@ try {
     await panel().getByText(`回复: ${text}`, { exact: true }).waitFor({ timeout: 60_000 });
     await delay(600);
   };
-  const openCard = async (id) => { await closePanel(); await page.locator(`[data-node="${id}"]`).click(); await panel().waitFor(); };
+  const openCard = async (id) => {
+    await closePanel();
+    // Continuing a discussion centres that session and may move its source
+    // ticket out of view. Navigate back before interacting with the ticket.
+    await page.getByRole("button", { name: "回到全景", exact: true }).click();
+    await delay(400);
+    // The retained map-note layout may overlap another card. Use the canvas's
+    // existing keyboard activation for this source-reading acceptance suite.
+    await page.locator(`[data-node="${id}"]`).focus();
+    await page.locator(`[data-node="${id}"]`).press("Enter");
+    await panel().waitFor();
+  };
   const checkNote = () => page.locator(`[data-map-check="${mapPath}"]`);
 
   await page.goto(`${base}/waygoal?cwd=${encodeURIComponent(work)}`, { waitUntil: "domcontentloaded" });
@@ -237,7 +248,9 @@ try {
     JSON.stringify({ requests, now: model.requests.length }));
 
   // ---- From a ticket's conclusion into the real discussion ----------------
-  await page.locator(`[data-talk-start="${roomPath}"]`).click();
+  // The ticket is already open: use its visible discussion entry rather than
+  // reaching behind the panel into another map's floating note.
+  await panel().getByRole("button", { name: "在这张票下开始聊", exact: true }).click();
   await composer().waitFor();
   await send("客厅够坐六个人吗");
   const talkId = await waitFor(async () => (await idsOn())[0], "the discussion started under the ticket");
