@@ -243,6 +243,9 @@ try {
   await page.locator(`[data-turn="${liveTurn.id}"] .waygoal-turn-content`).click();
   check("a new card can locate its saved original while the model is still running", (await snapshot()).nodes.find(node => node.id === forkId).running && await panel.locator(`[data-entry-id="${liveTurn.id}"]`).isVisible());
   await waitFor(async () => !(await snapshot()).nodes.some(node => node.running), "slow run ended"); model.slowMs = 0;
+  await page.setViewportSize({ width: 707, height: 844 });
+  await delay(500);
+  check("the stacked chat fills intermediate-width viewports", await panel.evaluate(element => Math.abs(element.getBoundingClientRect().width - document.documentElement.clientWidth) <= 1));
   await page.setViewportSize({ width: 390, height: 844 });
   await delay(500);
   check("narrow screen retains canvas and composer without horizontal overflow", await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth) && await composer.isVisible() && await page.locator(".waygoal-turn-viewport").isVisible());
@@ -276,7 +279,7 @@ try {
   await page.locator(`[data-turn="${firstTurn.id}"]`).waitFor();
   await page.locator(`[data-turn="${firstTurn.id}"] .waygoal-turn-content`).click();
   const preview = page.locator(".waygoal-canvas-preview");
-  await preview.getByText("共同问题", { exact: true }).last().hover();
+  await preview.locator(".waygoal-readonly-body").getByText("共同问题", { exact: true }).hover();
   await preview.getByRole("button", { name: "从这里分叉", exact: true }).first().click();
   await waitFor(async () => await composer.inputValue() === "共同问题", "preview fork restores original user message");
   const emptyFork = await waitFor(async () => (await snapshot()).nodes.find(node => ![id, forkId, longId].includes(node.id)), "fork before first answer");

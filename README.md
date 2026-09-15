@@ -61,7 +61,7 @@ Waygoal 是通过 Pi extension 接入的本地无限画布会话空间。用户�
 
 ## 当前版本
 
-首个预发布版本 **v0.1.0-alpha.1** 已接入连续聊天与真实 Pi 轮次：右侧持续聊天，左侧卡片使用原始消息身份进行双向定位；其他路径可只读预览，通过 Tree 明确选择继续位置。各路径保留未发送文字、图片和材料草稿，引用原文在审阅后经原有 prompt 通道发送。详情见[版本说明](docs/releases/v0.1.0-alpha.1.md)及[接入验证记录](docs/research/turn-cards-integration-results.md)。
+首个预发布版本 **v0.1.0-alpha.2** 已接入连续聊天与真实 Pi 轮次：右侧持续聊天，左侧卡片使用原始消息身份进行双向定位；其他路径可只读预览，通过 Tree 明确选择继续位置。各路径保留未发送文字、图片和材料草稿，引用原文在审阅后经原有 prompt 通道发送。详情见[版本说明](docs/releases/v0.1.0-alpha.2.md)及[接入验证记录](docs/research/turn-cards-integration-results.md)。
 
 已确认的产品规格见 [Spec #1](https://github.com/s0ftnote/Waygoal/issues/1)，实现拆分、阻塞关系及建议顺序见[实现票清单](docs/spec/tickets.md)，规格正文的本地底稿见 [docs/spec/spec.md](docs/spec/spec.md)。
 

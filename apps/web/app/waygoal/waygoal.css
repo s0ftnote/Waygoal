@@ -385,7 +385,7 @@
 @media (max-width: 767px) {
   .waygoal-stage:has(.waygoal-turn-canvas) { flex-direction: column; }
   .waygoal-stage:has(.waygoal-turn-canvas) .waygoal-canvas-area { flex: 0 0 42%; min-height: 200px; }
-  .waygoal-stage:has(.waygoal-turn-canvas) .waygoal-panel { position: relative; inset: auto; flex: 1; min-height: 0; border-top: 1px solid var(--wg-border); }
+  .waygoal-stage:has(.waygoal-turn-canvas) .waygoal-panel { position: relative; inset: auto; flex: 1; box-sizing: border-box; width: 100%; min-width: 0; min-height: 0; border-top: 1px solid var(--wg-border); }
   .waygoal-turn-toolbar { padding: 6px 10px; gap: 5px; }
   .waygoal-turn-toolbar button, .waygoal-turn-toolbar select { padding: 4px 7px; }
 }
