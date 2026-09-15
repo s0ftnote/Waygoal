@@ -9,7 +9,7 @@ import { projectIdentityKey } from "../project-identity";
 import { normalizeWorkspaceInput, readRecord, workspaceDir, workspaceId } from "./dirs";
 import { claimSessionsOn, rememberedWorkspace } from "./workspaces";
 import { nextFreePosition } from "./layout";
-import type { WaygoalLayoutChange } from "./types";
+import type { WaygoalLayoutChange, WaygoalTurnLayout } from "./types";
 export { nextFreePosition } from "./layout";
 import type { SessionInfo } from "../types";
 import { REMOTE_PREFIX } from "./remote";
@@ -114,6 +114,14 @@ const samePoint = (a: WaygoalPoint | undefined, b: WaygoalPoint) => a?.x === b.x
 const matchesPositions = (nodes: Record<string, WaygoalPoint>, expected: Record<string, WaygoalPoint>) =>
   Object.entries(expected).every(([id, point]) => samePoint(nodes[id], point));
 
+function validTurnLayout(value: unknown): value is WaygoalTurnLayout {
+  if (!value || typeof value !== "object") return false;
+  const layout = value as WaygoalTurnLayout;
+  return Boolean(layout.positions) && typeof layout.positions === "object" && !Array.isArray(layout.positions)
+    && Object.entries(layout.positions).every(([id, point]) => Boolean(id) && isPoint(point))
+    && Array.isArray(layout.links) && layout.links.every(pair => Array.isArray(pair) && pair.length === 2 && pair.every(isNonEmptyString) && pair[0] !== pair[1]);
+}
+
 export function readCanvasRecord(scope: WaygoalScope): WaygoalCanvasRecord {
   const { cwd } = scope;
   const path = recordPath(scope);
@@ -141,10 +149,12 @@ export function readCanvasRecord(scope: WaygoalScope): WaygoalCanvasRecord {
         .map(([t, place]) => [t, { sessionId: place.sessionId, entryId: typeof place.entryId === "string" && place.entryId ? place.entryId : null }])),
       groups: validGroups(parsed.groups),
       links: validLinks(parsed.links),
+      ...(parsed.turnLayouts ? { turnLayouts: Object.fromEntries(Object.entries(parsed.turnLayouts).flatMap(([id, layout]) => validTurnLayout(layout) ? [[id, layout]] : [])) } : {}),
       ...(validLayout(parsed.layoutUndo) && matchesPositions(nodes, parsed.layoutUndo.after) ? { layoutUndo: parsed.layoutUndo } : {}),
       ...(view ? { view } : {}),
       lastViewed: typeof parsed.lastViewed === "string" ? parsed.lastViewed : null,
       lastViewedEntry: typeof parsed.lastViewedEntry === "string" ? parsed.lastViewedEntry : null,
+      ...(parsed.preview && isNonEmptyString(parsed.preview.sessionId) ? { preview: { sessionId: parsed.preview.sessionId, entryId: typeof parsed.preview.entryId === "string" ? parsed.preview.entryId : null } } : {}),
       updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : emptyRecord(cwd).updatedAt,
     };
   }, () => emptyRecord(cwd));
@@ -159,6 +169,17 @@ export function applyCanvasPatch(scope: WaygoalScope, patch: WaygoalCanvasPatch)
   const { cwd } = scope;
   const record = readCanvasRecord(scope);
   let changed = false;
+  if ("preview" in patch) {
+    if (patch.preview !== null && (!patch.preview || !isNonEmptyString(patch.preview.sessionId) || (patch.preview.entryId !== null && !isNonEmptyString(patch.preview.entryId)))) throw new Error("预览位置无效。");
+    record.preview = patch.preview;
+    changed = true;
+  }
+  if (patch.turnLayout) {
+    const { sessionId, layout } = patch.turnLayout;
+    if (!isNonEmptyString(sessionId) || !validTurnLayout(layout)) throw new Error("轮次布局无效。");
+    record.turnLayouts = { ...record.turnLayouts, [sessionId]: layout };
+    changed = true;
+  }
   if (patch.layout) {
     if (!validLayout(patch.layout) || !matchesPositions(record.nodes, patch.layout.before)) {
       throw new Error("选中的卡片位置已变化，请重新整理。");
@@ -413,9 +434,11 @@ export function buildSnapshot(
     // The position belongs to that session only; it must never be carried over.
     lastViewedEntry: lastViewedMissing ? null : record.lastViewedEntry ?? null,
     lastViewedMissing,
+    ...(record.preview ? { preview: record.preview } : {}),
     groups,
     links: record.links,
     canUndoLayout: Boolean(record.layoutUndo),
+    ...(record.turnLayouts ? { turnLayouts: record.turnLayouts } : {}),
   };
 }
 

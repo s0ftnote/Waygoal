@@ -30,7 +30,12 @@ import {
   VISIBLE_PAGE_SIZE,
 } from "@/lib/chat-lazy-load";
 
+import type { MaterialSnapshot } from "@/lib/waygoal/materials";
+
 interface Props {
+  promptMaterials?: MaterialSnapshot[];
+  onPromptAccepted?: () => void;
+  composerAccessory?: ReactNode;
   session: SessionInfo | null;
   searchTarget?: { sessionId: string; entryId: string; blockIndex?: number } | null;
   onSearchTargetHandled?: (target: { sessionId: string; entryId: string }) => void;
@@ -45,6 +50,8 @@ interface Props {
   onSessionForked?: (newSessionId: string, originEntryId?: string) => void;
   /** Label for the per-message fork control; the action is unchanged. */
   forkLabel?: string;
+  onLocateEntry?: (entryId: string) => void;
+  onForkAfter?: (entryId: string) => void;
   modelsRefreshKey?: number;
   chatInputRef?: React.RefObject<ChatInputHandle | null>;
   onBranchDataChange?: (tree: SessionTreeNode[], activeLeafId: string | null, onLeafChange: (leafId: string | null) => void) => void;
@@ -240,7 +247,9 @@ function ProcessDetailsGroup({ messageCount, toolCallCount, defaultExpanded = fa
   );
 }
 
-export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initialScrollPosition, onScrollPositionChange, sessionRunning, newSessionCwd, newSessionDraftKey, onAgentEnd, onAttentionNeeded, onSessionCreated, onSessionForked, forkLabel, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemToolsChange, onSystemInfoLoaderChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, onOpenFile, onOpenSession, onAskInNewChat, quoteSelectionEnabled = false, initialPrompt, onInitialPromptConsumed, soundEnabled = true, onSoundToggle, playDoneSound = () => {}, unlockAudio }: Props) {
+export function ChatWindow({ promptMaterials, onPromptAccepted, composerAccessory, session, searchTarget, onSearchTargetHandled, initialScrollPosition, onScrollPositionChange, sessionRunning, newSessionCwd, newSessionDraftKey, onAgentEnd, onAttentionNeeded, onSessionCreated, onSessionForked, forkLabel, onLocateEntry, onForkAfter, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemToolsChange, onSystemInfoLoaderChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, onOpenFile, onOpenSession, onAskInNewChat, quoteSelectionEnabled = false, initialPrompt, onInitialPromptConsumed, soundEnabled = true, onSoundToggle, playDoneSound = () => {}, unlockAudio }: Props) {
+  const fallbackInputRef = useRef<ChatInputHandle | null>(null);
+  chatInputRef ??= fallbackInputRef;
   const { t } = useI18n();
   const isMobile = useIsMobile();
   const completionNotificationsEnabled = session?.relation?.kind !== "subagent";
@@ -292,6 +301,7 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
     handleToolPresetChange, handleThinkingLevelChange, loadSlashCommands, scrollUserMsgToTop,
     loadContext, activeLeafId, scrollToBottom, scrollToMessage,
   } = useAgentSession({
+    promptMaterials, onPromptAccepted,
     session, sessionRunning, newSessionCwd, newSessionDraftKey, onAgentEnd: wrappedOnAgentEnd, onAttentionNeeded, onSessionCreated, onSessionForked,
     modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemToolsChange, onSystemInfoLoaderChange, onSessionStatsPanelOpen,
     deferInitialScroll: Boolean(pendingScrollRestore),
@@ -590,14 +600,18 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
     const locate = async () => {
       const history = searchHistoryRef.current;
       let found = history.entryIds.includes(searchTarget.entryId);
-      if (!found && !sessionBusy && history.hasEarlierMessages && history.historyCursor && !loadingOlderRef.current) {
+      let cursor = history.historyCursor;
+      let hasMore = history.hasEarlierMessages;
+      while (!found && !sessionBusy && hasMore && cursor && !loadingOlderRef.current && !controller.signal.aborted) {
         loadingOlderRef.current = true;
         const container = scrollContainerRef.current;
         if (container) prevScrollDistanceRef.current = captureScrollDistance(container.scrollHeight, container.scrollTop);
-        // ponytail: one extra page of 200 entries; deeper or other-branch hits just open the session.
-        const context = await loadContext(searchTarget.sessionId, activeLeafId, history.historyCursor, { tail: 200, signal: controller.signal });
+        // Follow the original entry identity through as many history pages as needed.
+        const context = await loadContext(searchTarget.sessionId, activeLeafId, cursor, { tail: 200, signal: controller.signal });
         loadingOlderRef.current = false;
         found = Boolean(context?.entryIds.includes(searchTarget.entryId));
+        hasMore = Boolean(context?.hasMore && context.oldestEntryId !== cursor);
+        cursor = context?.oldestEntryId ?? null;
       }
       if (controller.signal.aborted) return;
       if (found) {
@@ -1067,7 +1081,11 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
                 );
                 if (!isVisible || currentRefIdx === undefined) return view;
                 return (
-                  <div key={`${keyPrefix}-${messageKey}`} data-entry-id={entryIds[idx]} ref={options.attachRef === false ? undefined : attachVisibleRef(idx, currentRefIdx)}>
+                  <div key={`${keyPrefix}-${messageKey}`} className="chat-entry" data-entry-id={entryIds[idx]} ref={options.attachRef === false ? undefined : attachVisibleRef(idx, currentRefIdx)}>
+                    {onLocateEntry && entryIds[idx] && <div className="waygoal-message-actions">
+                      <button type="button" onClick={() => onLocateEntry(entryIds[idx])}>定位卡片</button>
+                      {onForkAfter && msg.role === "assistant" && !sessionBusy && <button type="button" onClick={() => onForkAfter(entryIds[idx])}>从这里分叉</button>}
+                    </div>}
                     {view}
                   </div>
                 );
@@ -1232,6 +1250,8 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
           <ChatMinimap
             messages={messages}
             streamingMessage={streamState.streamingMessage}
+            entryIds={entryIds}
+            onLocateEntry={onLocateEntry}
             scrollContainer={scrollContainerRef}
             messageRefs={messageRefs}
             onRevealHistory={revealHistoryForMinimap}
@@ -1339,6 +1359,7 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
             </div>
           </div>
         )}
+        {composerAccessory}
         {chatInputElement}
         <ExtensionStatusBar statuses={extensionStatuses} widgets={extensionWidgets} />
       </div>

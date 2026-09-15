@@ -1,5 +1,9 @@
 export interface WaygoalPoint { x: number; y: number }
 export interface WaygoalView { x: number; y: number; scale: number }
+export interface WaygoalTurnLayout {
+  positions: Record<string, WaygoalPoint>;
+  links: [string, string][];
+}
 export interface WaygoalLayoutChange {
   before: Record<string, WaygoalPoint>;
   after: Record<string, WaygoalPoint>;
@@ -8,6 +12,8 @@ export interface WaygoalLayoutChange {
 /** Local canvas record for one workspace. Pi keeps the sessions; this only
  *  keeps identity, layout and the last viewed position. */
 export interface WaygoalCanvasRecord {
+  preview?: WaygoalPlace | null;
+  turnLayouts?: Record<string, WaygoalTurnLayout>;
   version: 1;
   cwd: string;
   nodes: Record<string, WaygoalPoint>;
@@ -123,6 +129,8 @@ export interface WaygoalManualLink {
 }
 
 export interface WaygoalSnapshot {
+  preview?: WaygoalPlace | null;
+  turnLayouts?: Record<string, WaygoalTurnLayout>;
   canUndoLayout?: boolean;
   cwd: string;
   workspaceId: string;
@@ -137,6 +145,8 @@ export interface WaygoalSnapshot {
 }
 
 export interface WaygoalCanvasPatch {
+  preview?: WaygoalPlace | null;
+  turnLayout?: { sessionId: string; layout: WaygoalTurnLayout };
   layout?: WaygoalLayoutChange;
   undoLayout?: boolean;
   positions?: Record<string, WaygoalPoint>;

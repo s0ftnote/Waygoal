@@ -12,9 +12,11 @@ import type {
   UserMessage,
 } from "@/lib/types";
 import { isBlockingExtensionUiRequest } from "@/lib/browser-notifications";
+import { materialPrompt, type MaterialSnapshot } from "@/lib/waygoal/materials";
+import { getUserMessageText, getUserMessageDraftImages } from "@/components/ChatInput";
 import { normalizeToolCalls } from "@/lib/normalize";
 import { isPromptRejectedError, sendAgentCommand } from "@/lib/agent-client";
-import { clearDraft, rekeyDraft, restoreDraftSubmission } from "@/lib/draft-store";
+import { clearDraft, rekeyDraft, restoreDraftSubmission, setDraft, getDraft } from "@/lib/draft-store";
 import { getPreferredToolPreset, setPreferredToolPreset } from "@/lib/tool-preset-preference";
 import { getPresetFromToolNames, getToolNamesForPreset, type ToolEntry, type ToolPreset } from "@/lib/tool-presets";
 import type { SessionStatsInfo } from "@/lib/pi-types";
@@ -139,6 +141,8 @@ export type BuiltinSlashCommandResult =
   | { handled: true; message?: string; error?: string; action?: "openSessionStats" };
 
 export interface UseAgentSessionOptions {
+  promptMaterials?: MaterialSnapshot[];
+  onPromptAccepted?: () => void;
   session: SessionInfo | null;
   sessionRunning?: boolean;
   newSessionCwd: string | null;
@@ -277,7 +281,7 @@ type SlashCommandsResponse = {
 export function useAgentSession(opts: UseAgentSessionOptions) {
   const {
     session, sessionRunning, newSessionCwd, newSessionDraftKey, onAgentEnd, onAttentionNeeded, onSessionCreated, onSessionForked,
-    modelsRefreshKey, onBranchDataChange, onSystemPromptChange, onSystemToolsChange, onSystemInfoLoaderChange, onSessionStatsPanelOpen,
+    promptMaterials, onPromptAccepted, modelsRefreshKey, onBranchDataChange, onSystemPromptChange, onSystemToolsChange, onSystemInfoLoaderChange, onSessionStatsPanelOpen,
   } = opts;
 
   const isNew = session === null && newSessionCwd !== null;
@@ -1309,6 +1313,20 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       return;
     }
 
+    const originalMessage = message;
+    if (promptMaterials?.length) {
+      if (isSlashCommandPrompt) {
+        addNotice({ type: "error", message: "引用材料请用普通消息发送；命令输入请先移除材料。" });
+        restoreSubmission(message, images, composerDraftKey);
+        return;
+      }
+      if (promptMaterials.some(material => material.targetLeafId !== promptMaterials[0].targetLeafId)) {
+        addNotice({ type: "error", message: "材料来自不同继续位置，请重新选择。" });
+        restoreSubmission(message, images, composerDraftKey);
+        return;
+      }
+      message = materialPrompt(message, promptMaterials);
+    }
     const promptRunId = promptRunIdRef.current + 1;
     cancelEventStreamGrace();
     rpcPromptPendingRef.current = true;
@@ -1354,6 +1372,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         await sendAgentCommand(sid, {
           type: "prompt",
           message,
+          ...(promptMaterials?.length ? { expectedLeafId: promptMaterials[0].targetLeafId } : {}),
           ...(piImages?.length ? { images: piImages } : {}),
         });
         promoteNewSession(1, message);
@@ -1364,11 +1383,13 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         await sendAgentCommand(session.id, {
           type: "prompt",
           message,
+          ...(promptMaterials?.length ? { expectedLeafId: promptMaterials[0].targetLeafId } : {}),
           ...(piImages?.length ? { images: piImages } : {}),
         });
       } else {
         throw new Error("No active session for the prompt");
       }
+      onPromptAccepted?.();
       if (isSlashCommandPrompt && sentSessionId) {
         void waitForPromptSettlement(sentSessionId, promptRunId);
       }
@@ -1390,7 +1411,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           : [...prev.slice(0, optimisticIndex), ...prev.slice(optimisticIndex + 1)];
       });
       addNotice({ type: "error", message: e instanceof Error ? e.message : String(e) });
-      restoreSubmission(message, images, composerDraftKey);
+      restoreSubmission(originalMessage, images, composerDraftKey);
       optimisticUserMessageKeyRef.current = null;
       // Rejection only describes this submission. Another tab or an event we
       // missed may still have a real run active for the same session, so keep
@@ -1405,7 +1426,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       setAgentPhase(null);
       dispatch({ type: "end" });
     }
-  }, [isNew, newSessionCwd, newSessionModel, session, ensureNewSession, ensureEventsConnected, promoteNewSession, waitForPromptSettlement, addNotice, cancelEventStreamGrace, closeEvents, composerDraftKey, reconcileAgentState, restoreSubmission]);
+  }, [promptMaterials, onPromptAccepted, isNew, newSessionCwd, newSessionModel, session, ensureNewSession, ensureEventsConnected, promoteNewSession, waitForPromptSettlement, addNotice, cancelEventStreamGrace, closeEvents, composerDraftKey, reconcileAgentState, restoreSubmission]);
 
   const executeBash = useCallback(async (command: string, excludeFromContext: boolean) => {
     if (agentRunningRef.current || bashRunningRef.current) return;
@@ -1465,6 +1486,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       });
       const { cancelled, newSessionId } = result ?? {};
       if (!cancelled && newSessionId) {
+        const source = messages[entryIds.indexOf(entryId)];
+        if (source?.role === "user") setDraft(newSessionId, { value: getUserMessageText(source), images: getUserMessageDraftImages(source) });
         onSessionForked?.(newSessionId, entryId);
       }
     } catch (e) {
@@ -1472,27 +1495,29 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     } finally {
       setForkingEntryId(null);
     }
-  }, [onSessionForked]);
+  }, [onSessionForked, messages, entryIds]);
 
-  const handleNavigate = useCallback(async (entryId: string) => {
-    if (bashRunningRef.current) return;
+  const handleNavigate = useCallback(async (entryId: string): Promise<boolean> => {
+    if (agentRunningRef.current || bashRunningRef.current) return false;
     const sid = sessionIdRef.current;
-    if (!sid) return;
-    sendAgentCommand(sid, { type: "navigate_tree", targetId: entryId }).catch(() => {});
-    setActiveLeafId(entryId);
-    await loadContext(sid, entryId);
-  }, [loadContext]);
+    if (!sid) return false;
+    const draft = getDraft(sid);
+    try {
+      const result = await sendAgentCommand<{ cancelled?: boolean; leafId?: string | null }>(sid, { type: "navigate_tree", targetId: entryId });
+      if (result?.cancelled) return false;
+      if (draft) setDraft(`waygoal-path:${sid}:${activeLeafId ?? "root"}`, draft);
+      setActiveLeafId(result?.leafId ?? entryId);
+      await loadContext(sid, result?.leafId ?? entryId);
+      return true;
+    } catch (error) {
+      addNotice({ type: "error", message: error instanceof Error ? error.message : String(error) });
+      return false;
+    }
+  }, [activeLeafId, loadContext, addNotice]);
 
   const handleLeafChange = useCallback(async (leafId: string | null) => {
-    if (bashRunningRef.current) return;
-    setActiveLeafId(leafId);
-    const sid = sessionIdRef.current;
-    if (!sid) return;
-    await loadContext(sid, leafId);
-    if (leafId) {
-      sendAgentCommand(sid, { type: "navigate_tree", targetId: leafId }).catch(() => {});
-    }
-  }, [loadContext]);
+    if (leafId) await handleNavigate(leafId);
+  }, [handleNavigate]);
 
   const handleModelChange = useCallback(async (provider: string, modelId: string) => {
     if (isNew) {

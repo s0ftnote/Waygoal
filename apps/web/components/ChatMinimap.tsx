@@ -14,6 +14,8 @@ import styles from "./ChatMinimap.module.css";
 
 interface Props {
   messages: AgentMessage[];
+  entryIds?: string[];
+  onLocateEntry?: (entryId: string) => void;
   streamingMessage: Partial<AgentMessage> | null;
   scrollContainer: RefObject<HTMLDivElement | null>;
   messageRefs: RefObject<(HTMLDivElement | null)[]>;
@@ -33,6 +35,7 @@ interface AssistantPreview {
 
 interface TurnInfo {
   userMessage: UserMessage | CustomMessage;
+  entryId?: string;
   assistantPreviews: AssistantPreview[];
   scrollTop: number | null;
 }
@@ -228,6 +231,7 @@ function layoutNodes(allNodes: NodeInfo[], minimapHeight: number): NodeLayout {
 }
 
 export function ChatMinimap({
+  entryIds, onLocateEntry,
   messages,
   streamingMessage,
   scrollContainer,
@@ -329,7 +333,7 @@ export function ChatMinimap({
       let refIndex = 0;
       let currentTurn: TurnInfo | null = null;
 
-      for (const message of allMessagesRef.current) {
+      for (const [messageIndex, message] of allMessagesRef.current.entries()) {
         const isAnchor = isMessageGroupAnchor(message);
         if (!isAnchor && message.role !== "assistant") continue;
         const element = refs?.[refIndex];
@@ -340,6 +344,7 @@ export function ChatMinimap({
           const elementRect = element?.getBoundingClientRect();
           currentTurn = {
             userMessage: message as UserMessage | CustomMessage,
+            entryId: entryIds?.[messageIndex],
             assistantPreviews: [],
             scrollTop: elementRect
               ? elementRect.top - containerRect.top + scrollEl.scrollTop
@@ -400,7 +405,7 @@ export function ChatMinimap({
         scrollEl.scrollTo({ top: Math.max(0, targetTop - targetOffset), behavior: "smooth" });
       }
     }, 150);
-  }, [lockActiveNode, messageRefs, scrollContainer, syncActiveNode]);
+  }, [entryIds, lockActiveNode, messageRefs, scrollContainer, syncActiveNode]);
 
   useEffect(() => {
     const el = scrollContainer.current;
@@ -440,6 +445,7 @@ export function ChatMinimap({
   const scrollToNode = useCallback((node: NodeInfo, behavior: ScrollBehavior) => {
     const scrollEl = scrollContainer.current;
     if (!scrollEl) return;
+    if (node.targetTurn.entryId) onLocateEntry?.(node.targetTurn.entryId);
     lockActiveNode(node.index);
     if (node.targetTurn.scrollTop === null) {
       pendingNavigationRef.current = { nodeIndex: node.index, target: "user" };
@@ -451,7 +457,7 @@ export function ChatMinimap({
       node.targetTurn.scrollTop - scrollEl.clientHeight * 0.3,
     );
     scrollEl.scrollTo({ top: targetTop, behavior });
-  }, [lockActiveNode, onRevealHistory, scrollContainer]);
+  }, [lockActiveNode, onRevealHistory, scrollContainer, onLocateEntry]);
 
   const scrollToAssistant = useCallback((node: NodeInfo, assistantIndex: number) => {
     const scrollEl = scrollContainer.current;
@@ -474,9 +480,10 @@ export function ChatMinimap({
       + scrollEl.scrollTop
       - scrollEl.clientHeight * 0.3
     );
+    if (node.targetTurn.entryId) onLocateEntry?.(node.targetTurn.entryId);
     lockActiveNode(node.index);
     scrollEl.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
-  }, [lockActiveNode, onRevealHistory, scrollContainer]);
+  }, [lockActiveNode, onRevealHistory, scrollContainer, onLocateEntry]);
 
   const findNearestNode = useCallback((ratio: number): NodeInfo | null => {
     const { nodes, gap, fillsHeight } = nodeLayoutRef.current;
@@ -525,9 +532,10 @@ export function ChatMinimap({
       + scrollEl.scrollTop
       - scrollEl.clientHeight * 0.3
     );
+    if (node.targetTurn.entryId) onLocateEntry?.(node.targetTurn.entryId);
     lockActiveNode(node.index);
     scrollEl.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
-  }, [lockActiveNode, onRevealHistory, scrollContainer]);
+  }, [lockActiveNode, onRevealHistory, scrollContainer, onLocateEntry]);
 
   const cancelPreviewHide = useCallback(() => {
     if (!previewHideTimerRef.current) return;

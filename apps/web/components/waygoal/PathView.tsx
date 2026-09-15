@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AgentMessage, SessionContext, ToolResultMessage } from "@/lib/types";
 import { MessageView } from "../MessageView";
 
@@ -14,34 +14,13 @@ interface Props {
   /** Continuing or forking is refused while Pi is working on this session. */
   busyReason: string | null;
   forkingEntryId: string | null;
-  /** Say something here: this path becomes the one the session is being
-    *  continued in, and the message goes into it. Null when this is not a path
-    *  to talk in — an origin whose message was never recorded. */
-  onSend: ((text: string) => void) | null;
   onFork: (entryId: string) => void;
 }
 
-/** Read-only history of one path. It calls the existing history reader with an
- *  explicit leaf and nothing else — no navigation, so looking here cannot move
- *  the agent's active path or add a message. Sending is what commits: the act
- *  of sending is the explicit choice, so there is no separate confirm step. */
-export function WaygoalPathView({ sessionId, leafId, cwd, label, busyReason, forkingEntryId, onSend, onFork }: Props) {
+/** Read-only, paginated history inside the canvas; never mounts a composer. */
+export function WaygoalPathView({ sessionId, leafId, cwd, label, busyReason, forkingEntryId, onFork }: Props) {
   const [context, setContext] = useState<SessionContext | null>(null);
   const [error, setError] = useState("");
-  const [draft, setDraft] = useState("");
-  const composer = useRef<HTMLTextAreaElement>(null);
-
-  const send = () => {
-    const text = draft.trim();
-    if (!text || !onSend || busyReason) return;
-    setDraft("");
-    onSend(text);
-  };
-
-  // Opening a path is meant to be one click away from talking, so the composer
-  // takes focus. preventScroll: the history above must stay where it was left.
-  useEffect(() => { composer.current?.focus({ preventScroll: true }); }, [leafId]);
-
   useEffect(() => {
     const controller = new AbortController();
     setContext(null); setError("");
@@ -68,12 +47,21 @@ export function WaygoalPathView({ sessionId, leafId, cwd, label, busyReason, for
     <div className="waygoal-readonly-bar">
       <span className="waygoal-tag reading">正在看</span>
       <span className="waygoal-readonly-label">{label}</span>
-      <span className="waygoal-readonly-hint">{onSend ? "不发一句就什么都不动" : "来源那边的历史，这里只看不发"}</span>
+      <span className="waygoal-readonly-hint">只读预览 · 通过 Tree 选择继续路径</span>
     </div>
     {busyReason && <p className="waygoal-readonly-note">{busyReason}</p>}
     <div className="waygoal-readonly-body">
       {error && <p role="alert" className="waygoal-readonly-note error">{error}</p>}
       {!context && !error && <p className="waygoal-readonly-note">正在读取这条路径…</p>}
+      {context?.hasMore && <button type="button" className="waygoal-button outlined small" onClick={async () => {
+        try {
+          const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/context?before=${encodeURIComponent(context.oldestEntryId!)}&tail=200`);
+          const body = await response.json();
+          if (!response.ok) throw new Error(body.error);
+          const older = body.context as SessionContext;
+          setContext(current => current ? { ...current, messages: [...older.messages, ...current.messages], entryIds: [...older.entryIds, ...current.entryIds], oldestEntryId: older.oldestEntryId, hasMore: older.hasMore } : current);
+        } catch (error) { setError(error instanceof Error ? error.message : String(error)); }
+      }}>加载更早历史</button>}
       {context?.messages.length === 0 && <p className="waygoal-readonly-note">这条路径上还没有消息。</p>}
       {context?.messages.map((message: AgentMessage, index: number) => <MessageView
         key={context.entryIds[index] ?? index}
@@ -87,13 +75,5 @@ export function WaygoalPathView({ sessionId, leafId, cwd, label, busyReason, for
         forkLabel="从这里分叉"
       />)}
     </div>
-    {onSend && <div className="waygoal-readonly-composer">
-      <textarea ref={composer} value={draft} onChange={e => setDraft(e.target.value)} rows={2}
-        placeholder={busyReason ?? "在这条里接着说…"}
-        disabled={Boolean(busyReason)} aria-label="在这条路径里接着说"
-        onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }} />
-      <button type="button" className="waygoal-button action small" onClick={send} disabled={Boolean(busyReason) || !draft.trim()}
-        title={busyReason ?? "发送；之后这段会话就在这条路径里继续"}>发送</button>
-    </div>}
   </div>;
 }

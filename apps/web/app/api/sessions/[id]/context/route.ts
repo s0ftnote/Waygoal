@@ -30,7 +30,7 @@ export async function GET(
     const sm = liveRpc?.inner.sessionManager ?? SessionManager.open(filePath!);
     // `before` is the oldest entry already on the client; fetch its ancestors
     // only (excludeLeaf) so prepending the page does not duplicate `before`.
-    const context = buildSessionContext(sm.getEntries() as never, before ?? leafId, {
+    const context = buildSessionContext(sm.getEntries() as never, before ?? leafId ?? sm.getLeafId(), {
       deferThinking,
       deferToolResultImages,
       tail,

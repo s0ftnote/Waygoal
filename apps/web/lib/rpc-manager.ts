@@ -574,6 +574,9 @@ export class AgentSessionWrapper {
         // this submission starts a run or joins its streaming queue.
         const releaseAdmission = await this.acquirePromptAdmission();
         try {
+          if ("expectedLeafId" in command && command.expectedLeafId !== this.inner.sessionManager.getLeafId()) {
+            throw new Error("引用准备后当前路径已经变化，请重新选择材料再发送。");
+          }
           if (this.inner.isBashRunning) {
             throw new Error("Cannot send a prompt while a shell command is running");
           }
@@ -807,11 +810,11 @@ export class AgentSessionWrapper {
       }
 
       case "navigate_tree": {
-        if (this.inner.isBashRunning) {
-          throw new Error("Cannot navigate while a shell command is running");
+        if (this.isSessionRunningForReplacement()) {
+          throw new Error("Cannot navigate while the session is running");
         }
         const result = await this.inner.navigateTree(command.targetId as string, {});
-        return { cancelled: result.cancelled };
+        return { cancelled: result.cancelled, editorText: result.editorText, leafId: this.inner.sessionManager.getLeafId() };
       }
 
       case "set_thinking_level": {

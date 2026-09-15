@@ -1,7 +1,7 @@
 "use client";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { rekeyDraft } from "@/lib/draft-store";
+import { rekeyDraft, getDraft, setDraft, clearDraft } from "@/lib/draft-store";
 import { cardBounds, cardCenter, thumbnail, viewCenteredOn, worldPoint, type WaygoalCard } from "@/lib/waygoal/locate";
 import type { SessionInfo } from "@/lib/types";
 import type { WaygoalBranchChoice, WaygoalBranchPoint, WaygoalSessionTreeResponse } from "@/lib/waygoal/branches";
@@ -10,6 +10,8 @@ import { arrangeCards } from "@/lib/waygoal/layout";
 import { CHIP_HEIGHT, NODE_HEIGHT, NODE_WIDTH, canOpen, needsCheck, ticketCardHeight, ticketChipTop, type WaygoalCanvasPatch, type WaygoalNode, type WaygoalReference, type WaygoalPoint, type WaygoalSnapshotResponse, type WaygoalTicketCard, type WaygoalView } from "@/lib/waygoal/types";
 import { ChatWindow } from "../ChatWindow";
 import { FileViewer } from "../FileViewer";
+import { WaygoalTurnCanvas, WaygoalMaterialTray } from "./TurnCanvas";
+import type { MaterialSnapshot } from "@/lib/waygoal/materials";
 import { WaygoalPaths } from "./Paths";
 import { WaygoalArrange } from "./Arrange";
 import { WaygoalFind } from "./Find";
@@ -134,11 +136,17 @@ export function WaygoalCanvas() {
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [createdSession, setCreatedSession] = useState<SessionInfo | null>(null);
   const [panelKey, setPanelKey] = useState(0);
+  const [turnsOpen, setTurnsOpen] = useState(true);
+  const [searchTarget, setSearchTarget] = useState<{ sessionId: string; entryId: string } | null>(null);
+  const [locateEntry, setLocateEntry] = useState<{ entryId: string; serial: number } | null>(null);
+  const [materials, setMaterials] = useState<MaterialSnapshot[]>([]);
+  const materialDrafts = useRef(new Map<string, MaterialSnapshot[]>());
+  const materialsRef = useRef(materials); materialsRef.current = materials;
+  const [navigating, setNavigating] = useState(false);
+  const clearSearchTarget = useCallback(() => setSearchTarget(null), []);
+  const locateTurn = useCallback((entryId: string) => { setTurnsOpen(true); setLocateEntry({ entryId, serial: Date.now() }); }, []);
   const [trust, setTrust] = useState<{ requiresTrust: boolean; trusted: boolean } | null>(null);
   const [tree, setTree] = useState<WaygoalSessionTreeResponse | null>(null);
-  // Text typed while reading a path: sending it is what moves the session onto
-  // that path, so ChatWindow sends it once it has reopened there.
-  const [pending, setPending] = useState<string | undefined>(undefined);
   const [viewing, setViewing] = useState<Viewing | null>(null);
   const [forkingEntryId, setForkingEntryId] = useState<string | null>(null);
   const restoredFor = useRef<string | null>(null);
@@ -150,12 +158,16 @@ export function WaygoalCanvas() {
   /** Drop whatever the panel was on: an unsent draft, a session created from
    *  one, a read-only reading position. Every way of opening something else
    *  starts here; what it opens instead is that caller's own business. */
-  const leavePanel = useCallback(() => { setDraftKey(null); setCreatedSession(null); setViewing(null); }, []);
+  const leavePanel = useCallback(() => {
+    if (chatSessionId.current) materialDrafts.current.set(`session:${chatSessionId.current}`, materialsRef.current);
+    setDraftKey(null); setCreatedSession(null); setViewing(null); setMaterials([]);
+  }, []);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   // The session ChatWindow is showing, so a fork it reports can be attributed.
   const chatSessionId = useRef<string | null>(null);
   const pendingRestoreEntry = useRef<string | null>(null);
+  const pendingRestoreSession = useRef<string | null>(null);
   // Whether the error on screen came from reading the canvas.
   const readError = useRef(false);
 
@@ -280,7 +292,8 @@ export function WaygoalCanvas() {
     leavePanel(); setTree(null);
     if (snapshot.lastViewed && !snapshot.lastViewedMissing) {
       setSelectedId(snapshot.lastViewed);
-      pendingRestoreEntry.current = snapshot.lastViewedEntry;
+      pendingRestoreEntry.current = snapshot.preview?.entryId ?? snapshot.lastViewedEntry;
+      pendingRestoreSession.current = snapshot.preview?.sessionId ?? snapshot.lastViewed;
       setPanelKey(k => k + 1);
     } else {
       setSelectedId(null);
@@ -321,7 +334,7 @@ export function WaygoalCanvas() {
     const entryId = pendingRestoreEntry.current;
     if (!entryId || !openSessionId) return;
     pendingRestoreEntry.current = null;
-    const sessionId = openSessionId;
+    const sessionId = pendingRestoreSession.current ?? openSessionId;
     let cancelled = false;
     void (async () => {
       try {
@@ -334,7 +347,7 @@ export function WaygoalCanvas() {
         }
         else {
           setNotice("上次看的那条消息在这段会话里已经找不到了，画布没有按标题绑到别的历史，面板停在这段会话现在在聊的那条路径。");
-          void patch({ lastViewedEntry: null });
+          void patch({ lastViewedEntry: null, preview: null });
         }
       } catch { /* the panel still opens at the continue position */ }
     })();
@@ -507,12 +520,13 @@ export function WaygoalCanvas() {
 
   const openNode = useCallback((node: WaygoalNode) => {
     leavePanel(); setOpenTicket(null);
+    setTurnsOpen(true); setMaterials(materialDrafts.current.get(`session:${node.id}`) ?? []);
     setSelectedId(node.id);
     setPanelKey(k => k + 1);
     setNotice("");
     setPendingTicket(null);
     const ticket = ticketOfSession.get(node.id);
-    void patch({ lastViewed: node.id, lastViewedEntry: null, ...(ticket ? { ticketLast: { ticket, sessionId: node.id, entryId: null } } : {}) });
+    void patch({ lastViewed: node.id, lastViewedEntry: null, preview: null, ...(ticket ? { ticketLast: { ticket, sessionId: node.id, entryId: null } } : {}) });
   }, [leavePanel, patch, ticketOfSession]);
 
   /** Open one local map or ticket: a file this workspace already has. Reading
@@ -530,16 +544,12 @@ export function WaygoalCanvas() {
    *  position is not one to send from. */
   const viewPath = useCallback((sessionId: string, entryId: string | null, label: string, leafId: string | null) => {
     setNotice("");
-    if (sessionId !== selectedId) {
-      setDraftKey(null); setCreatedSession(null);
-      setSelectedId(sessionId);
-      setPanelKey(k => k + 1);
-    }
     setViewing({ sessionId, entryId, leafId, label });
+    setTurnsOpen(true);
     // Reading is not talking: the ticket keeps pointing at the discussion the
     // user last talked in, not at whatever history they are looking through.
-    void patch({ lastViewed: sessionId, lastViewedEntry: entryId });
-  }, [patch, selectedId]);
+    void patch({ lastViewed: openSessionId ?? sessionId, lastViewedEntry: null, preview: { sessionId, entryId } });
+  }, [patch, openSessionId]);
 
   const stopViewing = useCallback(() => {
     setViewing(null);
@@ -549,6 +559,7 @@ export function WaygoalCanvas() {
   const startNewChat = useCallback(() => {
     if (!snapshot) return;
     leavePanel(); setSelectedId(null); setOpenTicket(null); setPendingTicket(null);
+    setMaterials([]); setTurnsOpen(true);
     setDraftKey(`waygoal-new:${crypto.randomUUID()}:${snapshot.cwd}`);
     setPanelKey(k => k + 1);
     setNotice("");
@@ -614,6 +625,7 @@ export function WaygoalCanvas() {
     });
     leavePanel();
     setSelectedId(newSessionId);
+    setMaterials([]); setTurnsOpen(true);
     setPanelKey(k => k + 1);
     await patch({ lastViewed: newSessionId, lastViewedEntry: null });
     setNotice(originEntryId
@@ -623,12 +635,12 @@ export function WaygoalCanvas() {
   }, [leavePanel, patch, refresh, ticketOfSession]);
 
   /** The real Pi fork, from a message in the read-only view. */
-  const forkFrom = useCallback(async (sessionId: string, entryId: string) => {
+  const forkFrom = useCallback(async (sessionId: string, entryId: string, after = false) => {
     setForkingEntryId(entryId);
     try {
       const res = await fetch(`/api/agent/${encodeURIComponent(sessionId)}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "fork", entryId }),
+        body: JSON.stringify({ type: after ? "fork_branch" : "fork", entryId }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error);
@@ -642,17 +654,33 @@ export function WaygoalCanvas() {
 
   /** The one action that moves the agent: continue this session in one path. */
   const continueAt = useCallback(async (sessionId: string, entryId: string): Promise<boolean> => {
+    if (navigating) return false;
+    setNavigating(true);
     try {
+      const beforeResponse = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}?tail=1`);
+      if (!beforeResponse.ok) throw new Error("无法核对当前路径。");
+      const before = await beforeResponse.json() as { leafId: string | null };
       const res = await fetch(`/api/agent/${encodeURIComponent(sessionId)}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "navigate_tree", targetId: entryId }),
       });
-      const body = await res.json() as { error?: string; data?: { cancelled?: boolean } };
+      const body = await res.json() as { error?: string; data?: { cancelled?: boolean; leafId?: string | null; editorText?: string } };
       if (!res.ok) throw new Error(body.error);
       // Pi can refuse the move (an extension cancelled it, a summary aborted).
       if (body.data?.cancelled) { setNotice("没能接着这条聊，Pi 取消了这次切换。"); return false; }
+      if (openSessionId && openSessionId !== sessionId) materialDrafts.current.set(`session:${openSessionId}`, materials);
+      const departureKey = `waygoal-path:${sessionId}:${before.leafId ?? "root"}`;
+      const arrivalKey = `waygoal-path:${sessionId}:${body.data?.leafId ?? entryId}`;
+      const currentDraft = getDraft(sessionId);
+      if (currentDraft) setDraft(departureKey, currentDraft); else clearDraft(departureKey);
+      if (sessionId === openSessionId) materialDrafts.current.set(departureKey, materials);
+      const restored = getDraft(arrivalKey);
+      if (restored) setDraft(sessionId, restored); else clearDraft(sessionId);
+      if (body.data?.editorText) setDraft(sessionId, { value: body.data.editorText, images: [] });
+      setMaterials(materialDrafts.current.get(arrivalKey) ?? (before.leafId === body.data?.leafId ? materialDrafts.current.get(`session:${sessionId}`) ?? [] : []));
       setViewing(null);
       setSelectedId(sessionId);
+      setTurnsOpen(true);
       setPanelKey(k => k + 1);
       setNotice("现在在这条路径里继续，其他路径都还留着。");
       await patch({ lastViewed: sessionId, lastViewedEntry: null });
@@ -662,19 +690,8 @@ export function WaygoalCanvas() {
     } catch (e) {
       setError(`没能接着这条聊：${e instanceof Error ? e.message : String(e)}`);
       return false;
-    }
-  }, [loadTree, patch, refresh]);
-
-  /** Sending from a path being read is the explicit choice: move the session
-   *  onto it, then let ChatWindow send the message there. Nothing is sent if
-   *  the move fails, so a message cannot land on the path the user left. */
-  const continueAndSend = useCallback(async (sessionId: string, leafId: string, text: string) => {
-    if (!(await continueAt(sessionId, leafId))) return;
-    // Sending is what makes this the discussion — and the path — being talked in.
-    const ticket = ticketOfSession.get(sessionId);
-    if (ticket) await patch({ ticketLast: { ticket, sessionId, entryId: leafId } });
-    setPending(text);
-  }, [continueAt, patch, ticketOfSession]);
+    } finally { setNavigating(false); }
+  }, [loadTree, patch, refresh, navigating, materials, openSessionId]);
 
   const zoomBy = useCallback((factor: number, center?: WaygoalPoint) => {
     viewDirty.current = true;
@@ -1121,13 +1138,32 @@ export function WaygoalCanvas() {
               style={{ left: thumb.view.x, top: thumb.view.y, width: thumb.view.width, height: thumb.view.height }} />
           </button>
         </div>}
-        <div className="waygoal-statusline"><span>拖动卡片摆放 · 拖动空白处平移 · 滚轮缩放 · 点开路径只是看，说一句才在那条里继续</span><span className="waygoal-id">{snapshot?.workspaceId}</span></div>
+        <div className="waygoal-statusline"><span>拖动卡片摆放 · 拖动空白处平移 · 滚轮缩放 · 点击卡片定位原文 · Tree 选择路径后继续聊天</span><span className="waygoal-id">{snapshot?.workspaceId}</span></div>
+        {panelSession && turnsOpen && !openTicketMap && <WaygoalTurnCanvas
+          sessionId={panelSession.id} layouts={snapshot?.turnLayouts}
+          onSaveLayout={(sessionId, layout) => void patch({ turnLayout: { sessionId, layout } })} sessions={nodes.map(node => ({ id: node.id, title: node.title }))}
+          locateEntry={locateEntry} busy={Boolean(busyReason) || navigating}
+          onOverview={() => { setTurnsOpen(false); setViewing(null); }}
+          onLocate={(sessionId, turn) => {
+            if (sessionId === panelSession.id && turn.active) {
+              setSearchTarget({ sessionId, entryId: turn.id }); setViewing(null);
+            } else viewPath(sessionId, turn.endId, turn.question, turn.endId);
+          }}
+          onContinue={(sessionId, leafId) => void continueAt(sessionId, leafId)}
+          onMaterial={material => setMaterials(current => [...current.filter(item => !(item.sessionId === material.sessionId && item.turnId === material.turnId)), material])} />}
+        {viewing && snapshot && <div className="waygoal-canvas-preview" aria-label="画布内路径预览">
+          <button type="button" className="waygoal-preview-close" onClick={stopViewing}>关闭预览</button>
+          <WaygoalPathView key={`${viewing.sessionId}:${viewing.entryId}`} sessionId={viewing.sessionId}
+            leafId={viewing.leafId ?? viewing.entryId} cwd={snapshot.cwd} label={viewing.label}
+            busyReason={busyReason} forkingEntryId={forkingEntryId}
+            onFork={entryId => void forkFrom(viewing.sessionId, entryId)} />
+        </div>}
       </section>
       {panelOpen && snapshot && <aside className="waygoal-panel" aria-label="讨论面板">
         <div className="waygoal-panel-head">
           {isMobile && <button type="button" className="waygoal-button outlined small" onClick={closePanel}>← 回到画布</button>}
           <div className="waygoal-panel-title">
-            <span className="waygoal-eyebrow">{openTicketMap ? (openTicketCard ? ticketKind(Boolean(openTicketCard.remote)) : mapKind(openTicketMap.remote)) : viewing ? "正在看这条路径" : panelSession ? (selectedNode?.running ? "正在运行" : "已有会话") : pendingTicket ? "这张票下的新讨论" : "新的会话"}</span>
+            <span className="waygoal-eyebrow">{openTicketMap ? (openTicketCard ? ticketKind(Boolean(openTicketCard.remote)) : mapKind(openTicketMap.remote)) : panelSession ? (selectedNode?.running ? "正在运行" : "已有会话") : pendingTicket ? "这张票下的新讨论" : "新的会话"}</span>
             <strong>{openTicketMap ? (openTicketCard?.title ?? openTicketMap.title)
               : panelSession ? (selectedNode?.title ?? createdSession?.firstMessage ?? "会话")
               : pendingTicket ? `${pendingTicketTitle ?? pendingTicket}：写下第一句，发送后这段讨论就挂在这张票下`
@@ -1135,10 +1171,10 @@ export function WaygoalCanvas() {
           </div>
           {/* A ticket keeps the name its source file gives it, and a path
               inside a session is not named at all: only a session gets these. */}
-          {selectedNode && !viewing && <WaygoalRename key={selectedNode.id}
+          {selectedNode && <WaygoalRename key={selectedNode.id}
             sessionId={selectedNode.id} title={selectedNode.title} titleSource={selectedNode.titleSource}
             onRenamed={() => refresh(true)} onError={setError} onNotice={setNotice} />}
-          {viewing && <button type="button" className="waygoal-button outlined small" onClick={stopViewing}>回到在聊的那条</button>}
+          {panelSession && !turnsOpen && <button type="button" className="waygoal-button outlined small" onClick={() => setTurnsOpen(true)}>轮次画布</button>}
           {!isMobile && <button type="button" className="waygoal-icon" aria-label="关闭面板" onClick={closePanel}>×</button>}
         </div>
         {openTicketMap && openFile && <div className="waygoal-file-view">
@@ -1168,16 +1204,12 @@ export function WaygoalCanvas() {
           onView={choice => panelSession && viewPath(panelSession.id, choice.entryId, "这条路径", choice.leafId)}
         />}
         {!openTicketMap && <div className="waygoal-panel-body">
-          {viewing
-            ? <WaygoalPathView key={`${viewing.sessionId}:${viewing.entryId}`} sessionId={viewing.sessionId}
-                // Read the whole path, down to its deepest entry: what is on
-                // display has to be what a message sent from here follows.
-                leafId={viewing.leafId ?? viewing.entryId} cwd={snapshot.cwd}
-                label={viewing.label} busyReason={busyReason} forkingEntryId={forkingEntryId}
-                onSend={viewing.leafId ? text => void continueAndSend(viewing.sessionId, viewing.leafId!, text) : null}
-                onFork={entryId => void forkFrom(viewing.sessionId, entryId)} />
-            : <ChatWindow key={panelKey} session={panelSession} sessionRunning={selectedNode?.running ?? false}
-                initialPrompt={pending} onInitialPromptConsumed={() => setPending(undefined)}
+          {<ChatWindow key={panelKey} session={panelSession} sessionRunning={selectedNode?.running ?? false}
+                searchTarget={searchTarget} onSearchTargetHandled={clearSearchTarget}
+                onLocateEntry={locateTurn}
+                onForkAfter={entryId => panelSession && void forkFrom(panelSession.id, entryId, true)}
+                promptMaterials={materials} onPromptAccepted={() => setMaterials([])}
+                composerAccessory={<WaygoalMaterialTray materials={materials} onRemove={index => setMaterials(current => current.filter((_, i) => i !== index))} />}
                 newSessionCwd={panelSession ? null : snapshot.cwd} newSessionDraftKey={panelSession ? null : draftKey}
                 onSessionCreated={onSessionCreated}
                 onSessionForked={(newSessionId, originEntryId) => {

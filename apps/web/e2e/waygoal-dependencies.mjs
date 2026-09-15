@@ -116,6 +116,9 @@ try {
   const errors = [];
   const openPage = async () => {
     const p = await context.newPage();
+    // These checks exercise workspace/session organization. Return through the
+    // real overview control when the turn view covers those controls.
+    await p.addLocatorHandler(p.getByRole("button", { name: "← 总画布", exact: true }), async button => { await button.click(); });
     p.setDefaultTimeout(30_000);
     p.on("pageerror", (e) => errors.push(e.message));
     p.on("crash", () => errors.push("page crashed"));

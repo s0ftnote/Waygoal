@@ -135,6 +135,9 @@ try {
   const errors = [];
   const openPage = async () => {
     const p = await context.newPage();
+    // These checks exercise workspace/session organization. Return through the
+    // real overview control when the turn view covers those controls.
+    await p.addLocatorHandler(p.getByRole("button", { name: "← 总画布", exact: true }), async button => { await button.click(); });
     p.setDefaultTimeout(30_000);
     p.on("pageerror", (e) => errors.push(e.message));
     p.on("crash", () => errors.push("page crashed"));
@@ -282,6 +285,7 @@ try {
   // 10. Narrow screen: panel is full-screen with a way back to the canvas.
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-US" });
   const mpage = await mobile.newPage(); mpage.setDefaultTimeout(30_000);
+  await mpage.addLocatorHandler(mpage.getByRole("button", { name: "← 总画布", exact: true }), async button => { await button.click(); });
   await mpage.goto(canvasUrl, { waitUntil: "domcontentloaded" });
   await mpage.locator(".waygoal-panel").waitFor();
   const back = mpage.getByRole("button", { name: "← 回到画布" });

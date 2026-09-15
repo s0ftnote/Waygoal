@@ -775,3 +775,17 @@ test("有一条读不清的依赖，这张地图的票集合就不算读明白�
     assert.ok(mapOf(s.sa).check, "关系读得清了，才轮到检查时机");
   } finally { s.done(); }
 });
+
+test("turn positions, associations and independent preview survive in the scoped canvas record", () => {
+  const s = sandbox();
+  try {
+    const layout = { positions: { entry: { x: 31, y: 45 } }, links: [["entry", "sibling"]] };
+    store.applyCanvasPatch(s.sa, { turnLayout: { sessionId: "session", layout }, lastViewed: "talking", preview: { sessionId: "reading", entryId: "entry" } });
+    const record = store.readCanvasRecord(s.sa);
+    assert.deepEqual(record.turnLayouts.session, layout);
+    assert.equal(record.lastViewed, "talking");
+    assert.deepEqual(record.preview, { sessionId: "reading", entryId: "entry" });
+    assert.equal(store.readCanvasRecord(s.sb).turnLayouts, undefined);
+    assert.throws(() => store.applyCanvasPatch(s.sa, { turnLayout: { sessionId: "session", layout: { positions: { bad: { x: NaN, y: 0 } }, links: [] } } }));
+  } finally { s.done(); }
+});
