@@ -237,6 +237,7 @@ export function WaygoalCanvas() {
       // again; something the user was told about their own last action stays
       // on screen until they close it.
       if (readError.current) { readError.current = false; setError(""); }
+      return next as WaygoalSnapshotResponse;
     } catch (e) { readError.current = true; setError(e instanceof Error ? e.message : String(e)); }
   }, [canvasId, cwd]);
 
@@ -681,16 +682,21 @@ export function WaygoalCanvas() {
       ...(originEntryId ? { origin: { sessionId: newSessionId, originSessionId, originEntryId } }
         : ticket ? { ticketSession: { sessionId: newSessionId, ticket } } : {}),
     });
+    await patch({ lastViewed: newSessionId, lastViewedEntry: null, preview: null });
+    const next = await refresh(true);
+    const fork = next?.nodes.find(node => node.id === newSessionId);
+    if (!fork || !next) throw new Error("新会话已创建，但暂时没能载入，请刷新画布后继续。");
+    // Switch once the fork is available. A polling snapshot may still be old;
+    // retain the real session as a fallback so the composer never opens empty.
     leavePanel();
+    setCreatedSession(nodeToSession(fork, next.cwd));
     expandSession(originSessionId); expandSession(newSessionId);
     setSelectedId(newSessionId);
     setMaterials([]); setManageOpen(false);
     setPanelKey(k => k + 1);
-    await patch({ lastViewed: newSessionId, lastViewedEntry: null, preview: null });
     setNotice(originEntryId
       ? "已分出一段新会话。原来的讨论还在画布上，连线指向它分出的那条消息。"
       : "已分出一段新会话。这次没有记下具体消息位置，画布只显示来源会话。");
-    await refresh(true);
   }, [leavePanel, patch, refresh, ticketOfSession, expandSession]);
 
   /** The real Pi fork, from a message in the read-only view. */
@@ -940,7 +946,7 @@ export function WaygoalCanvas() {
   return <main className="waygoal-app waygoal-spatial" data-panel-open={panelOpen || undefined} data-empty-entry={emptyEntry || undefined}>
     <header className="waygoal-top">
       <div className="waygoal-brand">waygoal<span>.</span></div>
-      <WaygoalWorkspaceBar workspace={snapshot?.workspace ?? null} onOpen={openWorkspace} onSwitchCanvas={switchCanvas} onError={setError} onImported={() => refresh(true)} onOverview={() => { setOverviewRequested(true); setManageOpen(true); }} />
+      <WaygoalWorkspaceBar workspace={snapshot?.workspace ?? null} onOpen={openWorkspace} onSwitchCanvas={switchCanvas} onError={setError} onImported={async () => { await refresh(true); }} onOverview={() => { setOverviewRequested(true); setManageOpen(true); }} />
       <div className="waygoal-top-right">
         <button type="button" className="waygoal-button outlined" onClick={startNewChat} disabled={!snapshot}>新开聊天</button>
       </div>
@@ -1249,7 +1255,7 @@ export function WaygoalCanvas() {
             onFork={(entryId, message) => void forkFrom(viewing.sessionId, entryId, false, message)} />
         </div>}
       </section>
-      {panelOpen && snapshot && <aside className="waygoal-panel" aria-label="讨论面板" ref={chatPanel}>
+      {panelOpen && snapshot && <aside className="waygoal-panel" aria-label="讨论面板" data-session-id={panelSession?.id} aria-busy={Boolean(forkingEntryId)} ref={chatPanel}>
         {!emptyEntry && !openTicketMap && <WaygoalPanelResize />}
         <div className="waygoal-panel-head">
           {isMobile && <button type="button" className="waygoal-button outlined small" onClick={closePanel}>← 回到画布</button>}
@@ -1264,7 +1270,7 @@ export function WaygoalCanvas() {
               inside a session is not named at all: only a session gets these. */}
           {selectedNode && <details className="waygoal-chat-settings"><summary aria-label="讨论设置">•••</summary><div><WaygoalRename key={selectedNode.id}
             sessionId={selectedNode.id} title={selectedNode.title} titleSource={selectedNode.titleSource}
-            onRenamed={() => refresh(true)} onError={setError} onNotice={setNotice} /></div></details>}
+            onRenamed={async () => { await refresh(true); }} onError={setError} onNotice={setNotice} /></div></details>}
           {!isMobile && <button type="button" className="waygoal-icon" aria-label="关闭面板" onClick={closePanel}>×</button>}
         </div>
         {openTicketMap && openFile && <div className="waygoal-file-view">
@@ -1293,7 +1299,7 @@ export function WaygoalCanvas() {
           }}
           onView={choice => panelSession && viewPath(panelSession.id, choice.entryId, "这条路径", choice.leafId)}
         />}
-        {!openTicketMap && <div className="waygoal-panel-body">
+        {!openTicketMap && <div className="waygoal-panel-body" inert={Boolean(forkingEntryId)}>
           {<ChatWindow hideWelcome key={panelKey} session={panelSession} sessionRunning={selectedNode?.running ?? false}
                 searchTarget={searchTarget} onSearchTargetHandled={clearSearchTarget}
                 onNavigateEntry={(entryId, message) => panelSession ? continueAt(panelSession.id, entryId, message) : Promise.resolve(false)}

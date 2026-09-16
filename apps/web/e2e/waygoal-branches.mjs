@@ -271,7 +271,7 @@ try {
   const assistant = panel.locator(`[data-entry-id="${firstTurn.endId}"]`).first();
   await assistant.getByRole("button", { name: "从这里分叉", exact: true }).click();
   const forkId = await waitFor(async () => (await snapshot()).nodes.find(node => ![id, otherSessionId].includes(node.id))?.id, "independent fork");
-  await composer.waitFor();
+  await page.locator(`.waygoal-panel[data-session-id="${forkId}"][aria-busy="false"] textarea`).waitFor();
   await send("分叉里连续聊一"); await send("分叉里连续聊二");
   check("assistant fork includes its source answer and then continuous replies", ancestorsOf(forkId, (await turns(forkId)).activeLeafId).includes(firstTurn.endId));
   check("original session remains independent", !(JSON.stringify(sessionEntries(id))).includes("分叉里连续聊一"));
@@ -380,6 +380,8 @@ try {
   writeFileSync(join(dirname(fileInfo.filePath), `long_${longId}.jsonl`), records.map(record => JSON.stringify(record)).join("\n") + "\n");
   await tool("整理会话与票据");
   await waitFor(async () => (await snapshot()).nodes.some(node => node.id === longId), "long fixture discovery");
+  await page.locator(`[data-node="${longId}"]`).waitFor();
+  await page.getByRole("button", { name: "全景", exact: true }).click();
   await page.locator(`[data-node="${longId}"]`).click();
   await page.locator('[data-turn="00000001"]').waitFor();
   await page.getByRole("button", { name: "全景", exact: true }).click();

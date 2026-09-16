@@ -155,11 +155,12 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
   const lastLocate = useRef<number | null>(null);
   useEffect(() => {
     if (!locateEntry || lastLocate.current === locateEntry.serial) return;
-    if (!expanded.includes(sessionId)) { onExpand(sessionId); return; }
+    const original = graph.cards.find(card => card.members.some(member => member.sessionId === sessionId && member.turn.entryIds.includes(locateEntry.entryId)));
+    if (original && !expanded.includes(original.sessionId)) { onExpand(original.sessionId); return; }
     const card = cards.find(card => card.members.some(member => member.sessionId === sessionId && member.turn.entryIds.includes(locateEntry.entryId)));
     if (!card) return;
     lastLocate.current = locateEntry.serial; setInspected(null); focusCard(card.key, true);
-  }, [locateEntry, cards, focusCard, sessionId, expanded, onExpand]);
+  }, [locateEntry, cards, focusCard, sessionId, expanded, onExpand, graph.cards]);
   const lastInspect = useRef<number | null>(null);
   useEffect(() => {
     if (!inspectEntry || lastInspect.current === inspectEntry.serial) return;
@@ -213,7 +214,7 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
     && actionBounds.right > 0 && actionBounds.left < viewportSize.width && actionBounds.bottom > 0 && actionBounds.top < viewportSize.height;
   return <section className="waygoal-turn-canvas waygoal-turn-embedded" aria-label="轮次画布">
     <div className="waygoal-turn-toolbar">
-      <button type="button" aria-label="当前轮次" onClick={() => { setActionKey(null); if (active) focusCard(active.key, true); else if (sessionId) { pendingFocus.current = activeKey ?? null; onExpand(sessionId); } }}>◎ 回到正在聊的位置</button>
+      <button type="button" aria-label="当前轮次" onClick={() => { setActionKey(null); if (active) focusCard(active.key, true); else if (sessionId) { pendingFocus.current = activeKey ?? null; onExpand(graph.cards.find(card => card.key === activeKey)?.sessionId ?? sessionId); } }}>◎ 回到正在聊的位置</button>
       <button type="button" aria-label="全景" onClick={() => { setActionKey(null); onFit(); }}>看全局</button>
       <details className="waygoal-turn-more" ref={toolsMenu}>
         <summary aria-label="画布操作">•••</summary>
@@ -222,7 +223,7 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
       <select aria-label="查看会话轮次" value={sourceId} onChange={event => {
         const id = event.target.value; setSourceId(id); onExpand(id);
         const last = data[id]?.turns.findLast(turn => turn.active);
-        const key = last && graph.aliases.get(turnKey(id, last.id)); if (key) { pendingFocus.current = key; if (byKey.has(key)) { focusCard(key, true); pendingFocus.current = null; } }
+        const key = last && graph.aliases.get(turnKey(id, last.id)); if (key) { const owner = graph.cards.find(card => card.key === key)?.sessionId; if (owner) onExpand(owner); pendingFocus.current = key; if (byKey.has(key)) { focusCard(key, true); pendingFocus.current = null; } }
       }}>{sessions.map(session => <option key={session.id} value={session.id}>{session.title}</option>)}</select>
       <button type="button" aria-expanded={treeOpen} onClick={() => { setTreeOpen(!treeOpen); if (toolsMenu.current) toolsMenu.current.open = false; }}>选择继续路径</button>
       <button type="button" aria-pressed={mode === "reference"} onClick={() => { setMode(mode === "reference" ? "read" : "reference"); setFrom(null); }}>引用连线</button>

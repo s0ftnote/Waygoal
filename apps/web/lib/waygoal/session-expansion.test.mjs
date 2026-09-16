@@ -16,8 +16,9 @@ test("sessions start folded, and independent expansions retain the verified shar
   assert.equal(both.cards.length, 3);
   assert.equal(both.cards.filter(card => card.turn.id === "q").length, 1);
   const justChild = expandedTurns(graph, [root, child], [child.id]);
-  assert.equal(justChild.cards.length, 2);
-  assert.equal(justChild.cards.find(card => card.turn.id === "q").key, turnKey("root", "q"));
+  assert.equal(justChild.cards.length, 1);
+  assert.equal(justChild.cards[0].turn.id, "branch");
+  assert.equal(graph.edges.find(edge => edge.kind === "fork").from, turnKey("root", "q"));
   assert.deepEqual(graph.cards[0].members.map(member => member.sessionId), ["root", "child"]);
 });
 

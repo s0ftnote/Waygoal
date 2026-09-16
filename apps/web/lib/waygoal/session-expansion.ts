@@ -5,12 +5,12 @@ export const SESSION_HEADER = 80;
 export interface SessionSize { width: number; height: number }
 
 /** Folding is a projection of the same real turns. A shared prefix is shown
- * once, under an expanded member; its key and original identities never change. */
+ * once, under its original session; folding does not move ancestors into a branch. */
 export function expandedTurns(graph: ReturnType<typeof projectTurnBoard>, sessions: (BoardSession & { position: WaygoalPoint })[], expanded: string[], origins: Record<string, WaygoalPoint> = {}) {
   const open = new Set(expanded), owners = new Map<string, string>();
   const groups = new Map<string, BoardCard[]>();
   for (const card of graph.cards) {
-    const owner = open.has(card.sessionId) ? card.sessionId : card.members.find(member => open.has(member.sessionId))?.sessionId;
+    const owner = open.has(card.sessionId) ? card.sessionId : undefined;
     if (!owner) continue;
     owners.set(card.key, owner);
     groups.set(owner, [...(groups.get(owner) ?? []), card]);
