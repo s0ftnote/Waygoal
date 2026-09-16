@@ -305,7 +305,8 @@ try {
   await closePanel();
   await page.getByRole("button", { name: "回到全景" }).click();
   await delay(600);
-  const cardCount = (await snapshot()).nodes.length + (await snapshot()).tickets.maps.reduce((n, m) => n + 1 + m.tickets.length, 0);
+  const cardCount = (await snapshot()).nodes.length + (await snapshot()).tickets.maps.reduce((n, m) => n + 1 + m.tickets.length, 0)
+    + await page.locator("[data-turn]").count();
   check("the thumbnail draws every card on the canvas and where the user is looking",
     (await page.locator(".waygoal-thumb-card").count()) === cardCount
     && await page.locator("[data-thumb-view]").isVisible(),
