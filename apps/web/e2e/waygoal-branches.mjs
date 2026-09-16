@@ -327,6 +327,9 @@ try {
   await waitFor(async () => (await snapshot()).turnBoard?.links.length === 1, "cross-session association persisted");
   await page.getByRole("button", { name: "当前轮次", exact: true }).click();
   const draggedCard = page.locator(`[data-turn="${crossTurn.id}"]`);
+  // Camera navigation animates. Wait for the real pointer target to settle
+  // before deriving mouse coordinates; boundingBox alone does not wait.
+  await draggedCard.locator(".waygoal-turn-content").click({ trial: true });
   const savedBeforeDrag = (await snapshot()).turnBoard.positions[JSON.stringify([forkId, crossTurn.id])];
   const beforeDrag = await draggedCard.evaluate(element => ({ x: parseFloat(element.style.left), y: parseFloat(element.style.top) }));
   const box = await draggedCard.boundingBox();
