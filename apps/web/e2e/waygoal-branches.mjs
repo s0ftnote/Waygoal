@@ -295,6 +295,9 @@ try {
   await browseSession(id);
   await waitFor(async () => await page.locator(`[data-node="${id}"][data-expanded]`).count() === 1, "source expands alongside fork");
   check("multiple sessions expand together without replacing the current conversation", await page.locator('[data-node][data-expanded]').count() >= 2 && await composer.inputValue() === "分叉草稿保留" && await page.evaluate(() => window.keptWorld === document.querySelector(".waygoal-world")));
+  check("expanded session headings stay card-sized instead of stretching across the tree", await page.locator('[data-node][data-expanded]').evaluateAll(nodes => nodes.every(node => parseFloat(node.style.width) === 278)));
+  await waitFor(async () => await page.locator(`[data-session-origin="${forkId}"]`).count() === 0 && await page.locator('.waygoal-turn-lines path.fork').count() > 0, "precise fork line replaces its session fallback");
+  check("an expanded fork is drawn once at its real turn endpoint", await page.locator(`[data-session-origin="${forkId}"]`).count() === 0 && await page.locator('.waygoal-turn-lines path.fork').count() > 0);
   // Keyboard activation works even when a wire lies outside the current camera.
   const forkWire = page.getByRole("button", { name: /^分叉来源：/ }).first();
   await forkWire.focus(); await forkWire.press("Enter");

@@ -41,3 +41,27 @@ test("dragging the first turn keeps its displacement after saving and reopening"
   assert.equal(after.cards.find(card => card.key === key).position.x - before.cards.find(card => card.key === key).position.x, 35);
   assert.equal(after.cards.find(card => card.key === key).position.y - before.cards.find(card => card.key === key).position.y, 20);
 });
+
+test("removing a shared source reveals inherited history below its own session header", () => {
+  const sessions = [root, child];
+  const layout = { positions: {}, links: [] };
+  const beforeGraph = projectTurnBoard(sessions, data, layout);
+  const before = expandedTurns(beforeGraph, sessions, [child.id]);
+  const saved = { ...layout, positions: Object.fromEntries(beforeGraph.cards.map(card => [card.key, card.position])), sessionOrigins: before.bases };
+  // The source is no longer on this canvas. The child's inherited turn now
+  // becomes visible under its own identity, before its previously visible tail.
+  const after = expandedTurns(projectTurnBoard([child], data, saved), [child], [child.id], saved.sessionOrigins);
+  assert.equal(after.cards.length, 2);
+  assert.ok(after.cards.every(card => card.position.x >= child.position.x && card.position.y >= child.position.y + 80), "restored history must not appear above or left of its session header");
+});
+
+test("either sibling can display the shared prefix when its common source is absent", () => {
+  const a = { ...root, id: 'a', origin: {sessionId:'outside', entryId:'q-a'} };
+  const b = { ...child, id: 'b', origin: {sessionId:'outside', entryId:'q-a'} };
+  const sessions = [a,b], data = {a:{turns:[turn('q')]},b:{turns:[turn('q')]}};
+  const graph = projectTurnBoard(sessions, data, {positions:{},links:[]});
+  const onlyB = expandedTurns(graph,sessions,['b']);
+  assert.equal(onlyB.cards.length,1);
+  assert.equal(onlyB.owners.get(onlyB.cards[0].key),'b');
+  assert.equal(onlyB.cards[0].position.y,b.position.y+80);
+});

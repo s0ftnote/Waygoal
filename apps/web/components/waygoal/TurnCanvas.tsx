@@ -162,11 +162,11 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
   useEffect(() => {
     if (!locateEntry || lastLocate.current === locateEntry.serial) return;
     const original = graph.cards.find(card => card.members.some(member => member.sessionId === sessionId && member.turn.entryIds.includes(locateEntry.entryId)));
-    if (original && !expanded.includes(original.sessionId)) { onExpand(original.sessionId); return; }
+    if (original && !projection.owners.has(original.key)) { onExpand(original.sessionId); return; }
     const card = cards.find(card => card.members.some(member => member.sessionId === sessionId && member.turn.entryIds.includes(locateEntry.entryId)));
     if (!card) return;
     lastLocate.current = locateEntry.serial; setInspected(null); focusCard(card.key, true);
-  }, [locateEntry, cards, focusCard, sessionId, expanded, onExpand, graph.cards]);
+  }, [locateEntry, cards, focusCard, sessionId, expanded, onExpand, graph.cards, projection.owners]);
   const lastInspect = useRef<number | null>(null);
   useEffect(() => {
     if (!inspectEntry || lastInspect.current === inspectEntry.serial) return;

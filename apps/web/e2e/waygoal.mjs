@@ -214,8 +214,13 @@ try {
   const box = await target.boundingBox();
   const start = { x: box.x + Math.min(40, box.width / 3), y: box.y + box.height / 2 };
   assert.equal(await page.evaluate(point => document.elementFromPoint(point.x, point.y)?.closest('[data-node]')?.getAttribute('data-node'), start), NAMED, "session header must be reachable before dragging");
+  const positionWrites = [];
+  const recordPositionWrite = request => {
+    if (request.method() === "PATCH" && new URL(request.url()).pathname === "/api/waygoal" && request.postDataJSON()?.positions?.[NAMED]) positionWrites.push(request.postDataJSON().positions[NAMED]);
+  };
+  page.on("request", recordPositionWrite);
   await page.mouse.move(start.x, start.y); await page.mouse.down();
-  await page.mouse.move(start.x + 100, start.y + 100, { steps: 8 }); await page.mouse.move(start.x + 200, start.y + 200, { steps: 8 }); await page.mouse.up();
+  await page.mouse.move(start.x + 100, start.y + 100, { steps: 60 }); await page.mouse.move(start.x + 200, start.y + 200, { steps: 60 }); await page.mouse.up();
   await page.getByRole("button", { name: "放大" }).click();
   await delay(1200);
   const zoomBefore = await page.locator(".waygoal-zoom span").innerText();
@@ -223,6 +228,9 @@ try {
   const saved = await snapshot();
   const savedPos = saved.nodes.find((n) => n.id === NAMED).position;
   const origPos = twice.nodes.find((n) => n.id === NAMED).position;
+  page.off("request", recordPositionWrite);
+  check("one drop saves a node position only once", positionWrites.length === 1, JSON.stringify(positionWrites));
+  check("continuous dragging does not trigger a React update loop", !errors.some(error => error.includes("Maximum update depth")), errors.join("\n"));
   check("dragging a node persists its position", Math.abs(savedPos.x - origPos.x) > 100 && Math.abs(savedPos.y - origPos.y) > 100, JSON.stringify({ origPos, savedPos }));
   check("view and last viewed are persisted", Math.round((saved.view?.scale ?? 0) * 100) === Number.parseInt(zoomBefore, 10) && saved.lastViewed === createdId, JSON.stringify({ view: saved.view, zoomBefore }));
   const otherRecord = (await (await fetch(`${base}/api/waygoal?cwd=${encodeURIComponent(otherWorkspace)}`)).json());

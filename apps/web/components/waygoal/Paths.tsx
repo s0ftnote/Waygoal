@@ -17,7 +17,7 @@ interface Props {
 function OriginRow({ origin, onViewOrigin }: { origin: WaygoalNodeOrigin; onViewOrigin: () => void }) {
   const name = origin.title ?? origin.sessionId;
   if (!origin.inWorkspace) {
-    return <p className="waygoal-path-note">分叉自另一个工作目录里的会话（<code>{origin.sessionId}</code>）。这里不按标题猜测对应的历史。</p>;
+    return <p className="waygoal-path-note">来源会话不在当前画布中（<code>{origin.sessionId}</code>）。同源分支仍按已核对的历史连接。</p>;
   }
   if (!origin.entryId) {
     return <p className="waygoal-path-note">
