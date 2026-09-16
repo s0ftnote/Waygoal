@@ -42,6 +42,7 @@
     "test:e2e": "node e2e/run.mjs",
     "test:waygoal": "node e2e/waygoal.mjs",
     "test:waygoal-all": "node e2e/waygoal-all.mjs",
+    "test:waygoal-takeaways": "node e2e/waygoal-takeaways.mjs",
     "test:waygoal-branches": "node e2e/waygoal-branches.mjs",
     "test:waygoal-tickets": "node e2e/waygoal-tickets.mjs",
     "test:waygoal-dependencies": "node e2e/waygoal-dependencies.mjs",

@@ -9,6 +9,7 @@ import { projectIdentityKey } from "../project-identity";
 import { normalizeWorkspaceInput, readRecord, workspaceDir, workspaceId } from "./dirs";
 import { claimSessionsOn, rememberedWorkspace } from "./workspaces";
 import { nextFreePosition } from "./layout";
+import { validTakeaway } from "./takeaways";
 import type { WaygoalLayoutChange, WaygoalTurnLayout } from "./types";
 export { nextFreePosition } from "./layout";
 import type { SessionInfo } from "../types";
@@ -117,7 +118,8 @@ const matchesPositions = (nodes: Record<string, WaygoalPoint>, expected: Record<
 function validTurnLayout(value: unknown): value is WaygoalTurnLayout {
   if (!value || typeof value !== "object") return false;
   const layout = value as WaygoalTurnLayout;
-  return (layout.sessionOrigins === undefined || Boolean(layout.sessionOrigins) && typeof layout.sessionOrigins === "object" && !Array.isArray(layout.sessionOrigins) && Object.values(layout.sessionOrigins).every(isPoint))
+  return (layout.takeaways === undefined || Boolean(layout.takeaways) && typeof layout.takeaways === "object" && !Array.isArray(layout.takeaways) && Object.values(layout.takeaways).every(validTakeaway))
+    && (layout.sessionOrigins === undefined || Boolean(layout.sessionOrigins) && typeof layout.sessionOrigins === "object" && !Array.isArray(layout.sessionOrigins) && Object.values(layout.sessionOrigins).every(isPoint))
     && Boolean(layout.positions) && typeof layout.positions === "object" && !Array.isArray(layout.positions)
     && Object.entries(layout.positions).every(([id, point]) => Boolean(id) && isPoint(point))
     && Array.isArray(layout.links) && layout.links.every(pair => Array.isArray(pair) && pair.length === 2 && pair.every(isNonEmptyString) && pair[0] !== pair[1]);
@@ -129,7 +131,7 @@ function validTurnBoard(value: unknown): value is WaygoalTurnLayout {
     try { const pair = JSON.parse(key); return Array.isArray(pair) && pair.length === 2 && pair.every(isNonEmptyString); }
     catch { return false; }
   };
-  return Object.keys(value.positions).every(validKey) && value.links.every(pair => pair.every(validKey));
+  return Object.keys(value.positions).every(validKey) && Object.keys(value.takeaways ?? {}).every(validKey) && value.links.every(pair => pair.every(validKey));
 }
 
 export function readCanvasRecord(scope: WaygoalScope): WaygoalCanvasRecord {

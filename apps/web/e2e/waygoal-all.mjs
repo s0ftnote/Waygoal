@@ -6,7 +6,7 @@ const directory = dirname(fileURLToPath(import.meta.url));
 const suites = [
   "waygoal", "waygoal-branches", "waygoal-tickets", "waygoal-ticket-talks",
   "waygoal-dependencies", "waygoal-find", "waygoal-workspaces",
-  "waygoal-groups", "waygoal-map", "waygoal-remote",
+  "waygoal-groups", "waygoal-map", "waygoal-remote", "waygoal-takeaways",
 ];
 
 // Suites share one Next development build and must release it before the next.

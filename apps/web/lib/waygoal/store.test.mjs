@@ -819,3 +819,20 @@ test("session folding is durable canvas state, isolated from Pi paths and other 
     assert.throws(() => store.applyCanvasPatch(s.sa, { expandedSessions: [null] }));
   } finally { s.done(); }
 });
+
+test("turn takeaways persist per canvas without modifying Pi paths or layout", () => {
+  const s = sandbox();
+  try {
+    const key = JSON.stringify(['session-a', 'turn-a']);
+    store.applyCanvasPatch(s.sa, { lastViewed: "talking", lastViewedEntry: "entry-kept" });
+    const originalEntry = store.readCanvasRecord(s.sa).lastViewedEntry;
+    const takeaways = { [key]: { text: '继续验证消息链路', status: 'draft', fingerprint: 'version-a' } };
+    const turnBoard = { positions: { [key]: { x: 40, y: 80 } }, links: [], takeaways };
+    store.applyCanvasPatch(s.sa, { turnBoard });
+    assert.deepEqual(store.readCanvasRecord(s.sa).turnBoard, turnBoard);
+    assert.equal(store.readCanvasRecord(s.sb).turnBoard, undefined);
+    assert.equal(store.readCanvasRecord(s.sa).lastViewedEntry, originalEntry);
+    assert.throws(() => store.applyCanvasPatch(s.sa, { turnBoard: { ...turnBoard, takeaways: { bad: takeaways[key] } } }), /布局无效/);
+    assert.throws(() => store.applyCanvasPatch(s.sa, { turnBoard: { ...turnBoard, takeaways: { [key]: { ...takeaways[key], status: 'approved-by-model' } } } }), /布局无效/);
+  } finally { s.done(); }
+});

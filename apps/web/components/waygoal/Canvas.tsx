@@ -29,7 +29,7 @@ const NODE_H = NODE_HEIGHT;
 const DEFAULT_VIEW: WaygoalView = { x: 48, y: 96, scale: 1 };
 /** The thumbnail's own size in screen pixels. */
 const THUMB = { width: 200, height: 126 };
-const MIN_SCALE = 0.35;
+const MIN_SCALE = 0.2;
 const MAX_SCALE = 1.8;
 /** The composer a ticket opens is a new-session composer, and the host clears a
  *  new-session draft as soon as that composer unmounts. An unsent ticket draft
@@ -1202,7 +1202,11 @@ export function WaygoalCanvas() {
         {snapshot && <WaygoalTurnCanvas
           key={`${snapshot?.workspaceId}:${snapshot?.workspace.canvasId}`}
           sessionId={panelSession?.id ?? ""} targetVersion={panelKey} layouts={snapshot?.turnLayouts} board={snapshot?.turnBoard}
-          onSaveBoard={layout => void patch({ turnBoard: layout })} sessions={nodes.filter(node => !tucked.has(node.id))}
+          onSaveBoard={async layout => {
+            const saved = await patch({ turnBoard: layout });
+            if (saved) setError(current => current.startsWith("画布记录没有保存") ? "" : current);
+            return saved;
+          }} sessions={nodes.filter(node => !tucked.has(node.id))}
           expanded={expandedSessions} worldHost={worldHost} camera={view} setCamera={setView}
           onExpand={expandSession} onGeometry={receiveGeometry} onFit={fitAll}
           materials={materials} inspectEntry={inspectEntry} onDismissPreview={stopViewing}
