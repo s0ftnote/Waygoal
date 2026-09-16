@@ -557,7 +557,7 @@
 /* One spatial surface: session folding and turn cards share the same world. */
 .waygoal-spatial .waygoal-canvas-area { padding-top: 0; }
 .waygoal-canvas-area > .waygoal-toolbar { display: none; position: absolute; top: 72px; left: 16px; right: 16px; z-index: 9; padding: 12px 16px; gap: 10px; border: 1px solid var(--wg-border); border-radius: 14px; background: var(--wg-surface); box-shadow: var(--wg-shadow); }
-.waygoal-canvas-area[data-managing] > .waygoal-toolbar { display: flex; }
+.waygoal-canvas-area[data-managing] > .waygoal-toolbar { display: flex; position: relative; top: auto; left: auto; right: auto; margin: 72px 16px 0; }
 .waygoal-canvas-area > .waygoal-statusline { display: none; }
 .waygoal-turn-embedded { pointer-events: none; background: none; }
 .waygoal-turn-embedded > .waygoal-turn-viewport { pointer-events: none; background: none; }
@@ -587,3 +587,5 @@
 }
 @media(min-width:768px) and (max-width:1200px) { .waygoal-thumb-box { bottom: 96px; } }
 @media(max-width:767px) { .waygoal-stage:has(.waygoal-turn-canvas) .waygoal-panel-head > .waygoal-button { display: inline-flex; } }
+
+@media(max-width:767px) { .waygoal-canvas-area[data-managing] > .waygoal-toolbar { margin: 4px 8px 0; } }

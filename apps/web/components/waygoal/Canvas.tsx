@@ -385,8 +385,10 @@ export function WaygoalCanvas() {
 
   const nodes = useMemo(() => {
     const source = (snapshot?.nodes ?? []).map(node => ({ ...node, position: dragging[node.id] ?? node.position }));
-    const sizes = Object.fromEntries(Object.entries(turnGeometry.sizes).filter(([id]) => expandedSessions.includes(id)));
-    return placeExpandedSessions(source, sizes);
+    const hidden = new Set((snapshot?.groups ?? []).filter(group => group.collapsed).flatMap(group => group.members));
+    const sizes = Object.fromEntries(Object.entries(turnGeometry.sizes).filter(([id]) => expandedSessions.includes(id) && !hidden.has(id)));
+    const visible = placeExpandedSessions(source.filter(node => !hidden.has(node.id)), sizes);
+    return source.map(node => visible.find(item => item.id === node.id) ?? node);
   }, [snapshot, dragging, turnGeometry.sizes, expandedSessions]);
   // Map and ticket cards, laid out from the same record as the session cards
   // and dragged by the same handlers.
@@ -447,8 +449,9 @@ export function WaygoalCanvas() {
     const id = selectedId ?? openTicket;
     const el = viewportRef.current;
     if (!id || revealedFor.current === id || !el) return;
-    const card = cards.find(c => c.id === id);
-    if (!card) return;
+    const found = cards.find(c => c.id === id);
+    if (!found) return;
+    const card = found.kind === "session" ? { ...found, height: NODE_H } : found;
     revealedFor.current = id;
     const viewport = { width: el.clientWidth, height: el.clientHeight };
     setView(v => {
@@ -786,7 +789,7 @@ export function WaygoalCanvas() {
 
   /** A hit in 查找: go to it and open it. Opening reads — it does not send. */
   const goToCard = useCallback((card: WaygoalCard) => {
-    moveTo(cardCenter(card));
+    moveTo(cardCenter(card.kind === "session" ? { ...card, height: NODE_H } : card));
     if (card.kind === "session") {
       const node = nodes.find(n => n.id === card.id);
       if (node) openNode(node);
