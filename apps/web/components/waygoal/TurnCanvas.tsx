@@ -162,11 +162,11 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
   useEffect(() => {
     if (!locateEntry || lastLocate.current === locateEntry.serial) return;
     const original = graph.cards.find(card => card.members.some(member => member.sessionId === sessionId && member.turn.entryIds.includes(locateEntry.entryId)));
-    if (original && !expanded.includes(original.sessionId)) { onExpand(original.sessionId); return; }
+    if (original && !projection.owners.has(original.key)) { onExpand(original.sessionId); return; }
     const card = cards.find(card => card.members.some(member => member.sessionId === sessionId && member.turn.entryIds.includes(locateEntry.entryId)));
     if (!card) return;
     lastLocate.current = locateEntry.serial; setInspected(null); focusCard(card.key, true);
-  }, [locateEntry, cards, focusCard, sessionId, expanded, onExpand, graph.cards]);
+  }, [locateEntry, cards, focusCard, sessionId, expanded, onExpand, graph.cards, projection.owners]);
   const lastInspect = useRef<number | null>(null);
   useEffect(() => {
     if (!inspectEntry || lastInspect.current === inspectEntry.serial) return;
@@ -256,7 +256,7 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
       onPointerDown={event => { if (event.target !== event.currentTarget) return; setActionKey(null); if (toolsMenu.current) toolsMenu.current.open = false; gesture.current = { start: { x: event.clientX, y: event.clientY }, origin: camera, moved: false }; event.currentTarget.setPointerCapture(event.pointerId); }}
       onPointerMove={event => { const drag = gesture.current; if (!drag) return; const dx = event.clientX - drag.start.x, dy = event.clientY - drag.start.y; drag.moved ||= Math.abs(dx) + Math.abs(dy) > 4; if (drag.id) setLayout(layout => ({ ...layout, positions: { ...layout.positions, [drag.id!]: { x: drag.origin.x + dx / camera.scale, y: drag.origin.y + dy / camera.scale } } })); else setCamera(camera => ({ ...camera, x: drag.origin.x + dx, y: drag.origin.y + dy })); }}
       onPointerUp={() => { if (gesture.current?.id && gesture.current.moved) persistLayout(layoutRef.current); requestAnimationFrame(() => { gesture.current = null; }); }} onPointerCancel={() => { gesture.current = null; }}>
-      {worldHost && createPortal(<div className="waygoal-turn-world" data-zoom-tier={tier} style={{ "--turn-scale": camera.scale } as CSSProperties}>
+      {worldHost && createPortal(<div className="waygoal-turn-world" data-zoom-tier={tier} data-mode={mode} style={{ "--turn-scale": camera.scale } as CSSProperties}>
         <svg className="waygoal-turn-lines" width="1" height="1">
           {graph.edges.map(edge => { const a = byKey.get(edge.from), b = byKey.get(edge.to); if (edge.kind === "history" && (!a || !b) || edge.kind === "fork" && !a && !b) return null; const from = a?.position ?? sessions.find(session => session.id === edge.fromSession)?.position, to = b?.position ?? sessions.find(session => session.id === edge.toSession)?.position; if (!from || !to) return null; const path = edgePath(from, to, edge.kind === "reference" || edge.kind === "association", !!a, !!b); return <g key={edge.key}><path d={path} className={edge.kind} /><path d={path} className="edge-hit" role="button" tabIndex={0} aria-label={`${edge.kind === "reference" ? "引用材料" : edge.kind === "fork" ? "分叉来源" : edge.kind === "association" ? "手动关联" : "连续历史"}：${title(edge.fromSession)} → ${title(edge.toSession)}`} onClick={() => inspect(edge)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); inspect(edge); } }} /></g>; })}
           {tier === "detail" && materials.map(material => { const key = graph.aliases.get(turnKey(material.sessionId, material.turnId)), card = key && byKey.get(key); return card ? <path key={`${material.sessionId}:${material.turnId}`} className="reference pending" d={edgePath(card.position, next, true)} /> : null; })}

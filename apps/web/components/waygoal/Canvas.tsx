@@ -6,10 +6,10 @@ import { cardBounds, cardCenter, thumbnail, viewCenteredOn, worldPoint, type Way
 import type { SessionInfo, UserMessage } from "@/lib/types";
 import type { WaygoalBranchChoice, WaygoalBranchPoint, WaygoalSessionTreeResponse } from "@/lib/waygoal/branches";
 import { mapKind, ticketKind } from "@/lib/waygoal/labels";
-import { placeExpandedSessions, type SessionSize } from "@/lib/waygoal/session-expansion";
-import { TURN_WIDTH, TURN_HEIGHT, type BoardCard, type BoardEdge } from "@/lib/waygoal/turn-board";
+import { placeExpandedSessions, SESSION_HEADER, type SessionSize } from "@/lib/waygoal/session-expansion";
+import { TURN_WIDTH, TURN_HEIGHT, TURN_GAP, type BoardCard, type BoardEdge } from "@/lib/waygoal/turn-board";
 import { arrangeCards } from "@/lib/waygoal/layout";
-import { CHIP_HEIGHT, NODE_HEIGHT, NODE_WIDTH, canOpen, needsCheck, ticketCardHeight, ticketChipTop, type WaygoalCanvasPatch, type WaygoalNode, type WaygoalReference, type WaygoalPoint, type WaygoalSnapshotResponse, type WaygoalTicketCard, type WaygoalView } from "@/lib/waygoal/types";
+import { NODE_HEIGHT, NODE_WIDTH, canOpen, needsCheck, ticketCardHeight, ticketChipTop, type WaygoalCanvasPatch, type WaygoalNode, type WaygoalReference, type WaygoalPoint, type WaygoalSnapshotResponse, type WaygoalTicketCard, type WaygoalView } from "@/lib/waygoal/types";
 import { getUserMessageText, getUserMessageDraftImages } from "../ChatInput";
 import { ChatWindow } from "../ChatWindow";
 import { FileViewer } from "../FileViewer";
@@ -37,7 +37,6 @@ const MAX_SCALE = 1.8;
  *  while no composer holds it, and handed back when the ticket is opened again. */
 const liveTicketDraft = (ticket: string, cwd: string) => `waygoal-ticket:${ticket}:${cwd}`;
 const parkedTicketDraft = (ticket: string, cwd: string) => `waygoal-ticket-parked:${ticket}:${cwd}`;
-const CHIP_GAP = 16;
 
 function without<T>(record: Record<string, T>, key: string): Record<string, T> {
   const next = { ...record };
@@ -148,11 +147,17 @@ export function WaygoalCanvas() {
   const [expandedSessions, setExpandedSessions] = useState<string[]>([]);
   const [worldHost, setWorldHost] = useState<HTMLDivElement | null>(null);
   const [turnGeometry, setTurnGeometry] = useState<{ sizes: Record<string, SessionSize>; cards: BoardCard[]; edges: BoardEdge[] }>({ sizes: {}, cards: [], edges: [] });
+  const geometryRef = useRef(turnGeometry);
   const receiveGeometry = useCallback((sizes: Record<string, SessionSize>, cards: BoardCard[], edges: BoardEdge[]) => {
-    setTurnGeometry(current => {
-      const next = { sizes, cards, edges };
-      return JSON.stringify(current) === JSON.stringify(next) ? current : next;
-    });
+    const current = geometryRef.current;
+    // Translation changes turn positions, not session dimensions. Keep those
+    // dimensions stable so reporting positions cannot restart session layout.
+    const next = { sizes: JSON.stringify(current.sizes) === JSON.stringify(sizes) ? current.sizes : sizes, cards, edges };
+    // Do not schedule another state update from the geometry effect when
+    // nothing changed, even while pointer events keep the parent rendering.
+    if (JSON.stringify(current) === JSON.stringify(next)) return;
+    geometryRef.current = next;
+    setTurnGeometry(next);
   }, []);
   const [searchTarget, setSearchTarget] = useState<{ sessionId: string; entryId: string } | null>(null);
   const [locateEntry, setLocateEntry] = useState<{ entryId: string; serial: number } | null>(null);
@@ -166,6 +171,7 @@ export function WaygoalCanvas() {
   const [trust, setTrust] = useState<{ requiresTrust: boolean; trusted: boolean } | null>(null);
   const [tree, setTree] = useState<WaygoalSessionTreeResponse | null>(null);
   const [viewing, setViewing] = useState<Viewing | null>(null);
+  const forkInFlight = useRef(false);
   const [forkingEntryId, setForkingEntryId] = useState<string | null>(null);
   const restoredFor = useRef<string | null>(null);
   // Set only by user interaction (wheel, drag, buttons, keys). Restoring the
@@ -403,6 +409,7 @@ export function WaygoalCanvas() {
   // A collapsed group stands in for its members: they are not drawn, and
   // neither is any line that would end on one. Nothing about them changes.
   const tucked = useMemo(() => new Set(groups.filter(group => group.collapsed).flatMap(group => group.members)), [groups]);
+  const visibleSessions = useMemo(() => nodes.filter(node => !tucked.has(node.id)), [nodes, tucked]);
   // Directories under .scratch/ that were not read as maps. Saying so on the
   // canvas is the point: a silently skipped directory looks like an empty one.
   const skipped = [...(snapshot?.tickets.unsupported ?? []), ...(snapshot?.tickets.unreadable ?? [])];
@@ -496,8 +503,12 @@ export function WaygoalCanvas() {
   const originEdges = useMemo(() => nodes.flatMap(node => {
     const from = node.origin?.inWorkspace ? nodeById.get(node.origin.sessionId) : undefined;
     if (!from || from.id === node.id || tucked.has(node.id) || tucked.has(from.id)) return [];
+    // Once a real turn endpoint is visible, TurnCanvas owns this fork line.
+    // Keep the session-level fallback only while that precise link is folded.
+    if (turnGeometry.edges.some(edge => edge.kind === "fork" && edge.toSession === node.id
+      && turnGeometry.cards.some(card => card.key === edge.from || card.key === edge.to))) return [];
     return [{ id: node.id, from: from.position, to: node.position, exact: Boolean(node.origin?.entryId) }];
-  }), [nodes, nodeById, tucked]);
+  }), [nodes, nodeById, tucked, turnGeometry]);
 
   // A ticket and its discussions, drawn so the relation survives dragging one
   // of them away. It is an association, not a fork and not a dependency.
@@ -533,20 +544,6 @@ export function WaygoalCanvas() {
     return box ? [{ ...group, left: box.x - 18, top: box.y - 46, width: box.width + 36, height: box.height + 64 }] : [];
   }), [groups, cardById]);
 
-  // The card grows when it carries origin or branch marks, so the chip stack
-  // is placed under its measured height rather than the nominal one.
-  const selectedElRef = useRef<HTMLButtonElement | null>(null);
-  const [chipTop, setChipTop] = useState(NODE_H + CHIP_GAP);
-  useEffect(() => {
-    const el = selectedElRef.current;
-    if (!el) { setChipTop(NODE_H + CHIP_GAP); return; }
-    const update = () => setChipTop(el.offsetHeight + CHIP_GAP);
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [selectedId, snapshot]);
-
   // The thumbnail and 定位 both need the viewport in screen pixels, and it
   // changes whenever the panel opens or the window is resized.
   useEffect(() => {
@@ -558,11 +555,6 @@ export function WaygoalCanvas() {
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-
-  const selectedChoices = useMemo(
-    () => (tree && tree.sessionId === selectedId ? flattenChoices(tree.branchPoints) : []),
-    [tree, selectedId],
-  );
 
   const busyReason = nodes.find(n => n.id === openSessionId)?.running
     ? "这段会话正在运行。分叉和在别的路径里接着说都要等它结束，Waygoal 不打断正在进行的任务；看历史不受影响。"
@@ -677,7 +669,9 @@ export function WaygoalCanvas() {
     // carries it over with the origin, and without one it is said outright, so
     // a fork Pi can only trace back to the session does not leave the ticket.
     const ticket = ticketOfSession.get(originSessionId);
+    const sourceCard = originEntryId && turnGeometry.cards.find(card => card.members.some(member => member.sessionId === originSessionId && member.turn.entryIds.includes(originEntryId)));
     await patch({
+      ...(sourceCard ? { positions: { [newSessionId]: { x: Math.round(sourceCard.position.x + TURN_WIDTH + TURN_GAP), y: Math.round(sourceCard.position.y + TURN_HEIGHT + TURN_GAP - SESSION_HEADER) } } } : {}),
       registerSession: newSessionId,
       ...(originEntryId ? { origin: { sessionId: newSessionId, originSessionId, originEntryId } }
         : ticket ? { ticketSession: { sessionId: newSessionId, ticket } } : {}),
@@ -692,15 +686,18 @@ export function WaygoalCanvas() {
     setCreatedSession(nodeToSession(fork, next.cwd));
     expandSession(originSessionId); expandSession(newSessionId);
     setSelectedId(newSessionId);
+    if (originEntryId) setLocateEntry({ entryId: originEntryId, serial: Date.now() });
     setMaterials([]); setManageOpen(false);
     setPanelKey(k => k + 1);
     setNotice(originEntryId
       ? "已分出一段新会话。原来的讨论还在画布上，连线指向它分出的那条消息。"
       : "已分出一段新会话。这次没有记下具体消息位置，画布只显示来源会话。");
-  }, [leavePanel, patch, refresh, ticketOfSession, expandSession]);
+  }, [leavePanel, patch, refresh, ticketOfSession, expandSession, turnGeometry.cards]);
 
   /** The real Pi fork, from a message in the read-only view. */
   const forkFrom = useCallback(async (sessionId: string, entryId: string, after = false, editedMessage?: UserMessage) => {
+    if (forkInFlight.current) return;
+    forkInFlight.current = true;
     setForkingEntryId(entryId);
     try {
       const res = await fetch(`/api/agent/${encodeURIComponent(sessionId)}`, {
@@ -715,7 +712,7 @@ export function WaygoalCanvas() {
       await landOnFork(newSessionId, sessionId, entryId);
     } catch (e) {
       setError(`分叉没有完成：${e instanceof Error ? e.message : String(e)}`);
-    } finally { setForkingEntryId(null); }
+    } finally { forkInFlight.current = false; setForkingEntryId(null); }
   }, [landOnFork]);
 
   /** The one action that moves the agent: continue this session in one path. */
@@ -908,6 +905,7 @@ export function WaygoalCanvas() {
   const onPointerMove = (e: React.PointerEvent<HTMLElement>) => {
     const d = drag.current;
     if (!d || d.pointerId !== e.pointerId) return;
+    e.stopPropagation();
     const dx = e.clientX - d.start.x, dy = e.clientY - d.start.y;
     if (Math.abs(dx) + Math.abs(dy) > 4) d.moved = true;
     if (d.id) setDragging(p => ({ ...p, [d.id!]: { x: d.origin.x + dx / view.scale, y: d.origin.y + dy / view.scale } }));
@@ -916,6 +914,7 @@ export function WaygoalCanvas() {
   const onPointerUp = (e: React.PointerEvent<HTMLElement>) => {
     const d = drag.current;
     if (!d || d.pointerId !== e.pointerId) return;
+    e.stopPropagation();
     if (d.id && d.moved) {
       const id = d.id;
       const position = dragging[id];
@@ -998,7 +997,7 @@ export function WaygoalCanvas() {
                 // them; a label that would run under a card is dropped, and the
                 // card's own 「分叉自「…」」 mark still says where it came from.
                 const gap = Math.hypot(end.x - start.x, end.y - start.y);
-                return <g key={`origin-${edge.id}`} className="waygoal-link">
+                return <g key={`origin-${edge.id}`} data-session-origin={edge.id} className="waygoal-link">
                   <path d={`M ${start.x} ${start.y} L ${end.x} ${end.y}`} />
                   <circle cx={end.x} cy={end.y} r={4.5} />
                   {gap >= label.length * LINK_LABEL_CHAR_W + 16
@@ -1057,10 +1056,9 @@ export function WaygoalCanvas() {
               <span className="waygoal-node-foot"><span>里面的会话原样还在</span><span aria-hidden="true">展开 →</span></span>
             </button>)}
             {nodes.filter(node => !tucked.has(node.id)).map(node => <Fragment key={node.id}><button key={node.id} type="button" data-node={node.id}
-              ref={node.id === selectedId ? selectedElRef : undefined}
               data-expanded={expandedSessions.includes(node.id) || undefined}
               className={`waygoal-node${node.id === selectedId ? " selected" : ""}${node.running ? " running" : ""}${viewing?.sessionId === node.id ? " viewing" : ""}${picked.includes(node.id) ? " picked" : ""}`}
-              style={{ left: node.position.x, top: node.position.y, ...(expandedSessions.includes(node.id) ? { width: turnGeometry.sizes[node.id]?.width ?? TURN_WIDTH } : {}) }}
+              style={{ left: node.position.x, top: node.position.y, ...(expandedSessions.includes(node.id) ? { width: TURN_WIDTH } : {}) }}
               aria-pressed={node.id === selectedId} aria-expanded={expandedSessions.includes(node.id)}
               aria-label={`${node.title}${node.running ? "，正在运行" : ""}${node.branchPointCount ? `，${node.branchPointCount} 处会话内分叉` : ""}${node.origin ? "，有分叉来源" : ""}`}
               onPointerDown={onCardPointerDown(node.id, node.position)}
@@ -1081,7 +1079,7 @@ export function WaygoalCanvas() {
               </span>}
               <span className="waygoal-node-foot"><span>{node.messageCount ? `${node.messageCount} 条消息` : "还没有消息"}</span><span aria-hidden="true">{expandedSessions.includes(node.id) ? "已展开" : "展开会话"}</span></span>
             </button>{expandedSessions.includes(node.id) && <button type="button" className="waygoal-session-collapse" data-collapse-session={node.id} aria-label={`收起会话：${node.title}`}
-              style={{ left: node.position.x + (turnGeometry.sizes[node.id]?.width ?? TURN_WIDTH) - 54, top: node.position.y + 10 }}
+              style={{ left: node.position.x + TURN_WIDTH - 54, top: node.position.y + 10 }}
               onPointerDown={event => event.stopPropagation()} onClick={() => setSessionExpanded(node.id, false)}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 10 4-4 4 4" /></svg></button>}</Fragment>)}
             {/* Local maps and their tickets, read from this workspace's own
                 files. Opening one only reads it: no Pi session is started. */}
@@ -1179,19 +1177,6 @@ export function WaygoalCanvas() {
                 </button>}
               </Fragment>)}
             </div>)}
-            {/* In-session paths of the open node, so branches stay findable on the
-                canvas and not only inside the chat panel. Clicking one reads it. */}
-            {selectedNode && !expandedSessions.includes(selectedNode.id) && selectedChoices.map(({ choice, order }, index) => <button key={`chip-${choice.entryId}`} type="button" data-chip={choice.entryId}
-              className={`waygoal-chip${choice.active ? " active" : ""}${viewing?.entryId === choice.entryId ? " viewing" : ""}`}
-              style={{ left: selectedNode.position.x, top: selectedNode.position.y + chipTop + index * CHIP_HEIGHT, width: NODE_W }}
-              onPointerDown={e => e.stopPropagation()}
-              onClick={e => { e.stopPropagation(); viewPath(selectedNode.id, choice.entryId, `会话内路径 ${order + 1}`, choice.leafId); }}
-              title="点开这段历史，直接接着说">
-              <span className="waygoal-chip-label">路径 {order + 1}</span>
-              <span className="waygoal-chip-preview">{choice.preview}</span>
-              {viewing?.entryId === choice.entryId && <span className="waygoal-tag reading">正在看</span>}
-              {choice.active && <span className="waygoal-tag continuing">在聊这条</span>}
-            </button>)}
             {/* Only when there is nothing at all to look at: with tickets on the
                 canvas this box would sit on top of them. */}
             {snapshot && nodes.length === 0 && ticketMaps.length === 0 && <div className="waygoal-empty" style={{ left: 0, top: 0 }}>
@@ -1206,14 +1191,14 @@ export function WaygoalCanvas() {
             const saved = await patch({ turnBoard: layout });
             if (saved) setError(current => current.startsWith("画布记录没有保存") ? "" : current);
             return saved;
-          }} sessions={nodes.filter(node => !tucked.has(node.id))}
+          }} sessions={visibleSessions}
           expanded={expandedSessions} worldHost={worldHost} camera={view} setCamera={setView}
           onExpand={expandSession} onGeometry={receiveGeometry} onFit={fitAll}
           materials={materials} inspectEntry={inspectEntry} onDismissPreview={stopViewing}
           onOpenSession={id => { const node = nodes.find(node => node.id === id); if (node && id !== panelSession?.id) openNode(node); }}
           onFork={(sessionId, entryId) => void forkFrom(sessionId, entryId, true)}
           onReady={id => { if (entranceSession === id) setEntranceSession(null); }}
-          locateEntry={locateEntry} busy={Boolean(busyReason) || navigating}
+          locateEntry={locateEntry} busy={Boolean(busyReason) || navigating || Boolean(forkingEntryId)}
           onOverview={() => setManageOpen(true)}
           onLocate={(sessionId, turn) => {
             if (!panelSession) { const node = nodes.find(node => node.id === sessionId); if (node) openNode(node); }
@@ -1296,7 +1281,7 @@ export function WaygoalCanvas() {
           loading={!tree || tree.sessionId !== panelSession.id}
           onViewOrigin={() => {
             if (!panelOrigin) return;
-            if (!panelOrigin.inWorkspace) { setNotice("来源会话不在这个工作目录里，画布不会替你打开另一段历史。"); return; }
+            if (!panelOrigin.inWorkspace) { setNotice("来源会话不在当前画布中。"); return; }
             // Nothing to continue from here: this is the source discussion, and
             // its own paths are chosen from its own panel.
             viewPath(panelOrigin.sessionId, panelOrigin.entryId, panelOrigin.entryId ? "来源讨论的这条消息" : "来源讨论", null);

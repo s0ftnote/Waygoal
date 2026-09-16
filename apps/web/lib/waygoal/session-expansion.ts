@@ -9,8 +9,11 @@ export interface SessionSize { width: number; height: number }
 export function expandedTurns(graph: ReturnType<typeof projectTurnBoard>, sessions: (BoardSession & { position: WaygoalPoint })[], expanded: string[], origins: Record<string, WaygoalPoint> = {}) {
   const open = new Set(expanded), owners = new Map<string, string>();
   const groups = new Map<string, BoardCard[]>();
+  const bySession = new Map(sessions.map(session => [session.id, session]));
   for (const card of graph.cards) {
-    const owner = open.has(card.sessionId) ? card.sessionId : undefined;
+    const source = bySession.get(card.sessionId)?.origin?.sessionId;
+    const peer = source && !bySession.has(source) ? card.members.find(member => open.has(member.sessionId) && bySession.get(member.sessionId)?.origin?.sessionId === source)?.sessionId : undefined;
+    const owner = open.has(card.sessionId) ? card.sessionId : peer;
     if (!owner) continue;
     owners.set(card.key, owner);
     groups.set(owner, [...(groups.get(owner) ?? []), card]);
@@ -20,8 +23,10 @@ export function expandedTurns(graph: ReturnType<typeof projectTurnBoard>, sessio
   for (const session of sessions) {
     if (!open.has(session.id)) continue;
     const cards = groups.get(session.id) ?? [];
-    const x = origins[session.id]?.x ?? (cards.length ? Math.min(...cards.map(card => card.position.x)) : 0);
-    const y = origins[session.id]?.y ?? (cards.length ? Math.min(...cards.map(card => card.position.y)) : 0);
+    const sharedOwner = cards.length && cards.every(card => card.sessionId !== session.id) ? cards[0].sessionId : session.id;
+    const origin = graph.newStarts.has(session.id) ? undefined : origins[sharedOwner];
+    const x = origin?.x ?? (cards.length ? Math.min(...cards.map(card => card.position.x)) : 0);
+    const y = origin?.y ?? (cards.length ? Math.min(...cards.map(card => card.position.y)) : 0);
     if (cards.length) bases[session.id] = { x, y };
     sizes[session.id] = {
       width: cards.length ? Math.max(TURN_WIDTH, Math.max(...cards.map(card => card.position.x + TURN_WIDTH)) - x) : TURN_WIDTH,

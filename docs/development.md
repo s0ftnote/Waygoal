@@ -34,7 +34,7 @@ Waygoal 直接复用宿主的聊天组件、会话读取和运行能力。目录
 | `npm run setup` | 按应用锁文件安装依赖，运行依赖与宿主的安装脚本 |
 | `npm run dev` | 在 `127.0.0.1:30142/waygoal` 启动开发服务 |
 | `npm run check` | 顺序运行 lint、类型检查及全部单元测试 |
-| `npm run test:e2e` | 顺序执行全部 11 组 Waygoal 浏览器检查 |
+| `npm run test:e2e` | 顺序执行全部 12 组 Waygoal 浏览器检查 |
 | `npm run build` / `npm start` | 构建并启动生产宿主，使用同一 Waygoal 入口 |
 | `npm run prototype:canvas` | 在 30145 端口查看独立静态交互原型 |
 
@@ -69,3 +69,5 @@ CI 使用同一套根目录命令，执行静态检查、单元测试、生产�
 共同轮次投影位于 `lib/waygoal/turn-board.ts`，只读加载与画布交互在 `components/waygoal/TurnCanvas.tsx`。分支套件同时检查跨会话关系、引用快照及共同布局保存；共享前缀仅是展示投影，真实身份与 Pi 上下文保持分离。
 
 所得与语义缩放检查使用 `npm --prefix apps/web run test:waygoal-takeaways`，覆盖主动提炼、人工确认、保存失败保留文字、重载、缩放定位及 Pi 历史和草稿不变。证据目录为 `semantic/`。
+
+同源分支检查使用 `npm --prefix apps/web run test:waygoal-sibling-forks`，覆盖来源不在画布时共享历史、无新轮次的分叉落点，以及卡片与消息按钮包含所选消息的分叉边界。证据位于 `sibling-forks/`。

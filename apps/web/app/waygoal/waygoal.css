@@ -205,7 +205,7 @@
    claims no direction. */
 .waygoal-link.manual path { stroke: var(--wg-path); stroke-width: 2.5; stroke-dasharray: none; opacity: 1; }
 .waygoal-link.manual circle { fill: var(--wg-path); opacity: 1; }
-.waygoal-link-note { position: absolute; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 4px; max-width: 190px; padding: 2px 4px 2px 9px; border-radius: 11px; font-size: 10px; line-height: 18px; color: var(--wg-ink); background: var(--wg-surface); border: 1px solid var(--wg-path); }
+.waygoal-link-note { position: absolute; z-index: 2; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 4px; max-width: 190px; padding: 2px 4px 2px 9px; border-radius: 11px; font-size: 10px; line-height: 18px; color: var(--wg-ink); background: var(--wg-surface); border: 1px solid var(--wg-path); }
 .waygoal-link-note span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .waygoal-link-note button { width: 18px; height: 18px; border-radius: 50%; font-size: 13px; color: var(--wg-muted); flex-shrink: 0; }
 .waygoal-link-note button:hover { background: var(--wg-accent-soft); color: var(--wg-ink); }
@@ -565,7 +565,7 @@
 .waygoal-world:has(.waygoal-turn-world) { --turn-scale: 1; }
 .waygoal-node[data-expanded] { min-height: 58px; height: 58px; padding: 14px 64px 14px 16px; gap: 0; border-radius: 12px; box-shadow: none; background: var(--wg-accent-soft); }
 .waygoal-node[data-expanded] > :is(.waygoal-node-meta, .waygoal-node-foot, .waygoal-node-marks) { display: none; }
-.waygoal-node[data-expanded] > strong { -webkit-line-clamp: 1; line-height: 28px; font-size: 14px; }
+.waygoal-node[data-expanded] > strong { -webkit-line-clamp: 1; line-height: 28px; font-size: 18px; }
 .waygoal-session-collapse { position: absolute; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 8px; z-index: 2; }
 .waygoal-session-collapse:hover { background: var(--wg-surface); }
 .waygoal-session-collapse svg { width: 16px; height: 16px; fill: none; stroke: var(--wg-ink); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
@@ -612,7 +612,7 @@
 .waygoal-turn-world[data-zoom-tier="overview"] .waygoal-turn-card[data-takeaway="confirmed"] .waygoal-turn-glyph { background: var(--wg-accent-soft); border-color: var(--wg-ink); color: var(--wg-ink); }
 .waygoal-turn-world[data-zoom-tier="overview"] .waygoal-turn-card.active .waygoal-turn-glyph,
 .waygoal-turn-world[data-zoom-tier="overview"] .waygoal-turn-card.selected .waygoal-turn-glyph { background: var(--wg-ink); border-color: var(--wg-ink); color: var(--wg-surface); }
-.waygoal-turn-world:not([data-zoom-tier="detail"]) .waygoal-next-turn { visibility: hidden; }
+.waygoal-turn-world:not([data-zoom-tier="detail"]):not([data-mode="reference"]) .waygoal-next-turn { visibility: hidden; }
 .waygoal-takeaway-editor { position: absolute; z-index: 12; right: 16px; bottom: 92px; width: min(340px, calc(100% - 32px)); max-height: calc(100% - 120px); overflow: auto; padding: 20px; background: var(--wg-surface); border: 1px solid var(--wg-border); border-radius: 14px; pointer-events: auto; }
 .waygoal-takeaway-editor header { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 16px; }
 .waygoal-takeaway-editor header button { min-width: 32px; min-height: 32px; font-size: 22px; }

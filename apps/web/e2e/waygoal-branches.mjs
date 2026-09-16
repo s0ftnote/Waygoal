@@ -295,6 +295,9 @@ try {
   await browseSession(id);
   await waitFor(async () => await page.locator(`[data-node="${id}"][data-expanded]`).count() === 1, "source expands alongside fork");
   check("multiple sessions expand together without replacing the current conversation", await page.locator('[data-node][data-expanded]').count() >= 2 && await composer.inputValue() === "分叉草稿保留" && await page.evaluate(() => window.keptWorld === document.querySelector(".waygoal-world")));
+  check("expanded session headings stay card-sized instead of stretching across the tree", await page.locator('[data-node][data-expanded]').evaluateAll(nodes => nodes.every(node => parseFloat(node.style.width) === 278)));
+  await waitFor(async () => await page.locator(`[data-session-origin="${forkId}"]`).count() === 0 && await page.locator('.waygoal-turn-lines path.fork').count() > 0, "precise fork line replaces its session fallback");
+  check("an expanded fork is drawn once at its real turn endpoint", await page.locator(`[data-session-origin="${forkId}"]`).count() === 0 && await page.locator('.waygoal-turn-lines path.fork').count() > 0);
   // Keyboard activation works even when a wire lies outside the current camera.
   const forkWire = page.getByRole("button", { name: /^分叉来源：/ }).first();
   await forkWire.focus(); await forkWire.press("Enter");
@@ -304,6 +307,7 @@ try {
   await tool("引用连线");
   await page.getByRole("button", { name: "全景", exact: true }).click();
   await page.locator(`[data-turn="${sibling.id}"] .waygoal-turn-port`).click();
+  check("reference destination remains visible at overview zoom", await page.locator("[data-next-turn]").isVisible());
   await page.locator("[data-next-turn]").click();
   await tray.waitFor(); await tray.locator("summary").click();
   const crossReviewed = await tray.locator("pre").allTextContents();
@@ -323,6 +327,9 @@ try {
   await waitFor(async () => (await snapshot()).turnBoard?.links.length === 1, "cross-session association persisted");
   await page.getByRole("button", { name: "当前轮次", exact: true }).click();
   const draggedCard = page.locator(`[data-turn="${crossTurn.id}"]`);
+  // Camera navigation animates. Wait for the real pointer target to settle
+  // before deriving mouse coordinates; boundingBox alone does not wait.
+  await draggedCard.locator(".waygoal-turn-content").click({ trial: true });
   const savedBeforeDrag = (await snapshot()).turnBoard.positions[JSON.stringify([forkId, crossTurn.id])];
   const beforeDrag = await draggedCard.evaluate(element => ({ x: parseFloat(element.style.left), y: parseFloat(element.style.top) }));
   const box = await draggedCard.boundingBox();
@@ -390,6 +397,14 @@ try {
   check("card location resolves original identity across multiple history pages", await panel.getByText("长历史-0", { exact: true }).isVisible());
   await page.evaluate(() => { window.longOriginal = document.querySelector('.waygoal-panel [data-entry-id="00000001"]'); });
   await page.getByRole("button", { name: "全景", exact: true }).click();
+  const canvasScale = () => waitFor(() => page.locator(".waygoal-world").evaluate(element => {
+    if (element.getAnimations().some(animation => animation.playState === "running" || animation.pending)) return null;
+    const actual = new DOMMatrix(getComputedStyle(element).transform), target = new DOMMatrix(element.style.transform);
+    // A style update can precede animation registration by one frame.
+    if (Math.abs(actual.a - target.a) > 0.000001 || Math.abs(actual.e - target.e) > 0.05 || Math.abs(actual.f - target.f) > 0.05) return null;
+    return actual.a;
+  }), "canvas scale transition to settle");
+  await canvasScale();
   check("overview fits every card in a 300-turn history", await page.locator(".waygoal-viewport").evaluate(viewport => {
     const bounds = viewport.getBoundingClientRect();
     return [...viewport.querySelectorAll("[data-turn]")].every(card => {
@@ -399,10 +414,6 @@ try {
   }));
   await page.screenshot({ path: join(evidence, "04-long-overview.png") });
   const turnViewport = page.locator(".waygoal-viewport");
-  const canvasScale = () => waitFor(() => page.locator(".waygoal-world").evaluate(element => {
-    if (element.getAnimations().some(animation => animation.playState === "running" || animation.pending)) return null;
-    return new DOMMatrix(getComputedStyle(element).transform).a;
-  }), "canvas scale transition to settle");
   const fittedScale = await canvasScale();
   await turnViewport.hover(); await page.mouse.wheel(0, -100);
   await waitFor(() => page.locator(".waygoal-world").evaluate((element, before) => new DOMMatrix(element.style.transform).a > before, fittedScale), "wheel updates camera");

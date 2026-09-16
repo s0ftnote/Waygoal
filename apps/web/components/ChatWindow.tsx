@@ -1075,7 +1075,7 @@ export function ChatWindow({ hideWelcome = false, promptMaterials, onPromptAccep
                     onOpenSession={onOpenSession}
                     entryId={entryIds[idx]}
                     searchBlock={entryIds[idx] === pendingSearchScroll?.entryId ? searchBlock : undefined}
-                    onFork={sessionBusy || isNew ? undefined : handleFork}
+                    onFork={sessionBusy || isNew ? undefined : onForkAfter ?? handleFork}
                     forking={forkingEntryId === entryIds[idx]}
                     forkLabel={forkLabel}
                     onNavigate={sessionBusy ? undefined : onNavigateEntry ?? handleNavigate}

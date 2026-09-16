@@ -60,3 +60,39 @@ test("new siblings avoid the saved positions of later-session cards", () => {
   assert.equal(new Set(after.cards.map(card => JSON.stringify(card.position))).size, after.cards.length);
   for (const [key, point] of Object.entries(positions)) assert.deepEqual(after.cards.find(card => card.key === key).position, point);
 });
+
+test("siblings share their verified inherited prefix even when their source is outside the canvas", () => {
+  const sessions = [session("a", "outside"), session("b", "outside")];
+  const data = { a: tree("a", [turn("q"), turn("a-tail", "q")]), b: tree("b", [turn("q"), turn("b-tail", "q")]) };
+  const graph = projectTurnBoard(sessions, data, empty());
+  assert.equal(graph.cards.length, 3);
+  assert.equal(graph.cards.find(c => c.turn.id === "q").members.length, 2);
+  assert.ok(graph.edges.some(e => e.kind === "fork" && e.from === turnKey("a", "q") && e.to === turnKey("b", "b-tail")));
+  data.b.turns[0].fingerprint = "different original payload";
+  assert.equal(projectTurnBoard(sessions, data, empty()).cards.length, 4);
+});
+
+test("a fresh fork with no new turn still links its session to the precise source turn", () => {
+  const sessions = [session("a", "outside"), session("b", "outside")];
+  const data = { a: tree("a", [turn("q")]), b: tree("b", [turn("q")]) };
+  const graph = projectTurnBoard(sessions, data, empty());
+  assert.equal(graph.cards.length, 1);
+  const edge = graph.edges.find(e => e.kind === "fork" && e.toSession === "b");
+  assert.equal(edge?.from, turnKey("a", "q"));
+  assert.ok(edge.to && !graph.cards.some(c => c.key === edge.to));
+});
+
+test("sibling sharing stops at each recorded fork boundary", () => {
+  const sessions = [session("a", "outside", "q-a"), session("b", "outside", "later-a")];
+  const turns = [turn("q"), turn("later", "q")];
+  const graph = projectTurnBoard(sessions, {a:tree("a", turns),b:tree("b", turns)}, empty());
+  assert.equal(graph.cards.length, 3, "matching text after the earlier fork is not shared ancestry");
+});
+
+test("forking a sibling does not move the shared history to another owner", () => {
+  const sessions = [session("a", "outside"), session("b", "outside")];
+  const data = {a:tree("a",[turn("q")]),b:tree("b",[turn("q")]),"0-new":tree("0-new",[turn("q")])};
+  const before = projectTurnBoard(sessions, data, empty());
+  const after = projectTurnBoard([...sessions,session("0-new","b")], data, empty());
+  assert.equal(after.aliases.get(turnKey("b","q")), before.aliases.get(turnKey("b","q")));
+});
