@@ -307,6 +307,7 @@ try {
   await tool("引用连线");
   await page.getByRole("button", { name: "全景", exact: true }).click();
   await page.locator(`[data-turn="${sibling.id}"] .waygoal-turn-port`).click();
+  check("reference destination remains visible at overview zoom", await page.locator("[data-next-turn]").isVisible());
   await page.locator("[data-next-turn]").click();
   await tray.waitFor(); await tray.locator("summary").click();
   const crossReviewed = await tray.locator("pre").allTextContents();

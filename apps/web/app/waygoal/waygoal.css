@@ -612,7 +612,7 @@
 .waygoal-turn-world[data-zoom-tier="overview"] .waygoal-turn-card[data-takeaway="confirmed"] .waygoal-turn-glyph { background: var(--wg-accent-soft); border-color: var(--wg-ink); color: var(--wg-ink); }
 .waygoal-turn-world[data-zoom-tier="overview"] .waygoal-turn-card.active .waygoal-turn-glyph,
 .waygoal-turn-world[data-zoom-tier="overview"] .waygoal-turn-card.selected .waygoal-turn-glyph { background: var(--wg-ink); border-color: var(--wg-ink); color: var(--wg-surface); }
-.waygoal-turn-world:not([data-zoom-tier="detail"]) .waygoal-next-turn { visibility: hidden; }
+.waygoal-turn-world:not([data-zoom-tier="detail"]):not([data-mode="reference"]) .waygoal-next-turn { visibility: hidden; }
 .waygoal-takeaway-editor { position: absolute; z-index: 12; right: 16px; bottom: 92px; width: min(340px, calc(100% - 32px)); max-height: calc(100% - 120px); overflow: auto; padding: 20px; background: var(--wg-surface); border: 1px solid var(--wg-border); border-radius: 14px; pointer-events: auto; }
 .waygoal-takeaway-editor header { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 16px; }
 .waygoal-takeaway-editor header button { min-width: 32px; min-height: 32px; font-size: 22px; }
