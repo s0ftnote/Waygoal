@@ -399,7 +399,10 @@ try {
   await page.getByRole("button", { name: "全景", exact: true }).click();
   const canvasScale = () => waitFor(() => page.locator(".waygoal-world").evaluate(element => {
     if (element.getAnimations().some(animation => animation.playState === "running" || animation.pending)) return null;
-    return new DOMMatrix(getComputedStyle(element).transform).a;
+    const actual = new DOMMatrix(getComputedStyle(element).transform), target = new DOMMatrix(element.style.transform);
+    // A style update can precede animation registration by one frame.
+    if (Math.abs(actual.a - target.a) > 0.000001 || Math.abs(actual.e - target.e) > 0.05 || Math.abs(actual.f - target.f) > 0.05) return null;
+    return actual.a;
   }), "canvas scale transition to settle");
   await canvasScale();
   check("overview fits every card in a 300-turn history", await page.locator(".waygoal-viewport").evaluate(viewport => {
