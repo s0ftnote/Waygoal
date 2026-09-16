@@ -205,7 +205,7 @@
    claims no direction. */
 .waygoal-link.manual path { stroke: var(--wg-path); stroke-width: 2.5; stroke-dasharray: none; opacity: 1; }
 .waygoal-link.manual circle { fill: var(--wg-path); opacity: 1; }
-.waygoal-link-note { position: absolute; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 4px; max-width: 190px; padding: 2px 4px 2px 9px; border-radius: 11px; font-size: 10px; line-height: 18px; color: var(--wg-ink); background: var(--wg-surface); border: 1px solid var(--wg-path); }
+.waygoal-link-note { position: absolute; z-index: 2; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 4px; max-width: 190px; padding: 2px 4px 2px 9px; border-radius: 11px; font-size: 10px; line-height: 18px; color: var(--wg-ink); background: var(--wg-surface); border: 1px solid var(--wg-path); }
 .waygoal-link-note span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .waygoal-link-note button { width: 18px; height: 18px; border-radius: 50%; font-size: 13px; color: var(--wg-muted); flex-shrink: 0; }
 .waygoal-link-note button:hover { background: var(--wg-accent-soft); color: var(--wg-ink); }
