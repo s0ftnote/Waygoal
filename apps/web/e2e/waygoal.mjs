@@ -278,10 +278,12 @@ try {
   const nodeButton = page.locator(".waygoal-node").first();
   await nodeButton.focus();
   const focusedId = await nodeButton.getAttribute("data-node");
-  const nudgeFrom = (await snapshot()).nodes.find((n) => n.id === focusedId).position;
+  // Expansion may temporarily make room beside another session. Keyboard
+  // movement starts from the visible header, not its old folded position.
+  const nudgeFrom = await nodeButton.evaluate(element => ({ x: parseFloat(element.style.left), y: parseFloat(element.style.top) }));
   await page.keyboard.press("ArrowRight"); await delay(800);
-  const nudgeTo = (await snapshot()).nodes.find((n) => n.position.x === nudgeFrom.x + 10);
-  check("arrow keys nudge a focused node", Boolean(nudgeTo));
+  const nudgeTo = (await snapshot()).nodes.find((n) => n.id === focusedId).position;
+  check("arrow keys nudge a focused node", nudgeTo.x === nudgeFrom.x + 10 && nudgeTo.y === nudgeFrom.y);
   await page.keyboard.press("Enter");
   await page.locator(".waygoal-panel").waitFor();
   check("Enter on a focused node opens its panel", true);
