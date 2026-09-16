@@ -397,6 +397,11 @@ try {
   check("card location resolves original identity across multiple history pages", await panel.getByText("长历史-0", { exact: true }).isVisible());
   await page.evaluate(() => { window.longOriginal = document.querySelector('.waygoal-panel [data-entry-id="00000001"]'); });
   await page.getByRole("button", { name: "全景", exact: true }).click();
+  const canvasScale = () => waitFor(() => page.locator(".waygoal-world").evaluate(element => {
+    if (element.getAnimations().some(animation => animation.playState === "running" || animation.pending)) return null;
+    return new DOMMatrix(getComputedStyle(element).transform).a;
+  }), "canvas scale transition to settle");
+  await canvasScale();
   check("overview fits every card in a 300-turn history", await page.locator(".waygoal-viewport").evaluate(viewport => {
     const bounds = viewport.getBoundingClientRect();
     return [...viewport.querySelectorAll("[data-turn]")].every(card => {
@@ -406,10 +411,6 @@ try {
   }));
   await page.screenshot({ path: join(evidence, "04-long-overview.png") });
   const turnViewport = page.locator(".waygoal-viewport");
-  const canvasScale = () => waitFor(() => page.locator(".waygoal-world").evaluate(element => {
-    if (element.getAnimations().some(animation => animation.playState === "running" || animation.pending)) return null;
-    return new DOMMatrix(getComputedStyle(element).transform).a;
-  }), "canvas scale transition to settle");
   const fittedScale = await canvasScale();
   await turnViewport.hover(); await page.mouse.wheel(0, -100);
   await waitFor(() => page.locator(".waygoal-world").evaluate((element, before) => new DOMMatrix(element.style.transform).a > before, fittedScale), "wheel updates camera");
