@@ -211,8 +211,9 @@ try {
   await page.getByRole("button", { name: "回到全景" }).click();
   await delay(500);
   const target = node(NAMED_TITLE);
+  await target.click({ trial: true });
   const box = await target.boundingBox();
-  const start = { x: box.x + Math.min(40, box.width / 3), y: box.y + box.height / 2 };
+  const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   assert.equal(await page.evaluate(point => document.elementFromPoint(point.x, point.y)?.closest('[data-node]')?.getAttribute('data-node'), start), NAMED, "session header must be reachable before dragging");
   const positionWrites = [];
   const recordPositionWrite = request => {
