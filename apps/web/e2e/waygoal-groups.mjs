@@ -111,8 +111,8 @@ try {
     const p = await context.newPage();
     // These checks exercise workspace/session organization. Return through the
     // real overview control when the turn view covers those controls.
-    await p.addLocatorHandler(p.locator('.waygoal-turn-more > summary'), async button => {
-      await button.click(); await p.getByRole('button', { name: '会话与票据', exact: true }).click();
+    await p.addLocatorHandler(p.locator('.waygoal-canvas-area:not([data-managing]) .waygoal-turn-more > summary'), async button => {
+      await button.click(); await p.getByRole('button', { name: '整理会话与票据', exact: true }).click();
     });
     p.setDefaultTimeout(30_000);
     p.on("pageerror", (e) => note(e.message));

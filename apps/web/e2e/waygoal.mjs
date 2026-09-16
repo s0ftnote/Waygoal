@@ -137,8 +137,8 @@ try {
     const p = await context.newPage();
     // These checks exercise workspace/session organization. Return through the
     // real overview control when the turn view covers those controls.
-    await p.addLocatorHandler(p.locator('.waygoal-turn-more > summary'), async button => {
-      await button.click(); await p.getByRole('button', { name: '会话与票据', exact: true }).click();
+    await p.addLocatorHandler(p.locator('.waygoal-canvas-area:not([data-managing]) .waygoal-turn-more > summary'), async button => {
+      await button.click(); await p.getByRole('button', { name: '整理会话与票据', exact: true }).click();
     });
     p.setDefaultTimeout(30_000);
     p.on("pageerror", (e) => errors.push(e.message));
@@ -289,8 +289,8 @@ try {
   // 10. Narrow screen: panel is full-screen with a way back to the canvas.
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-US" });
   const mpage = await mobile.newPage(); mpage.setDefaultTimeout(30_000);
-  await mpage.addLocatorHandler(mpage.locator('.waygoal-turn-more > summary'), async button => {
-      await button.click(); await mpage.getByRole('button', { name: '会话与票据', exact: true }).click();
+  await mpage.addLocatorHandler(mpage.locator('.waygoal-canvas-area:not([data-managing]) .waygoal-turn-more > summary'), async button => {
+      await button.click(); await mpage.getByRole('button', { name: '整理会话与票据', exact: true }).click();
     });
   await mpage.goto(canvasUrl, { waitUntil: "domcontentloaded" });
   await openOverview(mpage);

@@ -157,7 +157,7 @@ try {
     await delay(600);
     if (await page.locator('.waygoal-turn-more > summary').isVisible()) {
       await page.locator('.waygoal-turn-more > summary').click();
-      await page.getByRole('button', { name: '会话与票据', exact: true }).click();
+      await page.getByRole('button', { name: '整理会话与票据', exact: true }).click();
     }
   };
 

@@ -14,7 +14,7 @@ export function evidenceDirectory(suite) {
 // Legacy overview suites explicitly choose it; ordinary empty canvases open a composer.
 export async function openOverview(page) {
   await page.locator('[data-canvas]').first().waitFor({ state: 'attached' });
-  if (await page.locator('[data-empty-entry="true"]').count()) {
+  if (!await page.locator('[data-managing="true"]').count()) {
     await page.locator('.waygoal-workspace-menu > summary').click();
     await page.locator('.waygoal-workspace-controls').getByRole('button', { name: '查看会话与票据', exact: true }).click();
   }

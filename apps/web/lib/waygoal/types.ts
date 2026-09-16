@@ -1,6 +1,7 @@
 export interface WaygoalPoint { x: number; y: number }
 export interface WaygoalView { x: number; y: number; scale: number }
 export interface WaygoalTurnLayout {
+  sessionOrigins?: Record<string, WaygoalPoint>;
   positions: Record<string, WaygoalPoint>;
   links: [string, string][];
 }
@@ -16,6 +17,8 @@ export interface WaygoalCanvasRecord {
   turnLayouts?: Record<string, WaygoalTurnLayout>;
   /** Shared board keys encode [sessionId, turnId]; legacy layouts remain readable. */
   turnBoard?: WaygoalTurnLayout;
+  /** Display-only session folding; absent means all sessions start collapsed. */
+  expandedSessions?: string[];
   version: 1;
   cwd: string;
   nodes: Record<string, WaygoalPoint>;
@@ -135,6 +138,8 @@ export interface WaygoalSnapshot {
   turnLayouts?: Record<string, WaygoalTurnLayout>;
   /** Shared board keys encode [sessionId, turnId]; legacy layouts remain readable. */
   turnBoard?: WaygoalTurnLayout;
+  /** Display-only session folding; absent means all sessions start collapsed. */
+  expandedSessions?: string[];
   canUndoLayout?: boolean;
   cwd: string;
   workspaceId: string;
@@ -152,6 +157,8 @@ export interface WaygoalCanvasPatch {
   preview?: WaygoalPlace | null;
   turnLayout?: { sessionId: string; layout: WaygoalTurnLayout };
   turnBoard?: WaygoalTurnLayout;
+  /** Display-only session folding; absent means all sessions start collapsed. */
+  expandedSessions?: string[];
   layout?: WaygoalLayoutChange;
   undoLayout?: boolean;
   positions?: Record<string, WaygoalPoint>;

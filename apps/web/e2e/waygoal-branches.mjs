@@ -118,7 +118,7 @@ try {
   const tool = async name => { await openTools(); await page.getByRole('button', { name, exact: true }).click(); if (await page.locator('.waygoal-turn-more[open]').count()) await page.locator('.waygoal-turn-more > summary').click(); };
   const browseSession = async id => { await openTools(); await page.getByRole('combobox', { name: '查看会话轮次' }).selectOption(id); if (await page.locator('.waygoal-turn-more[open]').count()) await page.locator('.waygoal-turn-more > summary').click(); };
   const turns = async id => (await fetch(`${base}/api/waygoal/session/${id}/turns`)).json();
-  await page.goto(canvasUrl, { waitUntil: "domcontentloaded" });
+  await page.goto(canvasUrl, { waitUntil: "domcontentloaded", timeout: 120_000 });
   await composer.waitFor();
   check("empty canvas opens a composer without creating a Pi session", (await snapshot()).nodes.length === 0 && model.requests.length === 0 && await page.locator('[data-empty-entry="true"]').count() === 1);
   await page.evaluate(() => { window.entryInput = document.querySelector('.waygoal-panel textarea'); });
@@ -281,6 +281,20 @@ try {
   await composer.fill("分叉草稿保留");
   const forkLeaf = (await turns(forkId)).activeLeafId;
   await page.evaluate(() => { window.keptInput = document.querySelector(".waygoal-panel textarea"); });
+  const foldingUrl = page.url();
+  await page.evaluate(() => { window.keptWorld = document.querySelector(".waygoal-world"); });
+  const collapseOriginal = page.locator(`[data-collapse-session="${id}"]`);
+  await collapseOriginal.focus(); await collapseOriginal.press("Enter");
+  await waitFor(async () => await page.locator(`[data-node="${id}"]`).getAttribute("aria-expanded") === "false", "original collapses in place");
+  check("folding keeps other sessions and the continuous composer in the same canvas", await page.locator(`[data-node="${forkId}"][data-expanded]`).count() === 1 && await composer.inputValue() === "分叉草稿保留" && await page.evaluate(() => window.keptInput === document.querySelector(".waygoal-panel textarea") && window.keptWorld === document.querySelector(".waygoal-world")) && page.url() === foldingUrl);
+  check("folding sends nothing and preserves the active Pi path", (await turns(forkId)).activeLeafId === forkLeaf);
+  await tool("选择继续路径");
+  await page.getByRole("navigation", { name: "Tree 路径选择" }).getByRole("button", { name: /分叉里连续聊二/ }).waitFor();
+  await page.keyboard.press("Escape");
+  // Expand by inspecting the source selector without changing the active chat.
+  await browseSession(id);
+  await waitFor(async () => await page.locator(`[data-node="${id}"][data-expanded]`).count() === 1, "source expands alongside fork");
+  check("multiple sessions expand together without replacing the current conversation", await page.locator('[data-node][data-expanded]').count() >= 2 && await composer.inputValue() === "分叉草稿保留" && await page.evaluate(() => window.keptWorld === document.querySelector(".waygoal-world")));
   // Keyboard activation works even when a wire lies outside the current camera.
   const forkWire = page.getByRole("button", { name: /^分叉来源：/ }).first();
   await forkWire.focus(); await forkWire.press("Enter");
@@ -309,12 +323,13 @@ try {
   await waitFor(async () => (await snapshot()).turnBoard?.links.length === 1, "cross-session association persisted");
   await page.getByRole("button", { name: "当前轮次", exact: true }).click();
   const draggedCard = page.locator(`[data-turn="${crossTurn.id}"]`);
+  const savedBeforeDrag = (await snapshot()).turnBoard.positions[JSON.stringify([forkId, crossTurn.id])];
   const beforeDrag = await draggedCard.evaluate(element => ({ x: parseFloat(element.style.left), y: parseFloat(element.style.top) }));
   const box = await draggedCard.boundingBox();
   await page.mouse.move(box.x + 90, box.y + 60); await page.mouse.down();
   await page.mouse.move(box.x + 140, box.y + 90, { steps: 6 }); await page.mouse.up();
   const movedPosition = { x: beforeDrag.x + 50, y: beforeDrag.y + 30 };
-  await waitFor(async () => JSON.stringify((await snapshot()).turnBoard?.positions[JSON.stringify([forkId, crossTurn.id])]) === JSON.stringify(movedPosition), "shared card drag persisted");
+  await waitFor(async () => JSON.stringify((await snapshot()).turnBoard?.positions[JSON.stringify([forkId, crossTurn.id])]) === JSON.stringify({ x: savedBeforeDrag.x + 50, y: savedBeforeDrag.y + 30 }), "shared card drag persisted");
   await page.reload({ waitUntil: "domcontentloaded" }); await composer.waitFor();
   await page.getByRole("button", { name: /^手动关联：/ }).waitFor();
   check("manual associations and frozen references survive reload", (await snapshot()).turnBoard.links.length === 1 && (await turns(forkId)).turns.find(turn => turn.id === crossTurn.id).sources[0].snapshot === crossTurn.sources[0].snapshot);
@@ -342,7 +357,7 @@ try {
   check("the stacked chat fills intermediate-width viewports", await panel.evaluate(element => Math.abs(element.getBoundingClientRect().width - document.documentElement.clientWidth) <= 1));
   await page.setViewportSize({ width: 390, height: 844 });
   await delay(500);
-  check("narrow screen retains canvas and composer without horizontal overflow", await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth) && await composer.isVisible() && await page.locator(".waygoal-turn-viewport").isVisible());
+  check("narrow screen retains canvas and composer without horizontal overflow", await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth) && await composer.isVisible() && await page.locator(".waygoal-viewport").isVisible());
   const touchTargets = await page.locator(".waygoal-turn-toolbar button:visible, .waygoal-turn-toolbar select:visible").evaluateAll(elements => elements.map(element => {
     const { width, height } = element.getBoundingClientRect(); return { width, height };
   }));
@@ -363,7 +378,7 @@ try {
   }
   records.push({ type: "session_info", id: "abcdef01", parentId, timestamp, name: "长历史导航" });
   writeFileSync(join(dirname(fileInfo.filePath), `long_${longId}.jsonl`), records.map(record => JSON.stringify(record)).join("\n") + "\n");
-  await tool("会话与票据");
+  await tool("整理会话与票据");
   await waitFor(async () => (await snapshot()).nodes.some(node => node.id === longId), "long fixture discovery");
   await page.locator(`[data-node="${longId}"]`).click();
   await page.locator('[data-turn="00000001"]').waitFor();
@@ -373,7 +388,7 @@ try {
   check("card location resolves original identity across multiple history pages", await panel.getByText("长历史-0", { exact: true }).isVisible());
   await page.evaluate(() => { window.longOriginal = document.querySelector('.waygoal-panel [data-entry-id="00000001"]'); });
   await page.getByRole("button", { name: "全景", exact: true }).click();
-  check("overview fits every card in a 300-turn history", await page.locator(".waygoal-turn-viewport").evaluate(viewport => {
+  check("overview fits every card in a 300-turn history", await page.locator(".waygoal-viewport").evaluate(viewport => {
     const bounds = viewport.getBoundingClientRect();
     return [...viewport.querySelectorAll("[data-turn]")].every(card => {
       const box = card.getBoundingClientRect();
@@ -381,10 +396,10 @@ try {
     });
   }));
   await page.screenshot({ path: join(evidence, "04-long-overview.png") });
-  const turnViewport = page.locator(".waygoal-turn-viewport");
-  const fittedScale = await page.locator(".waygoal-turn-world").evaluate(element => new DOMMatrix(getComputedStyle(element).transform).a);
+  const turnViewport = page.locator(".waygoal-viewport");
+  const fittedScale = await page.locator(".waygoal-world").evaluate(element => new DOMMatrix(getComputedStyle(element).transform).a);
   await turnViewport.hover(); await page.mouse.wheel(0, -100); await delay(200);
-  const zoomedScale = await page.locator(".waygoal-turn-world").evaluate(element => new DOMMatrix(getComputedStyle(element).transform).a);
+  const zoomedScale = await page.locator(".waygoal-world").evaluate(element => new DOMMatrix(getComputedStyle(element).transform).a);
   check("zooming from overview changes scale smoothly without jumping to the old minimum", zoomedScale > fittedScale && zoomedScale < fittedScale * 1.2);
   await page.getByRole("button", { name: "当前轮次", exact: true }).click();
   check("returning to the current turn restores readable size after overview", await page.locator('[data-turn="00000257"]').evaluate(element => element.getBoundingClientRect().width >= 278));

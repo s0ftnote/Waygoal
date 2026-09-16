@@ -805,3 +805,17 @@ test("shared turn board persists scoped identities without leaking between works
     assert.deepEqual(store.readCanvasRecord(s.sa).turnBoard, turnBoard);
   } finally { s.done(); }
 });
+
+
+test("session folding is durable canvas state, isolated from Pi paths and other canvases", () => {
+  const s = sandbox();
+  try {
+    store.applyCanvasPatch(s.sa, { lastViewed: "talking", expandedSessions: ["a", "b", "a"] });
+    assert.deepEqual(store.readCanvasRecord(s.sa).expandedSessions, ["a", "b"]);
+    store.applyCanvasPatch(s.sa, { expandedSessions: ["b"] });
+    assert.equal(store.readCanvasRecord(s.sa).lastViewed, "talking");
+    assert.deepEqual(store.buildSnapshot(s.sa, [], []).expandedSessions, ["b"]);
+    assert.deepEqual(store.buildSnapshot(s.sb, [], []).expandedSessions, []);
+    assert.throws(() => store.applyCanvasPatch(s.sa, { expandedSessions: [null] }));
+  } finally { s.done(); }
+});

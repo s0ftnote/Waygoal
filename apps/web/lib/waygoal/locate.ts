@@ -9,6 +9,7 @@ export interface WaygoalCard {
   kind: "session" | "ticket" | "map" | "group";
   position: WaygoalPoint;
   height: number;
+  width?: number;
   /** When the session last changed. Tickets and maps have no such time — the
    *  file's read time says when it was read, not when the work moved. */
   modified: string | null;
@@ -18,7 +19,7 @@ export interface WaygoalBox { x: number; y: number; width: number; height: numbe
 export interface WaygoalSize { width: number; height: number }
 
 export const cardCenter = (card: WaygoalCard): WaygoalPoint =>
-  ({ x: card.position.x + NODE_WIDTH / 2, y: card.position.y + card.height / 2 });
+  ({ x: card.position.x + (card.width ?? NODE_WIDTH) / 2, y: card.position.y + card.height / 2 });
 
 /** Everything the canvas holds, as one box. Null when it holds nothing. */
 export function cardBounds(cards: readonly WaygoalCard[]): WaygoalBox | null {
@@ -27,7 +28,7 @@ export function cardBounds(cards: readonly WaygoalCard[]): WaygoalBox | null {
   const y = Math.min(...cards.map(c => c.position.y));
   return {
     x, y,
-    width: Math.max(...cards.map(c => c.position.x + NODE_WIDTH)) - x,
+    width: Math.max(...cards.map(c => c.position.x + (c.width ?? NODE_WIDTH))) - x,
     height: Math.max(...cards.map(c => c.position.y + c.height)) - y,
   };
 }
@@ -81,15 +82,17 @@ export function thumbnail(cards: readonly WaygoalCard[], view: WaygoalView, view
   const x = Math.min(cardsBox.x, shown.x), y = Math.min(cardsBox.y, shown.y);
   const width = Math.max(cardsBox.x + cardsBox.width, shown.x + shown.width) - x;
   const height = Math.max(cardsBox.y + cardsBox.height, shown.y + shown.height) - y;
-  const scale = Math.min(size.width / width, size.height / height);
+  const padding = 14;
+  const scale = Math.min((size.width - padding * 2) / width, (size.height - padding * 2) / height);
+  const origin = { x: x - (size.width / scale - width) / 2, y: y - (size.height / scale - height) / 2 };
   const place = (box: WaygoalBox): WaygoalBox =>
-    ({ x: (box.x - x) * scale, y: (box.y - y) * scale, width: box.width * scale, height: box.height * scale });
+    ({ x: (box.x - origin.x) * scale, y: (box.y - origin.y) * scale, width: box.width * scale, height: box.height * scale });
   return {
-    origin: { x, y },
+    origin,
     scale,
     cards: cards.map(card => ({
       id: card.id, kind: card.kind,
-      ...place({ x: card.position.x, y: card.position.y, width: NODE_WIDTH, height: card.height }),
+      ...place({ x: card.position.x, y: card.position.y, width: card.width ?? NODE_WIDTH, height: card.height }),
     })),
     view: place(shown),
   };
