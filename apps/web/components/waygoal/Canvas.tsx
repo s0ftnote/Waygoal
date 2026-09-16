@@ -434,6 +434,7 @@ export function WaygoalCanvas() {
       })),
     ];
   }, [nodes, ticketMaps, groups, expandedSessions, turnGeometry.sizes]);
+  const sceneCards = useMemo(() => [...cards, ...turnGeometry.cards.map(card => ({ id: card.key, title: card.turn.question, kind: "session" as const, position: card.position, width: TURN_WIDTH, height: TURN_HEIGHT, modified: null }))], [cards, turnGeometry.cards]);
   const cardById = useMemo(() => new Map(cards.map(card => [card.id, card])), [cards]);
   // The card the record was left on, while it is still here.
   const continueCard = useMemo(() => (snapshot?.lastViewed && !snapshot.lastViewedMissing
@@ -760,24 +761,24 @@ export function WaygoalCanvas() {
   const zoomBy = useCallback((factor: number, center?: WaygoalPoint) => {
     viewDirty.current = true;
     setView(v => {
-      const box = cardBounds(cards);
+      const box = cardBounds(sceneCards);
       const minimum = box ? Math.min(MIN_SCALE, Math.max(.001, Math.min((viewportSize.width - 96) / box.width, (viewportSize.height - 200) / box.height))) : MIN_SCALE;
       const scale = Math.min(MAX_SCALE, Math.max(minimum, v.scale * factor));
       if (!center) return { ...v, scale };
       const ratio = scale / v.scale;
       return { x: center.x - (center.x - v.x) * ratio, y: center.y - (center.y - v.y) * ratio, scale };
     });
-  }, [cards, viewportSize]);
+  }, [sceneCards, viewportSize]);
 
   /** 回到全景 means the whole canvas: session cards and ticket cards alike, and
    *  a ticket takes as much room as the discussions shown under it. */
   const fitAll = useCallback(() => {
     viewDirty.current = true;
-    const box = cardBounds(cards);
+    const box = cardBounds(sceneCards);
     if (!box || viewportSize.width === 0) { setView(DEFAULT_VIEW); return; }
     const scale = Math.min(1, Math.max(.001, Math.min((viewportSize.width - 96) / box.width, (viewportSize.height - 200) / box.height)));
     setView(viewCenteredOn({ x: box.x + box.width / 2, y: box.y + box.height / 2 }, { ...DEFAULT_VIEW, scale }, viewportSize));
-  }, [cards, viewportSize]);
+  }, [sceneCards, viewportSize]);
 
   /** Move the view so a place on the canvas sits in the middle. Locating is
    *  only that: no session is opened, nothing is sent, and which path a

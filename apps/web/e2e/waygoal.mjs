@@ -212,8 +212,10 @@ try {
   await delay(500);
   const target = node(NAMED_TITLE);
   const box = await target.boundingBox();
-  await page.mouse.move(box.x + 40, box.y + 20); await page.mouse.down();
-  await page.mouse.move(box.x + 140, box.y + 120, { steps: 8 }); await page.mouse.move(box.x + 240, box.y + 220, { steps: 8 }); await page.mouse.up();
+  const start = { x: box.x + Math.min(40, box.width / 3), y: box.y + box.height / 2 };
+  assert.equal(await page.evaluate(point => document.elementFromPoint(point.x, point.y)?.closest('[data-node]')?.getAttribute('data-node'), start), NAMED, "session header must be reachable before dragging");
+  await page.mouse.move(start.x, start.y); await page.mouse.down();
+  await page.mouse.move(start.x + 100, start.y + 100, { steps: 8 }); await page.mouse.move(start.x + 200, start.y + 200, { steps: 8 }); await page.mouse.up();
   await page.getByRole("button", { name: "放大" }).click();
   await delay(1200);
   const zoomBefore = await page.locator(".waygoal-zoom span").innerText();

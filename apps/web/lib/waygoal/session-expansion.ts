@@ -24,8 +24,8 @@ export function expandedTurns(graph: ReturnType<typeof projectTurnBoard>, sessio
     const y = origins[session.id]?.y ?? (cards.length ? Math.min(...cards.map(card => card.position.y)) : 0);
     if (cards.length) bases[session.id] = { x, y };
     sizes[session.id] = {
-      width: cards.length ? Math.max(...cards.map(card => card.position.x + TURN_WIDTH)) - x : TURN_WIDTH,
-      height: SESSION_HEADER + (cards.length ? Math.max(...cards.map(card => card.position.y + TURN_HEIGHT)) - y : 80) + 90,
+      width: cards.length ? Math.max(TURN_WIDTH, Math.max(...cards.map(card => card.position.x + TURN_WIDTH)) - x) : TURN_WIDTH,
+      height: SESSION_HEADER + (cards.length ? Math.max(80, Math.max(...cards.map(card => card.position.y + TURN_HEIGHT)) - y) : 80) + 90,
     };
     offsets[session.id] = { x: session.position.x - x, y: session.position.y + SESSION_HEADER - y };
   }
