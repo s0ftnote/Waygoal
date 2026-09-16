@@ -124,8 +124,10 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
     const left = Math.min(...points.map(p => p.x)), top = Math.min(...points.map(p => p.y)) - 40;
     const treeWidth = Math.max(...points.map(p => p.x + WIDTH)) - left;
     const treeHeight = Math.max(...points.map(p => p.y + HEIGHT)) - top;
-    const scale = Math.min(1, Math.max(1, width - 70) / treeWidth, Math.max(1, height - 70) / treeHeight);
-    return { scale, x: (width - treeWidth * scale) / 2 - left * scale, y: (height - treeHeight * scale) / 2 - top * scale };
+    const topInset = width >= 768 ? 84 : 24, bottomInset = 80;
+    const availableHeight = Math.max(1, height - topInset - bottomInset);
+    const scale = Math.min(1, Math.max(1, width - 70) / treeWidth, availableHeight / treeHeight);
+    return { scale, x: (width - treeWidth * scale) / 2 - left * scale, y: topInset + (availableHeight - treeHeight * scale) / 2 - top * scale };
   };
   const focusCard = useCallback((key: string, readable = false) => {
     const card = byKey.get(key), bounds = viewport.current?.getBoundingClientRect();
