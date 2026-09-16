@@ -1,5 +1,5 @@
 {
-  "ranAt": "2026-09-10T19:35:12.881Z",
+  "ranAt": "2026-09-11T06:13:39.530Z",
   "checks": [
     {
       "name": "a ticket with no discussion says so instead of looking finished",
@@ -39,7 +39,7 @@
     {
       "name": "a discussion forked out of this ticket stays under it",
       "ok": true,
-      "detail": "[{\"sessionId\":\"01a08ccf-c3a8-73ca-b65e-8059dd11e627\",\"title\":\"先想开场白\",\"running\":false,\"missing\":false,\"originSessionId\":null},{\"sessionId\":\"01a08cd0-4f40-73ca-b65e-805a319a0df9\",\"title\":\"先想开场白\",\"running\":false,\"missing\":false,\"originSessionId\":\"01a08ccf-c3a8-73ca-b65e-8059dd11e627\"}]"
+      "detail": "[{\"sessionId\":\"01a08f18-233a-7613-861e-6191c0210287\",\"title\":\"先想开场白\",\"running\":false,\"missing\":false,\"originSessionId\":null},{\"sessionId\":\"01a08f18-b1e9-7613-861e-61928f4c316f\",\"title\":\"先想开场白\",\"running\":false,\"missing\":false,\"originSessionId\":\"01a08f18-233a-7613-861e-6191c0210287\"}]"
     },
     {
       "name": "the ticket gains no dependency from being discussed",
@@ -54,7 +54,7 @@
     {
       "name": "a second branch off the same discussion is also this ticket's",
       "ok": true,
-      "detail": "[[\"01a08ccf-c3a8-73ca-b65e-8059dd11e627\",null],[\"01a08cd0-4f40-73ca-b65e-805a319a0df9\",\"01a08ccf-c3a8-73ca-b65e-8059dd11e627\"],[\"01a08cd0-cb66-73ca-b65e-805d602e2dd4\",\"01a08ccf-c3a8-73ca-b65e-8059dd11e627\"]]"
+      "detail": "[[\"01a08f18-233a-7613-861e-6191c0210287\",null],[\"01a08f18-b1e9-7613-861e-61928f4c316f\",\"01a08f18-233a-7613-861e-6191c0210287\"],[\"01a08f19-327b-7613-861e-6194592c7f8d\",\"01a08f18-233a-7613-861e-6191c0210287\"]]"
     },
     {
       "name": "the two branches are two separate Pi session files",
@@ -69,7 +69,7 @@
     {
       "name": "and reading does not move which discussion the ticket was last talked in",
       "ok": true,
-      "detail": "[\"01a08ccf-c3a8-73ca-b65e-8059dd11e627\",{\"sessionId\":\"01a08ccf-c3a8-73ca-b65e-8059dd11e627\",\"entryId\":null}]"
+      "detail": "[\"01a08f18-233a-7613-861e-6191c0210287\",{\"sessionId\":\"01a08f18-233a-7613-861e-6191c0210287\",\"entryId\":null}]"
     },
     {
       "name": "one ticket carries several discussions",
@@ -79,7 +79,7 @@
     {
       "name": "the ticket remembers which discussion was last talked in",
       "ok": true,
-      "detail": "{\"sessionId\":\"01a08cd0-d658-73ca-b65e-805f90d33da0\",\"entryId\":null}"
+      "detail": "{\"sessionId\":\"01a08f19-3fca-7613-861e-6196b8308e6e\",\"entryId\":null}"
     },
     {
       "name": "collapsing the ticket and closing the panel does not stop a running discussion",
@@ -114,12 +114,12 @@
     {
       "name": "a host restart keeps the discussions, the collapsed state and where the talking was left off",
       "ok": true,
-      "detail": "[4,false,{\"sessionId\":\"01a08ccf-c3a8-73ca-b65e-8059dd11e627\",\"entryId\":null}]"
+      "detail": "[4,false,{\"sessionId\":\"01a08f18-233a-7613-861e-6191c0210287\",\"entryId\":null}]"
     },
     {
       "name": "a discussion whose session is gone is reported, not replaced by another",
       "ok": true,
-      "detail": "[[\"01a08ccf-c3a8-73ca-b65e-8059dd11e627\",false],[\"01a08cd0-4f40-73ca-b65e-805a319a0df9\",false],[\"01a08cd0-cb66-73ca-b65e-805d602e2dd4\",false],[\"01a08cd0-d658-73ca-b65e-805f90d33da0\",true]]"
+      "detail": "[[\"01a08f18-233a-7613-861e-6191c0210287\",false],[\"01a08f18-b1e9-7613-861e-61928f4c316f\",false],[\"01a08f19-327b-7613-861e-6194592c7f8d\",false],[\"01a08f19-3fca-7613-861e-6196b8308e6e\",true]]"
     },
     {
       "name": "and it says so where the discussions are listed",

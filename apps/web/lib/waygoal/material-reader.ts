@@ -45,7 +45,10 @@ export async function captureMaterial(sourceId: string, turnId: string, targetId
       text = entry.message.role === "assistant" && (scope === "answer" || scope === "excerpt")
         ? messageText({ content: splitFinalAssistantBlocks(entry.message).answerBlocks })
         : messageText(entry.message);
-    } else if ((scope === "turn" || scope === "path") && (entry.type === "compaction" || entry.type === "branch_summary")) text = entry.summary;
+    } else if (scope === "turn" || scope === "path") {
+      if (entry.type === "compaction" || entry.type === "branch_summary") text = entry.summary;
+      else if (entry.type === "custom_message" && entry.display) text = messageText(entry);
+    }
     if (!text.trim()) continue;
     if (scope === "excerpt") {
       if (!excerpt?.trim()) throw new Error("请从回答原文中选择摘录。");

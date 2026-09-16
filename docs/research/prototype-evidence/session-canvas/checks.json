@@ -1,5 +1,5 @@
 {
-  "ranAt": "2026-09-11T03:08:07.784Z",
+  "ranAt": "2026-09-11T06:20:05.950Z",
   "checks": [
     {
       "name": "discovery shows both workspace sessions with real titles",
@@ -83,38 +83,9 @@
     },
     {
       "name": "reload restores node position",
-      "ok": true,
-      "detail": "{\"gapBefore\":{\"x\":-262.16766357421875,\"y\":229.87722778320312},\"gapAfter\":{\"x\":-261.7818908691406,\"y\":229.76409912109375}}"
-    },
-    {
-      "name": "restore does not send a message",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "name": "host restart restores canvas and last viewed session without sending",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "name": "arrow keys nudge a focused node",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "name": "Enter on a focused node opens its panel",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "name": "no page or console errors",
-      "ok": true,
-      "detail": ""
-    },
-    {
-      "name": "narrow screen has a back-to-canvas entry",
-      "ok": true,
-      "detail": ""
+      "ok": false,
+      "detail": "{\"gapBefore\":{\"x\":-262.16766357421875,\"y\":229.87722778320312},\"gapAfter\":{\"x\":-253.8354034423828,\"y\":228.07821655273438}}"
     }
-  ]
+  ],
+  "failure": "AssertionError [ERR_ASSERTION]: reload restores node position {\"gapBefore\":{\"x\":-262.16766357421875,\"y\":229.87722778320312},\"gapAfter\":{\"x\":-253.8354034423828,\"y\":228.07821655273438}}\n    at check (file:///Users/neuron/%E6%96%87%E7%A8%BF/2%20%E7%A7%81%E4%BA%BA/beacon/apps/web/e2e/waygoal.mjs:69:99)\n    at file:///Users/neuron/%E6%96%87%E7%A8%BF/2%20%E7%A7%81%E4%BA%BA/beacon/apps/web/e2e/waygoal.mjs:225:3"
 }

@@ -1,5 +1,5 @@
 {
-  "ranAt": "2026-09-10T22:43:48.599Z",
+  "ranAt": "2026-09-11T06:19:27.680Z",
   "checks": [
     {
       "name": "the delivery answers with the card it landed on and whether the canvas is in sync",
@@ -69,7 +69,7 @@
     {
       "name": "a delivery whose raw result is gone is recorded as not captured, and the source operation still counts",
       "ok": true,
-      "detail": "{\"ticket\":\"remote/github/s0ftnote/Waygoal/11\",\"captured\":false,\"note\":\"没有读到这次交付的原始结果（ENOENT: no such file or directory, lstat '/private/var/folders/91/xkj5dqrd45xg8jp31lj5zjnw0000gn/T/waygoal-remote-e2e-c0TVZR/work/放映会/.scratch/remote/github-11.json'）。原始结果要落在工作目录里；把它写回去之后可以再取一次。\"}"
+      "detail": "{\"ticket\":\"remote/github/s0ftnote/Waygoal/11\",\"captured\":false,\"note\":\"没有读到这次交付的原始结果（ENOENT: no such file or directory, lstat '/private/var/folders/91/xkj5dqrd45xg8jp31lj5zjnw0000gn/T/waygoal-remote-e2e-rbky6W/work/放映会/.scratch/remote/github-11.json'）。原始结果要落在工作目录里；把它写回去之后可以再取一次。\"}"
     },
     {
       "name": "the card is there and says 未同步 rather than disappearing or showing invented text",

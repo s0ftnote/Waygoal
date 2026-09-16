@@ -675,7 +675,11 @@ export function WaygoalCanvas() {
       const arrivalKey = `waygoal-path:${sessionId}:${body.data?.leafId ?? entryId}`;
       const currentDraft = getDraft(sessionId);
       if (currentDraft) setDraft(departureKey, currentDraft); else clearDraft(departureKey);
-      if (sessionId === openSessionId) materialDrafts.current.set(departureKey, materials);
+      // A Tree selection can enter a closed session directly on another path.
+      // Park its last open composer's materials before replacing that path.
+      materialDrafts.current.set(departureKey, sessionId === openSessionId
+        ? materials
+        : materialDrafts.current.get(`session:${sessionId}`) ?? []);
       const restored = getDraft(arrivalKey);
       if (restored) setDraft(sessionId, restored); else clearDraft(sessionId);
       if (body.data?.editorText) setDraft(sessionId, { value: body.data.editorText, images: [] });

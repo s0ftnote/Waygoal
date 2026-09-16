@@ -1,10 +1,10 @@
 {
-  "ranAt": "2026-09-10T19:25:52.740Z",
+  "ranAt": "2026-09-11T06:16:07.388Z",
   "checks": [
     {
       "name": "an unnamed session falls back to its first message without that becoming its name",
       "ok": true,
-      "detail": "{\"id\":\"01a08cc8-44be-7332-b249-f4d89d4f4eaf\",\"title\":\"放映会放哪部片好\",\"titleSource\":\"fallback\",\"messageCount\":2,\"created\":\"2026-09-10T19:25:30.174Z\",\"modified\":\"2026-09-10T19:25:33.145Z\",\"running\":false,\"transient\":false,\"position\":{\"x\":0,\"y\":200},\"origin\":null,\"branchPointCount\":0,\"activeLeafId\":\"46f79a63\"}"
+      "detail": "{\"id\":\"01a08f1b-5a9c-74e2-93cc-08138ef21acd\",\"title\":\"放映会放哪部片好\",\"titleSource\":\"fallback\",\"messageCount\":2,\"created\":\"2026-09-11T06:15:29.692Z\",\"modified\":\"2026-09-11T06:15:33.397Z\",\"running\":false,\"transient\":false,\"position\":{\"x\":0,\"y\":200},\"origin\":null,\"branchPointCount\":0,\"activeLeafId\":\"ecad36c0\"}"
     },
     {
       "name": "the rename box does not start out holding the fallback title",
@@ -14,7 +14,7 @@
     {
       "name": "renaming keeps the session's identity, place, messages and relations, and calls no model",
       "ok": true,
-      "detail": "{\"after\":{\"id\":\"01a08cc8-44be-7332-b249-f4d89d4f4eaf\",\"title\":\"放映会选片\",\"titleSource\":\"name\",\"messageCount\":2,\"created\":\"2026-09-10T19:25:30.174Z\",\"modified\":\"2026-09-10T19:25:33.145Z\",\"running\":false,\"transient\":false,\"position\":{\"x\":0,\"y\":200},\"origin\":null,\"branchPointCount\":0,\"activeLeafId\":\"46f79a63\"},\"was\":{\"position\":{\"x\":0,\"y\":200},\"messages\":[\"user:[{\\\"type\\\":\\\"text\\\",\\\"text\\\":\\\"放映会放哪部片好\\\"}]\",\"assistant:[{\\\"type\\\":\\\"text\\\",\\\"text\\\":\\\"回复: 放映会放哪部片好\\\"}]\"],\"count\":2},\"requests\":0}"
+      "detail": "{\"after\":{\"id\":\"01a08f1b-5a9c-74e2-93cc-08138ef21acd\",\"title\":\"放映会选片\",\"titleSource\":\"name\",\"messageCount\":2,\"created\":\"2026-09-11T06:15:29.692Z\",\"modified\":\"2026-09-11T06:15:33.397Z\",\"running\":false,\"transient\":false,\"position\":{\"x\":0,\"y\":200},\"origin\":null,\"branchPointCount\":0,\"activeLeafId\":\"ecad36c0\"},\"was\":{\"position\":{\"x\":0,\"y\":200},\"messages\":[\"user:[{\\\"type\\\":\\\"text\\\",\\\"text\\\":\\\"放映会放哪部片好\\\"}]\",\"assistant:[{\\\"type\\\":\\\"text\\\",\\\"text\\\":\\\"回复: 放映会放哪部片好\\\"}]\"],\"count\":2},\"requests\":0}"
     },
     {
       "name": "plain chat does not overwrite the name the user gave",
@@ -104,7 +104,7 @@
     {
       "name": "回到上次看的地方 comes back to the card the canvas was left on",
       "ok": true,
-      "detail": "{\"lastSeen\":\"01a08cc8-44be-7332-b249-f4d89d4f4eaf\",\"filmId\":\"01a08cc8-44be-7332-b249-f4d89d4f4eaf\"}"
+      "detail": "{\"lastSeen\":\"01a08f1b-5a9c-74e2-93cc-08138ef21acd\",\"filmId\":\"01a08f1b-5a9c-74e2-93cc-08138ef21acd\"}"
     },
     {
       "name": "no page or console errors",

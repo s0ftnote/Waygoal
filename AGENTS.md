@@ -24,10 +24,6 @@ Waygoal 让用户与 Agent 探索并推进一片逐渐清楚的工作空间：�
 
 - **目录职责、开发命令、测试与证据输出**：读[开发指南](docs/development.md)。Waygoal 界面和数据模块分别位于 `apps/web/components/waygoal` 与 `apps/web/lib/waygoal`，宿主能力继续复用 pi-web。
 - **术语、对象关系**：读 [CONTEXT.md](CONTEXT.md)。定义只在术语表维护；本文件保留产品方向和工作指引，决定及理由写入 ADR，交互细节和验收写入设计文档。
-- **持续聊天、轮次卡片、材料引用、路径切换**：读 [ADR 0006](docs/adr/0006-continuous-chat-and-turn-cards.md)；Pi 与 pi-web 的运行方式见 [ADR 0005](docs/adr/0005-keep-pi-web-session-hosting.md)。
-- **技能入口、extension 职责、流程衔接**：读 [ADR 0004](docs/adr/0004-canvas-carrier-and-user-chosen-skills.md)。
-- **建票边界、会话关联、分支交接**：读 [ADR 0003](docs/adr/0003-discussion-and-ticket-map.md)。
-- **票据来源、同步、持久化**：读 [ADR 0001](docs/adr/0001-tracker-authority-and-local-canvas-records.md)；设计卡片内容或完整原文展示时，再读 [ADR 0002](docs/adr/0002-faithful-preview-and-full-view.md)。
 - **画布交互、动效、提示、状态及体验验收**：读[画布导航与状态](docs/design/canvas-navigation-and-states.md)，区分已确认方向、未决方案和原型现状。
 - **主题色、字体、组件视觉与动效参数**：读 [DESIGN.md](DESIGN.md)，复用其中的语义色值；配色预览与起始参数不等于最终交互定稿。
 - **核对 Matt 建议出处**：读[工作流研究](docs/research/matt-workflow-guidance.md)；其中历史提案不等于当前决策，实际 skill 行为以其原文为准。

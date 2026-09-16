@@ -202,6 +202,23 @@ try {
   await tray.locator("summary").click();
   const reviewed = await tray.locator("pre").allTextContents();
   check("reference selection keeps the ordinary draft", await composer.inputValue() === "A 路径草稿");
+  // Enter a parked session directly on a different path, then return to the
+  // path whose composer held the material. Text and references must both return.
+  await page.getByRole("button", { name: "新开聊天", exact: true }).click();
+  await send("独立对话用于往返");
+  const otherSessionId = await waitFor(async () => (await snapshot()).nodes.find(node => node.id !== id)?.id, "second session");
+  await page.getByRole("combobox", { name: "查看会话轮次" }).selectOption(id);
+  await page.locator(`[data-turn="${sibling.id}"]`).waitFor();
+  await page.getByRole("button", { name: "Tree", exact: true }).click();
+  await page.getByRole("navigation", { name: "Tree 路径选择" }).getByRole("button", { name: /另一条路径的材料/ }).click();
+  await waitFor(async () => await composer.inputValue() === "B 路径草稿", "cross-session entry into B path");
+  check("entering another path does not carry the parked path's references", await tray.count() === 0);
+  await page.getByRole("button", { name: "Tree", exact: true }).click();
+  await page.getByRole("navigation", { name: "Tree 路径选择" }).getByRole("button", { name: /继续第三轮/ }).click();
+  await waitFor(async () => await composer.inputValue() === "A 路径草稿", "cross-session return to original path");
+  await tray.waitFor();
+  await tray.locator("summary").click();
+  check("cross-session Tree navigation restores the original material snapshot", JSON.stringify(await tray.locator("pre").allTextContents()) === JSON.stringify(reviewed));
   const editMessage = panel.locator("[data-entry-id]").filter({ hasText: "继续第二轮" }).first();
   await editMessage.hover();
   await editMessage.getByRole("button", { name: "Edit from here", exact: true }).click();
@@ -230,7 +247,7 @@ try {
   await panel.locator(`[data-entry-id="${firstTurn.id}"]`).waitFor();
   const assistant = panel.locator(`[data-entry-id="${firstTurn.endId}"]`).first();
   await assistant.getByRole("button", { name: "从这里分叉", exact: true }).click();
-  const forkId = await waitFor(async () => (await snapshot()).nodes.find(node => node.id !== id)?.id, "independent fork");
+  const forkId = await waitFor(async () => (await snapshot()).nodes.find(node => ![id, otherSessionId].includes(node.id))?.id, "independent fork");
   await composer.waitFor();
   await send("分叉里连续聊一"); await send("分叉里连续聊二");
   check("assistant fork includes its source answer and then continuous replies", ancestorsOf(forkId, (await turns(forkId)).activeLeafId).includes(firstTurn.endId));
@@ -249,6 +266,10 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await delay(500);
   check("narrow screen retains canvas and composer without horizontal overflow", await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth) && await composer.isVisible() && await page.locator(".waygoal-turn-viewport").isVisible());
+  const touchTargets = await page.locator(".waygoal-turn-toolbar button, .waygoal-turn-toolbar select").evaluateAll(elements => elements.map(element => {
+    const { width, height } = element.getBoundingClientRect(); return { width, height };
+  }));
+  check("narrow-screen turn toolbar targets are at least 44 pixels", touchTargets.every(target => target.width >= 44 && target.height >= 44));
   await page.screenshot({ path: join(evidence, "03-mobile.png") });
   await page.setViewportSize({ width: 1440, height: 1000 });
   // A 300-turn file makes the first card cross several real history pages.
@@ -273,6 +294,22 @@ try {
   await panel.locator('[data-entry-id="00000001"]').waitFor();
   check("card location resolves original identity across multiple history pages", await panel.getByText("长历史-0", { exact: true }).isVisible());
   await page.evaluate(() => { window.longOriginal = document.querySelector('.waygoal-panel [data-entry-id="00000001"]'); });
+  await page.getByRole("button", { name: "全景", exact: true }).click();
+  check("overview fits every card in a 300-turn history", await page.locator(".waygoal-turn-viewport").evaluate(viewport => {
+    const bounds = viewport.getBoundingClientRect();
+    return [...viewport.querySelectorAll("[data-turn]")].every(card => {
+      const box = card.getBoundingClientRect();
+      return box.left >= bounds.left && box.right <= bounds.right && box.top >= bounds.top && box.bottom <= bounds.bottom;
+    });
+  }));
+  await page.screenshot({ path: join(evidence, "04-long-overview.png") });
+  const turnViewport = page.locator(".waygoal-turn-viewport");
+  const fittedScale = await page.locator(".waygoal-turn-world").evaluate(element => new DOMMatrix(getComputedStyle(element).transform).a);
+  await turnViewport.hover(); await page.mouse.wheel(0, -100); await delay(200);
+  const zoomedScale = await page.locator(".waygoal-turn-world").evaluate(element => new DOMMatrix(getComputedStyle(element).transform).a);
+  check("zooming from overview changes scale smoothly without jumping to the old minimum", zoomedScale > fittedScale && zoomedScale < fittedScale * 1.2);
+  await page.getByRole("button", { name: "当前轮次", exact: true }).click();
+  check("returning to the current turn restores readable size after overview", await page.locator('[data-turn="00000257"]').evaluate(element => element.getBoundingClientRect().width >= 278));
   await send("长历史之后继续");
   check("a send retains the already-loaded historical DOM", await page.evaluate(() => window.longOriginal === document.querySelector('.waygoal-panel [data-entry-id="00000001"]')));
   await page.getByRole("combobox", { name: "查看会话轮次" }).selectOption(id);
@@ -282,7 +319,7 @@ try {
   await preview.locator(".waygoal-readonly-body").getByText("共同问题", { exact: true }).hover();
   await preview.getByRole("button", { name: "从这里分叉", exact: true }).first().click();
   await waitFor(async () => await composer.inputValue() === "共同问题", "preview fork restores original user message");
-  const emptyFork = await waitFor(async () => (await snapshot()).nodes.find(node => ![id, forkId, longId].includes(node.id)), "fork before first answer");
+  const emptyFork = await waitFor(async () => (await snapshot()).nodes.find(node => ![id, otherSessionId, forkId, longId].includes(node.id)), "fork before first answer");
   check("a preview user-message fork retains source identity and original draft even before the first answer", emptyFork.origin.sessionId === id && emptyFork.origin.entryId === firstTurn.id);
   await send("修改后从头探索");
   check("the fork before the first answer is a valid independent Pi session", sessionEntries(emptyFork.id).some(entry => entry.type === "message" && entry.message.role === "assistant"));

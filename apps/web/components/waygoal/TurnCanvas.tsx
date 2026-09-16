@@ -90,12 +90,24 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, layouts, onSaveLay
       return { ...turn, position };
     });
   }, [data, layout.positions]);
-  const focusCard = useCallback((id: string) => {
+  const fittedCamera = (width: number, height: number) => {
+    if (!cards.length) return { x: 38, y: 35, scale: 1 };
+    const left = Math.min(...cards.map(card => card.position.x));
+    const top = Math.min(...cards.map(card => card.position.y));
+    const treeWidth = Math.max(...cards.map(card => card.position.x + WIDTH)) - left;
+    const treeHeight = Math.max(...cards.map(card => card.position.y + HEIGHT)) - top;
+    const scale = Math.min(1, Math.max(1, width - 70) / treeWidth, Math.max(1, height - 70) / treeHeight);
+    return { scale, x: (width - treeWidth * scale) / 2 - left * scale, y: (height - treeHeight * scale) / 2 - top * scale };
+  };
+  const focusCard = useCallback((id: string, readable = false) => {
     const card = cards.find(card => card.id === id || card.entryIds.includes(id));
     const bounds = viewport.current?.getBoundingClientRect();
     if (!card || !bounds) return;
     setSelected(card.id);
-    setCamera(camera => ({ ...camera, x: bounds.width / 2 - (card.position.x + WIDTH / 2) * camera.scale, y: bounds.height / 2 - (card.position.y + HEIGHT / 2) * camera.scale }));
+    setCamera(camera => {
+      const scale = readable ? Math.max(1, camera.scale) : camera.scale;
+      return { scale, x: bounds.width / 2 - (card.position.x + WIDTH / 2) * scale, y: bounds.height / 2 - (card.position.y + HEIGHT / 2) * scale };
+    });
   }, [cards]);
   const previousCount = useRef<{ session: string; count: number } | null>(null);
   useEffect(() => {
@@ -113,7 +125,7 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, layouts, onSaveLay
     if (sourceId !== sessionId) { setSourceId(sessionId); return; }
     if (!cards.some(card => card.entryIds.includes(locateEntry.entryId))) return;
     lastLocate.current = locateEntry.serial;
-    focusCard(locateEntry.entryId);
+    focusCard(locateEntry.entryId, true);
   }, [locateEntry, cards, focusCard, sessionId, sourceId]);
 
   const reference = async (turnId: string) => {
@@ -149,14 +161,10 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, layouts, onSaveLay
       <button type="button" aria-expanded={treeOpen} onClick={() => setTreeOpen(!treeOpen)}>Tree</button>
       <button type="button" aria-pressed={mode === "reference"} onClick={() => { setMode(mode === "reference" ? "read" : "reference"); setFrom(null); }}>引用连线</button>
       <button type="button" aria-pressed={mode === "link"} onClick={() => { setMode(mode === "link" ? "read" : "link"); setFrom(null); }}>仅作关联</button>
-      <button type="button" onClick={() => active && focusCard(active.id)}>当前轮次</button>
+      <button type="button" onClick={() => active && focusCard(active.id, true)}>当前轮次</button>
       <button type="button" onClick={() => {
         const bounds = viewport.current?.getBoundingClientRect(); if (!bounds || !cards.length) return;
-        const x = Math.min(...cards.map(card => card.position.x)), y = Math.min(...cards.map(card => card.position.y));
-        const width = Math.max(...cards.map(card => card.position.x + WIDTH)) - x;
-        const height = Math.max(...cards.map(card => card.position.y + HEIGHT)) - y;
-        const scale = Math.max(.3, Math.min(1, (bounds.width - 70) / width, (bounds.height - 70) / height));
-        setCamera({ scale, x: (bounds.width - width * scale) / 2 - x * scale, y: 35 - y * scale });
+        setCamera(fittedCamera(bounds.width, bounds.height));
       }}>全景</button>
     </div>
     {mode === "reference" && <div className="waygoal-turn-options">
@@ -173,7 +181,8 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, layouts, onSaveLay
       onWheel={event => {
         const bounds = event.currentTarget.getBoundingClientRect();
         const x = event.clientX - bounds.left, y = event.clientY - bounds.top;
-        setCamera(camera => { const scale = Math.max(.3, Math.min(1.5, camera.scale * (event.deltaY > 0 ? .92 : 1.08))); return { x: x - (x - camera.x) * scale / camera.scale, y: y - (y - camera.y) * scale / camera.scale, scale }; });
+        const minimumScale = Math.min(.3, fittedCamera(bounds.width, bounds.height).scale);
+        setCamera(camera => { const scale = Math.max(minimumScale, Math.min(1.5, camera.scale * (event.deltaY > 0 ? .92 : 1.08))); return { x: x - (x - camera.x) * scale / camera.scale, y: y - (y - camera.y) * scale / camera.scale, scale }; });
       }}
       onPointerDown={event => { if (event.target !== event.currentTarget) return; gesture.current = { start: { x: event.clientX, y: event.clientY }, origin: camera, moved: false }; event.currentTarget.setPointerCapture(event.pointerId); }}
       onPointerMove={event => {

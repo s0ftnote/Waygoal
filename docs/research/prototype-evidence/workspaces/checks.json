@@ -1,5 +1,5 @@
 {
-  "ranAt": "2026-09-10T20:28:27.541Z",
+  "ranAt": "2026-09-11T06:17:00.646Z",
   "checks": [
     {
       "name": "a working directory opens on its one canvas",
@@ -9,7 +9,7 @@
     {
       "name": "and the directory it says it is on is the one asked for",
       "ok": true,
-      "detail": "/private/var/folders/91/xkj5dqrd45xg8jp31lj5zjnw0000gn/T/waygoal-workspaces-e2e-9SMwOU/work/one/放映会"
+      "detail": "/private/var/folders/91/xkj5dqrd45xg8jp31lj5zjnw0000gn/T/waygoal-workspaces-e2e-U3z1Dj/work/one/放映会"
     },
     {
       "name": "a chat started from a canvas appears on it",
@@ -24,7 +24,7 @@
     {
       "name": "a new canvas has no chats of its own, and the chat already here stays where it was",
       "ok": true,
-      "detail": "{\"chats\":0,\"onSecond\":[],\"onFirst\":[\"01a08d01-a749-7603-8e6f-4f94934577c5\"]}"
+      "detail": "{\"chats\":0,\"onSecond\":[],\"onFirst\":[\"01a08f1c-4cb7-75c9-b889-e6ce10290504\"]}"
     },
     {
       "name": "the working directory's own tickets are on the new canvas too, laid out by it",
@@ -34,7 +34,7 @@
     {
       "name": "a chat started on the second canvas is on that one only",
       "ok": true,
-      "detail": "{\"second\":[\"01a08d01-bc86-7603-8e6f-4f9720d92a0e\"],\"first\":[\"01a08d01-a749-7603-8e6f-4f94934577c5\"]}"
+      "detail": "{\"second\":[\"01a08f1c-741c-75c9-b889-e6d1fa714a52\"],\"first\":[\"01a08f1c-4cb7-75c9-b889-e6ce10290504\"]}"
     },
     {
       "name": "going back shows the first canvas's chat and not the other's",
@@ -49,7 +49,7 @@
     {
       "name": "each canvas has its own record file",
       "ok": true,
-      "detail": "canvas-c-2ad49c5c64e2.json,canvas.json,workspace.json"
+      "detail": "canvas-c-10780422a6de.json,canvas.json,workspace.json"
     },
     {
       "name": "a reload comes back to the canvas that was open, not to the first one",
@@ -69,17 +69,17 @@
     {
       "name": "and it does not move the sessions of the directory left behind",
       "ok": true,
-      "detail": "[\"01a08d01-a749-7603-8e6f-4f94934577c5\"]"
+      "detail": "[\"01a08f1c-4cb7-75c9-b889-e6ce10290504\"]"
     },
     {
       "name": "a directory that is not there is named, and no other one is shown in its place",
       "ok": true,
-      "detail": "{\"alert\":\"这个目录不存在：/var/folders/91/xkj5dqrd45xg8jp31lj5zjnw0000gn/T/waygoal-workspaces-e2e-9SMwOU/work/没有这个目录\\n×\",\"shown\":\"/private/var/folders/91/xkj5dqrd45xg8jp31lj5zjnw0000gn/T/waygoal-workspaces-e2e-9SMwOU/work/two/放映会\"}"
+      "detail": "{\"alert\":\"这个目录不存在：/var/folders/91/xkj5dqrd45xg8jp31lj5zjnw0000gn/T/waygoal-workspaces-e2e-U3z1Dj/work/没有这个目录\\n×\",\"shown\":\"/private/var/folders/91/xkj5dqrd45xg8jp31lj5zjnw0000gn/T/waygoal-workspaces-e2e-U3z1Dj/work/two/放映会\"}"
     },
     {
       "name": "a restart comes back to the directory and the canvas last opened, without being told which",
       "ok": true,
-      "detail": "工作目录\n/private/var/folders/91/xkj5dqrd45xg8jp31lj5zjnw0000gn/T/waygoal-workspaces-e2e-9SMwOU/work/one/放映会\n换一个目录\n画布\n主画布\n选片\n新建画布"
+      "detail": "工作目录\n/private/var/folders/91/xkj5dqrd45xg8jp31lj5zjnw0000gn/T/waygoal-workspaces-e2e-U3z1Dj/work/one/放映会\n换一个目录\n画布\n主画布\n选片\n新建画布"
     },
     {
       "name": "both chats are still there, each on its own canvas, after the restart",
@@ -99,7 +99,7 @@
     {
       "name": "a remembered directory that is gone is named rather than swapped for another",
       "ok": true,
-      "detail": "{\"error\":\"上次打开的工作目录现在不在了：/private/var/folders/91/xkj5dqrd45xg8jp31lj5zjnw0000gn/T/waygoal-workspaces-e2e-9SMwOU/work/one/放映会。请另选一个目录。\"}"
+      "detail": "{\"error\":\"上次打开的工作目录现在不在了：/private/var/folders/91/xkj5dqrd45xg8jp31lj5zjnw0000gn/T/waygoal-workspaces-e2e-U3z1Dj/work/one/放映会。请另选一个目录。\"}"
     }
   ]
 }
