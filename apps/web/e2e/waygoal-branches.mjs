@@ -407,6 +407,10 @@ try {
   check("returning to the current turn restores readable size after overview", await page.locator('[data-turn="00000257"]').evaluate(element => element.getBoundingClientRect().width >= 278));
   await send("长历史之后继续");
   check("a send retains the already-loaded historical DOM", await page.evaluate(() => window.longOriginal === document.querySelector('.waygoal-panel [data-entry-id="00000001"]')));
+  // All sessions now share this camera. Fold the 300-turn history before
+  // returning to a short discussion, rather than clicking a subpixel card.
+  await page.locator(`[data-collapse-session="${longId}"]`).focus();
+  await page.locator(`[data-collapse-session="${longId}"]`).press("Enter");
   await browseSession(id);
   await page.locator(`[data-turn="${firstTurn.id}"]`).waitFor();
   await page.getByRole("button", { name: "全景", exact: true }).click();
