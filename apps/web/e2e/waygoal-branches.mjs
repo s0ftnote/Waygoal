@@ -399,11 +399,17 @@ try {
   }));
   await page.screenshot({ path: join(evidence, "04-long-overview.png") });
   const turnViewport = page.locator(".waygoal-viewport");
-  const fittedScale = await page.locator(".waygoal-world").evaluate(element => new DOMMatrix(getComputedStyle(element).transform).a);
-  await turnViewport.hover(); await page.mouse.wheel(0, -100); await delay(200);
-  const zoomedScale = await page.locator(".waygoal-world").evaluate(element => new DOMMatrix(getComputedStyle(element).transform).a);
-  check("zooming from overview changes scale smoothly without jumping to the old minimum", zoomedScale > fittedScale && zoomedScale < fittedScale * 1.2);
+  const canvasScale = () => waitFor(() => page.locator(".waygoal-world").evaluate(element => {
+    if (element.getAnimations().some(animation => animation.playState === "running" || animation.pending)) return null;
+    return new DOMMatrix(getComputedStyle(element).transform).a;
+  }), "canvas scale transition to settle");
+  const fittedScale = await canvasScale();
+  await turnViewport.hover(); await page.mouse.wheel(0, -100);
+  await waitFor(() => page.locator(".waygoal-world").evaluate((element, before) => new DOMMatrix(element.style.transform).a > before, fittedScale), "wheel updates camera");
+  const zoomedScale = await canvasScale();
+  check("zooming from overview changes scale smoothly without jumping to the old minimum", zoomedScale > fittedScale && zoomedScale < fittedScale * 1.2, JSON.stringify({ fittedScale, zoomedScale }));
   await page.getByRole("button", { name: "当前轮次", exact: true }).click();
+  await canvasScale();
   check("returning to the current turn restores readable size after overview", await page.locator('[data-turn="00000257"]').evaluate(element => element.getBoundingClientRect().width >= 278));
   await send("长历史之后继续");
   check("a send retains the already-loaded historical DOM", await page.evaluate(() => window.longOriginal === document.querySelector('.waygoal-panel [data-entry-id="00000001"]')));
