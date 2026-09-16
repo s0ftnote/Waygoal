@@ -789,3 +789,33 @@ test("turn positions, associations and independent preview survive in the scoped
     assert.throws(() => store.applyCanvasPatch(s.sa, { turnLayout: { sessionId: "session", layout: { positions: { bad: { x: NaN, y: 0 } }, links: [] } } }));
   } finally { s.done(); }
 });
+
+
+test("shared turn board persists scoped identities without leaking between workspaces", () => {
+  const s = sandbox();
+  try {
+    const a = JSON.stringify(["session-a", "same-entry"]), b = JSON.stringify(["session-b", "same-entry"]);
+    const turnBoard = { positions: { [a]: { x: 40, y: 70 }, [b]: { x: 380, y: 70 } }, links: [[a, b]] };
+    store.applyCanvasPatch(s.sa, { turnBoard });
+    assert.deepEqual(store.readCanvasRecord(s.sa).turnBoard, turnBoard);
+    assert.deepEqual(store.buildSnapshot(s.sa, [], []).turnBoard, turnBoard);
+    assert.equal(store.readCanvasRecord(s.sb).turnBoard, undefined);
+    assert.throws(() => store.applyCanvasPatch(s.sa, { turnBoard: { positions: { unscoped: { x: 0, y: 0 } }, links: [] } }));
+    assert.throws(() => store.applyCanvasPatch(s.sa, { turnBoard: { positions: {}, links: [[a, "unscoped"]] } }));
+    assert.deepEqual(store.readCanvasRecord(s.sa).turnBoard, turnBoard);
+  } finally { s.done(); }
+});
+
+
+test("session folding is durable canvas state, isolated from Pi paths and other canvases", () => {
+  const s = sandbox();
+  try {
+    store.applyCanvasPatch(s.sa, { lastViewed: "talking", expandedSessions: ["a", "b", "a"] });
+    assert.deepEqual(store.readCanvasRecord(s.sa).expandedSessions, ["a", "b"]);
+    store.applyCanvasPatch(s.sa, { expandedSessions: ["b"] });
+    assert.equal(store.readCanvasRecord(s.sa).lastViewed, "talking");
+    assert.deepEqual(store.buildSnapshot(s.sa, [], []).expandedSessions, ["b"]);
+    assert.deepEqual(store.buildSnapshot(s.sb, [], []).expandedSessions, []);
+    assert.throws(() => store.applyCanvasPatch(s.sa, { expandedSessions: [null] }));
+  } finally { s.done(); }
+});

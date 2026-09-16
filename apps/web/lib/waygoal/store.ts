@@ -117,9 +117,19 @@ const matchesPositions = (nodes: Record<string, WaygoalPoint>, expected: Record<
 function validTurnLayout(value: unknown): value is WaygoalTurnLayout {
   if (!value || typeof value !== "object") return false;
   const layout = value as WaygoalTurnLayout;
-  return Boolean(layout.positions) && typeof layout.positions === "object" && !Array.isArray(layout.positions)
+  return (layout.sessionOrigins === undefined || Boolean(layout.sessionOrigins) && typeof layout.sessionOrigins === "object" && !Array.isArray(layout.sessionOrigins) && Object.values(layout.sessionOrigins).every(isPoint))
+    && Boolean(layout.positions) && typeof layout.positions === "object" && !Array.isArray(layout.positions)
     && Object.entries(layout.positions).every(([id, point]) => Boolean(id) && isPoint(point))
     && Array.isArray(layout.links) && layout.links.every(pair => Array.isArray(pair) && pair.length === 2 && pair.every(isNonEmptyString) && pair[0] !== pair[1]);
+}
+
+function validTurnBoard(value: unknown): value is WaygoalTurnLayout {
+  if (!validTurnLayout(value)) return false;
+  const validKey = (key: string) => {
+    try { const pair = JSON.parse(key); return Array.isArray(pair) && pair.length === 2 && pair.every(isNonEmptyString); }
+    catch { return false; }
+  };
+  return Object.keys(value.positions).every(validKey) && value.links.every(pair => pair.every(validKey));
 }
 
 export function readCanvasRecord(scope: WaygoalScope): WaygoalCanvasRecord {
@@ -149,6 +159,8 @@ export function readCanvasRecord(scope: WaygoalScope): WaygoalCanvasRecord {
         .map(([t, place]) => [t, { sessionId: place.sessionId, entryId: typeof place.entryId === "string" && place.entryId ? place.entryId : null }])),
       groups: validGroups(parsed.groups),
       links: validLinks(parsed.links),
+      expandedSessions: Array.isArray(parsed.expandedSessions) ? parsed.expandedSessions.filter(isNonEmptyString) : [],
+      ...(validTurnBoard(parsed.turnBoard) ? { turnBoard: parsed.turnBoard } : {}),
       ...(parsed.turnLayouts ? { turnLayouts: Object.fromEntries(Object.entries(parsed.turnLayouts).flatMap(([id, layout]) => validTurnLayout(layout) ? [[id, layout]] : [])) } : {}),
       ...(validLayout(parsed.layoutUndo) && matchesPositions(nodes, parsed.layoutUndo.after) ? { layoutUndo: parsed.layoutUndo } : {}),
       ...(view ? { view } : {}),
@@ -172,6 +184,16 @@ export function applyCanvasPatch(scope: WaygoalScope, patch: WaygoalCanvasPatch)
   if ("preview" in patch) {
     if (patch.preview !== null && (!patch.preview || !isNonEmptyString(patch.preview.sessionId) || (patch.preview.entryId !== null && !isNonEmptyString(patch.preview.entryId)))) throw new Error("预览位置无效。");
     record.preview = patch.preview;
+    changed = true;
+  }
+  if (patch.expandedSessions !== undefined) {
+    if (!Array.isArray(patch.expandedSessions) || !patch.expandedSessions.every(isNonEmptyString)) throw new Error("会话展开记录无效。");
+    record.expandedSessions = [...new Set(patch.expandedSessions)];
+    changed = true;
+  }
+  if (patch.turnBoard) {
+    if (!validTurnBoard(patch.turnBoard)) throw new Error("共同轮次布局无效。");
+    record.turnBoard = patch.turnBoard;
     changed = true;
   }
   if (patch.turnLayout) {
@@ -438,6 +460,8 @@ export function buildSnapshot(
     groups,
     links: record.links,
     canUndoLayout: Boolean(record.layoutUndo),
+    expandedSessions: record.expandedSessions ?? [],
+    ...(record.turnBoard ? { turnBoard: record.turnBoard } : {}),
     ...(record.turnLayouts ? { turnLayouts: record.turnLayouts } : {}),
   };
 }

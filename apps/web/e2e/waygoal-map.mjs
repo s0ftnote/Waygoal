@@ -1,4 +1,4 @@
-import { evidenceDirectory } from "./waygoal-artifacts.mjs";
+import { evidenceDirectory, openOverview } from "./waygoal-artifacts.mjs";
 // Browser verification for walking a Wayfinder map: reading its destination,
 // its decisions and what is still unspecified in the source's own words,
 // opening the places the source points at, going from a ticket's conclusion
@@ -159,7 +159,9 @@ try {
     const p = await context.newPage();
     // These checks exercise workspace/session organization. Return through the
     // real overview control when the turn view covers those controls.
-    await p.addLocatorHandler(p.getByRole("button", { name: "← 总画布", exact: true }), async button => { await button.click(); });
+    await p.addLocatorHandler(p.locator('.waygoal-canvas-area:not([data-managing]) .waygoal-turn-more > summary'), async button => {
+      await button.click(); await p.getByRole('button', { name: '整理会话与票据', exact: true }).click();
+    });
     p.setDefaultTimeout(30_000);
     p.on("pageerror", (e) => note(e.message));
     p.on("crash", () => note("page crashed"));
@@ -197,6 +199,7 @@ try {
   const checkNote = () => page.locator(`[data-map-check="${mapPath}"]`);
 
   await page.goto(`${base}/waygoal?cwd=${encodeURIComponent(work)}`, { waitUntil: "domcontentloaded" });
+  await openOverview(page);
   await page.locator(`[data-node="${mapPath}"]`).waitFor();
 
   // ---- The map itself, in its own format ----------------------------------
@@ -319,6 +322,7 @@ try {
   await page.close();
   page = fresh;
   await page.goto(`${base}/waygoal?cwd=${encodeURIComponent(work)}`, { waitUntil: "domcontentloaded" });
+  await openOverview(page);
   await page.locator(`[data-node="${mapPath}"]`).waitFor();
   restarting = false;
   await delay(1500);

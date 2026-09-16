@@ -1,4 +1,4 @@
-import { evidenceDirectory } from "./waygoal-artifacts.mjs";
+import { evidenceDirectory, openOverview } from "./waygoal-artifacts.mjs";
 // Browser verification for local Markdown tickets on the Waygoal canvas
 // (ticket #7). Starts its own pi-web on a free loopback port with an isolated
 // Pi data directory, writes real tracker files into the workspace, and checks
@@ -106,7 +106,9 @@ try {
     const p = await context.newPage();
     // These checks exercise workspace/session organization. Return through the
     // real overview control when the turn view covers those controls.
-    await p.addLocatorHandler(p.getByRole("button", { name: "← 总画布", exact: true }), async button => { await button.click(); });
+    await p.addLocatorHandler(p.locator('.waygoal-canvas-area:not([data-managing]) .waygoal-turn-more > summary'), async button => {
+      await button.click(); await p.getByRole('button', { name: '整理会话与票据', exact: true }).click();
+    });
     p.setDefaultTimeout(30_000);
     p.on("pageerror", (e) => errors.push(e.message));
     p.on("crash", () => errors.push("page crashed"));
@@ -127,6 +129,7 @@ try {
   };
 
   await page.goto(canvasUrl, { waitUntil: "domcontentloaded" });
+  await openOverview(page);
   await card("给朋友办一场小型放映会").waitFor();
   await card("希望朋友带走什么感受").waitFor();
   check("the map and its tickets come from the workspace's own files", await page.locator(".waygoal-ticket-card").count() === 3);
@@ -204,6 +207,7 @@ try {
   await stopServer(server); server = await startServer();
   page = await openPage();
   await page.goto(canvasUrl, { waitUntil: "domcontentloaded" });
+  await openOverview(page);
   await card("希望朋友带走什么感受").waitFor();
   const after = (await snapshot()).tickets.maps[0].tickets.find((t) => t.title === "希望朋友带走什么感受");
   check("layout and what was read survive a host restart", JSON.stringify(after.position) === JSON.stringify(moved), JSON.stringify([moved, after.position]));

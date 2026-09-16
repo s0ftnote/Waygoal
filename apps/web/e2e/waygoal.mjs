@@ -1,4 +1,4 @@
-import { evidenceDirectory } from "./waygoal-artifacts.mjs";
+import { evidenceDirectory, openOverview } from "./waygoal-artifacts.mjs";
 // Browser verification for the Waygoal session canvas (ticket #2).
 // Starts its own pi-web on a free loopback port with an isolated Pi data
 // directory and a fake OpenAI-compatible model, then checks discovery,
@@ -137,7 +137,9 @@ try {
     const p = await context.newPage();
     // These checks exercise workspace/session organization. Return through the
     // real overview control when the turn view covers those controls.
-    await p.addLocatorHandler(p.getByRole("button", { name: "← 总画布", exact: true }), async button => { await button.click(); });
+    await p.addLocatorHandler(p.locator('.waygoal-canvas-area:not([data-managing]) .waygoal-turn-more > summary'), async button => {
+      await button.click(); await p.getByRole('button', { name: '整理会话与票据', exact: true }).click();
+    });
     p.setDefaultTimeout(30_000);
     p.on("pageerror", (e) => errors.push(e.message));
     p.on("crash", () => errors.push("page crashed"));
@@ -151,11 +153,12 @@ try {
 
   // 1. Discovery: real sessions of this workspace only, titles from name / first message.
   await page.goto(canvasUrl, { waitUntil: "domcontentloaded" });
+  await openOverview(page);
   await node(NAMED_TITLE).waitFor();
   await node(PLAIN_FIRST).waitFor();
   check("discovery shows both workspace sessions with real titles", await page.locator(".waygoal-node").count() === 2);
   check("other workspace session is not shown", await page.getByText("别的目录").count() === 0);
-  check("no Wayfinder root entry or workflow tips", await page.getByText(/wayfinder|地图|票据/i).count() === 0);
+  check("no Wayfinder root entry or workflow tips", await page.getByText(/wayfinder|地图|票据/i).filter({ visible: true }).count() === 0);
   const bg = await page.evaluate(() => getComputedStyle(document.querySelector(".waygoal-app")).backgroundColor);
   check("confirmed light theme background", bg === "rgb(246, 250, 246)", bg);
   await page.screenshot({ animations: "disabled", path: join(evidence, "01-discovery.png") });
@@ -209,8 +212,10 @@ try {
   await delay(500);
   const target = node(NAMED_TITLE);
   const box = await target.boundingBox();
-  await page.mouse.move(box.x + 40, box.y + 20); await page.mouse.down();
-  await page.mouse.move(box.x + 140, box.y + 120, { steps: 8 }); await page.mouse.move(box.x + 240, box.y + 220, { steps: 8 }); await page.mouse.up();
+  const start = { x: box.x + Math.min(40, box.width / 3), y: box.y + box.height / 2 };
+  assert.equal(await page.evaluate(point => document.elementFromPoint(point.x, point.y)?.closest('[data-node]')?.getAttribute('data-node'), start), NAMED, "session header must be reachable before dragging");
+  await page.mouse.move(start.x, start.y); await page.mouse.down();
+  await page.mouse.move(start.x + 100, start.y + 100, { steps: 8 }); await page.mouse.move(start.x + 200, start.y + 200, { steps: 8 }); await page.mouse.up();
   await page.getByRole("button", { name: "放大" }).click();
   await delay(1200);
   const zoomBefore = await page.locator(".waygoal-zoom span").innerText();
@@ -259,6 +264,7 @@ try {
   // A user reopening the canvas after a host restart: fresh tab, same URL.
   page = await openPage();
   await page.goto(canvasUrl, { waitUntil: "domcontentloaded" });
+  await openOverview(page);
   await page.locator(".waygoal-panel").getByText(/E2E reply: 你好，画布/).waitFor();
   await node(NAMED_TITLE).waitFor();
   await delay(1500);
@@ -272,10 +278,12 @@ try {
   const nodeButton = page.locator(".waygoal-node").first();
   await nodeButton.focus();
   const focusedId = await nodeButton.getAttribute("data-node");
-  const nudgeFrom = (await snapshot()).nodes.find((n) => n.id === focusedId).position;
+  // Expansion may temporarily make room beside another session. Keyboard
+  // movement starts from the visible header, not its old folded position.
+  const nudgeFrom = await nodeButton.evaluate(element => ({ x: parseFloat(element.style.left), y: parseFloat(element.style.top) }));
   await page.keyboard.press("ArrowRight"); await delay(800);
-  const nudgeTo = (await snapshot()).nodes.find((n) => n.position.x === nudgeFrom.x + 10);
-  check("arrow keys nudge a focused node", Boolean(nudgeTo));
+  const nudgeTo = (await snapshot()).nodes.find((n) => n.id === focusedId).position;
+  check("arrow keys nudge a focused node", nudgeTo.x === nudgeFrom.x + 10 && nudgeTo.y === nudgeFrom.y);
   await page.keyboard.press("Enter");
   await page.locator(".waygoal-panel").waitFor();
   check("Enter on a focused node opens its panel", true);
@@ -285,8 +293,11 @@ try {
   // 10. Narrow screen: panel is full-screen with a way back to the canvas.
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-US" });
   const mpage = await mobile.newPage(); mpage.setDefaultTimeout(30_000);
-  await mpage.addLocatorHandler(mpage.getByRole("button", { name: "← 总画布", exact: true }), async button => { await button.click(); });
+  await mpage.addLocatorHandler(mpage.locator('.waygoal-canvas-area:not([data-managing]) .waygoal-turn-more > summary'), async button => {
+      await button.click(); await mpage.getByRole('button', { name: '整理会话与票据', exact: true }).click();
+    });
   await mpage.goto(canvasUrl, { waitUntil: "domcontentloaded" });
+  await openOverview(mpage);
   await mpage.locator(".waygoal-panel").waitFor();
   const back = mpage.getByRole("button", { name: "← 回到画布" });
   await back.waitFor();

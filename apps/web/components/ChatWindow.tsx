@@ -30,12 +30,14 @@ import {
   VISIBLE_PAGE_SIZE,
 } from "@/lib/chat-lazy-load";
 
-import type { MaterialSnapshot } from "@/lib/waygoal/materials";
+import { materialSources, type MaterialSnapshot } from "@/lib/waygoal/materials";
+import { messageText } from "@/lib/waygoal/turns";
 
 interface Props {
   promptMaterials?: MaterialSnapshot[];
   onPromptAccepted?: () => void;
   composerAccessory?: ReactNode;
+  hideWelcome?: boolean;
   session: SessionInfo | null;
   searchTarget?: { sessionId: string; entryId: string; blockIndex?: number } | null;
   onSearchTargetHandled?: (target: { sessionId: string; entryId: string }) => void;
@@ -52,6 +54,7 @@ interface Props {
   forkLabel?: string;
   onNavigateEntry?: (entryId: string, message?: UserMessage) => Promise<boolean>;
   onLocateEntry?: (entryId: string) => void;
+  onInspectReferences?: (entryId: string) => void;
   onForkAfter?: (entryId: string) => void;
   modelsRefreshKey?: number;
   chatInputRef?: React.RefObject<ChatInputHandle | null>;
@@ -248,7 +251,7 @@ function ProcessDetailsGroup({ messageCount, toolCallCount, defaultExpanded = fa
   );
 }
 
-export function ChatWindow({ promptMaterials, onPromptAccepted, composerAccessory, session, searchTarget, onSearchTargetHandled, initialScrollPosition, onScrollPositionChange, sessionRunning, newSessionCwd, newSessionDraftKey, onAgentEnd, onAttentionNeeded, onSessionCreated, onSessionForked, forkLabel, onNavigateEntry, onLocateEntry, onForkAfter, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemToolsChange, onSystemInfoLoaderChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, onOpenFile, onOpenSession, onAskInNewChat, quoteSelectionEnabled = false, initialPrompt, onInitialPromptConsumed, soundEnabled = true, onSoundToggle, playDoneSound = () => {}, unlockAudio }: Props) {
+export function ChatWindow({ hideWelcome = false, promptMaterials, onPromptAccepted, composerAccessory, session, searchTarget, onSearchTargetHandled, initialScrollPosition, onScrollPositionChange, sessionRunning, newSessionCwd, newSessionDraftKey, onAgentEnd, onAttentionNeeded, onSessionCreated, onSessionForked, forkLabel, onNavigateEntry, onLocateEntry, onInspectReferences, onForkAfter, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemToolsChange, onSystemInfoLoaderChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, onOpenFile, onOpenSession, onAskInNewChat, quoteSelectionEnabled = false, initialPrompt, onInitialPromptConsumed, soundEnabled = true, onSoundToggle, playDoneSound = () => {}, unlockAudio }: Props) {
   const fallbackInputRef = useRef<ChatInputHandle | null>(null);
   chatInputRef ??= fallbackInputRef;
   const { t } = useI18n();
@@ -1089,6 +1092,7 @@ export function ChatWindow({ promptMaterials, onPromptAccepted, composerAccessor
                   <div key={`${keyPrefix}-${messageKey}`} className="chat-entry" data-entry-id={entryIds[idx]} ref={options.attachRef === false ? undefined : attachVisibleRef(idx, currentRefIdx)}>
                     {onLocateEntry && entryIds[idx] && <div className="waygoal-message-actions">
                       <button type="button" onClick={() => onLocateEntry(entryIds[idx])}>定位卡片</button>
+                      {onInspectReferences && msg.role === "user" && materialSources(messageText(msg)).sources.length > 0 && <button type="button" onClick={() => onInspectReferences(entryIds[idx])}>引用来源</button>}
                       {onForkAfter && msg.role === "assistant" && !sessionBusy && <button type="button" onClick={() => onForkAfter(entryIds[idx])}>从这里分叉</button>}
                     </div>}
                     {view}
@@ -1345,7 +1349,7 @@ export function ChatWindow({ promptMaterials, onPromptAccepted, composerAccessor
       )}
 
       <div className="relative shrink-0">
-        {isEmptyNew && (
+        {isEmptyNew && !hideWelcome && (
           <div className="mx-auto mb-3 w-full" style={{ maxWidth: "var(--chat-content-max-width, 820px)", paddingLeft: 32, paddingRight: isMobile ? 32 : 68 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, fontFamily: "var(--font-mono)" }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: isMobile ? 7 : 10, minWidth: 0, flex: 1, lineHeight: 1.4, overflow: "hidden" }}>

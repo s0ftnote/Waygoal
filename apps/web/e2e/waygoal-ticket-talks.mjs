@@ -1,4 +1,4 @@
-import { evidenceDirectory } from "./waygoal-artifacts.mjs";
+import { evidenceDirectory, openOverview } from "./waygoal-artifacts.mjs";
 // Browser verification for discussions held under a local ticket (ticket #8).
 // Starts its own pi-web on a free loopback port with an isolated Pi data
 // directory and a fake OpenAI-compatible model, writes real tracker files into
@@ -117,7 +117,9 @@ try {
     const p = await context.newPage();
     // These checks exercise workspace/session organization. Return through the
     // real overview control when the turn view covers those controls.
-    await p.addLocatorHandler(p.getByRole("button", { name: "← 总画布", exact: true }), async button => { await button.click(); });
+    await p.addLocatorHandler(p.locator('.waygoal-canvas-area:not([data-managing]) .waygoal-turn-more > summary'), async button => {
+      await button.click(); await p.getByRole('button', { name: '整理会话与票据', exact: true }).click();
+    });
     p.setDefaultTimeout(30_000);
     p.on("pageerror", (e) => errors.push(e.message));
     p.on("crash", () => errors.push("page crashed"));
@@ -159,6 +161,7 @@ try {
 
   // 1. An empty ticket says so, and starting from it opens a composer only.
   await page.goto(canvasUrl, { waitUntil: "domcontentloaded" });
+  await openOverview(page);
   await card("开场怎么说").waitFor();
   await page.locator('[data-talk-start=".scratch/party/issues/02-opening.md"]').getByText("还没有讨论，开始聊").waitFor();
   check("a ticket with no discussion says so instead of looking finished", true);
@@ -227,7 +230,7 @@ try {
   const lastBefore = twice.lastDiscussion?.sessionId;
   const sentBeforeReview = model.requests.length;
   await panel().getByRole("button", { name: "回到来源这条消息" }).click();
-  await page.locator(".waygoal-canvas-preview").getByText("只读预览 · 通过 Tree 选择继续路径").waitFor();
+  await page.locator(".waygoal-canvas-preview").getByText("只读预览 · 当前聊天保持不变").waitFor();
   await delay(1500);
   const reviewed = await ticketOf("开场怎么说");
   check("reading a branch's source history sends nothing and stays read-only",
@@ -316,6 +319,7 @@ try {
   await stopServer(server); server = await startServer();
   page = await openPage();
   await page.goto(canvasUrl, { waitUntil: "domcontentloaded" });
+  await openOverview(page);
   await card("开场怎么说").waitFor();
   const restarted = await ticketOf("开场怎么说");
   await delay(1200);
