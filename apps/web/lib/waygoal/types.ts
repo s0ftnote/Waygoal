@@ -1,6 +1,7 @@
 export interface WaygoalPoint { x: number; y: number }
 export interface WaygoalView { x: number; y: number; scale: number }
 export interface WaygoalTurnLayout {
+  takeaways?: Record<string, import("./takeaways").TurnTakeaway>;
   sessionOrigins?: Record<string, WaygoalPoint>;
   positions: Record<string, WaygoalPoint>;
   links: [string, string][];
