@@ -1,4 +1,4 @@
-import { evidenceDirectory } from "./waygoal-artifacts.mjs";
+import { evidenceDirectory, openOverview } from "./waygoal-artifacts.mjs";
 // Browser verification for dependency changes on the Waygoal canvas (ticket
 // #9). Starts its own pi-web on a free loopback port with an isolated Pi data
 // directory, edits real tracker files in the workspace, and checks what the
@@ -118,7 +118,9 @@ try {
     const p = await context.newPage();
     // These checks exercise workspace/session organization. Return through the
     // real overview control when the turn view covers those controls.
-    await p.addLocatorHandler(p.getByRole("button", { name: "← 总画布", exact: true }), async button => { await button.click(); });
+    await p.addLocatorHandler(p.locator('.waygoal-turn-more > summary'), async button => {
+      await button.click(); await p.getByRole('button', { name: '会话与票据', exact: true }).click();
+    });
     p.setDefaultTimeout(30_000);
     p.on("pageerror", (e) => errors.push(e.message));
     p.on("crash", () => errors.push("page crashed"));
@@ -144,6 +146,7 @@ try {
   const stateOf = (title, want) => waitFor(async () => (await state(title)) === want, `${title} to read ${want}`);
 
   await page.goto(canvasUrl, { waitUntil: "domcontentloaded" });
+  await openOverview(page);
   await card(OPENING[1]).waitFor();
 
   // 1. Two premises, neither met: the downstream ticket waits on both.
@@ -256,6 +259,7 @@ try {
   await stopServer(server); server = await startServer();
   page = await openPage();
   await page.goto(canvasUrl, { waitUntil: "domcontentloaded" });
+  await openOverview(page);
   await stateOf(OPENING[1], "unblocked");
   let replayed = false;
   for (let i = 0; i < 25; i++) {

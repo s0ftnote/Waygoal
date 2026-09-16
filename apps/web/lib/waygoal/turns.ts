@@ -1,6 +1,6 @@
 import type { AssistantMessage, SessionEntry } from "../types";
 import { splitFinalAssistantBlocks } from "../message-display";
-import { materialSources, type MaterialSnapshot } from "./materials";
+import { materialSources, type MaterialSource } from "./materials";
 
 export interface WaygoalTurn {
   /** Session ID + this original entry ID is the identity, never a display index. */
@@ -12,7 +12,9 @@ export interface WaygoalTurn {
   answer: string;
   kind: "turn" | "compaction" | "summary" | "continuation";
   active: boolean;
-  sources: Pick<MaterialSnapshot, "sessionId" | "turnId" | "scope">[];
+  sources: MaterialSource[];
+  /** Server digest of complete visible entries, used only with recorded fork ancestry. */
+  fingerprint?: string;
 }
 
 export interface WaygoalTurns {

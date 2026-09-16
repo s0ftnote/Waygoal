@@ -111,7 +111,7 @@ try {
     const p = await context.newPage();
     // These checks exercise workspace/session organization. Return through the
     // real overview control when the turn view covers those controls.
-    await p.addLocatorHandler(p.getByRole("button", { name: "← 总画布", exact: true }), async button => { await button.click(); });
+
     p.setDefaultTimeout(30_000);
     p.on("pageerror", (e) => errors.push(e.message));
     p.on("crash", () => errors.push("page crashed"));
@@ -122,8 +122,8 @@ try {
   page = await openPage();
   const panel = () => page.locator(".waygoal-panel");
   const composer = () => panel().locator("textarea").first();
-  const shownCwd = () => page.locator(".waygoal-workspace code").innerText();
-  const canvasNames = () => page.locator("[data-canvas]").allInnerTexts();
+  const shownCwd = async () => (await page.locator(".waygoal-workspace-menu > summary").getAttribute("title")) ?? "";
+  const canvasNames = () => page.locator("[data-canvas]").evaluateAll(buttons => buttons.map(button => button.querySelector("span").textContent));
   const ticketCards = () => page.locator(".waygoal-ticket-card").count();
   const chatCards = () => page.locator("[data-node]:not(.waygoal-ticket-card)").count();
   const closePanel = async () => {
@@ -138,9 +138,10 @@ try {
     await panel().getByText(`回复: ${text}`, { exact: true }).waitFor({ timeout: 60_000 });
     await delay(600);
   };
+  const openWorkspaceMenu = async () => { if (!await page.locator('.waygoal-workspace-menu').evaluate(element => element.open)) await page.locator('.waygoal-workspace-menu > summary').click(); };
   const startChat = async (cwd, canvas, text) => {
     await closePanel();
-    await page.getByRole("button", { name: "新开聊天" }).click();
+    if (await page.getByRole("button", { name: "新开聊天" }).isVisible()) await page.getByRole("button", { name: "新开聊天" }).click();
     await composer().waitFor();
     const before = new Set(await idsOn(cwd, canvas));
     await send(text);
@@ -150,15 +151,20 @@ try {
   };
   const goToCanvas = async (id) => {
     await closePanel();
+    await openWorkspaceMenu();
     await page.locator(`[data-canvas="${id}"]`).click();
     await waitFor(async () => (await page.locator(`[data-canvas="${id}"][aria-current="true"]`).count()) === 1, `canvas ${id} to be the one open`);
     await delay(600);
+    if (await page.locator('.waygoal-turn-more > summary').isVisible()) {
+      await page.locator('.waygoal-turn-more > summary').click();
+      await page.getByRole('button', { name: '会话与票据', exact: true }).click();
+    }
   };
 
   // 1. A working directory arrives with one canvas, and nothing else.
   await page.goto(canvasUrl(workA), { waitUntil: "domcontentloaded" });
-  await page.locator("[data-canvas]").first().waitFor();
-  check("a working directory opens on its one canvas", (await canvasNames()).join() === "主画布", JSON.stringify(await canvasNames()));
+  await page.locator("[data-canvas]").first().waitFor({ state: "attached" });
+  check("a working directory opens on its one canvas", (await canvasNames()).join() === "未归类会话", JSON.stringify(await canvasNames()));
   check("and the directory it says it is on is the one asked for", (await shownCwd()).includes("one/放映会"), await shownCwd());
 
   // 2. A chat started here belongs to this canvas.
@@ -168,10 +174,9 @@ try {
   // 3. Making a canvas is its own action: no ticket, no skill, no message.
   const requestsBefore = model.requests.length;
   const sessionsBefore = readdirSync(join(agentDir, "sessions"), { recursive: true }).length;
+  await openWorkspaceMenu();
   await page.locator("[data-canvas-new]").click();
-  await page.locator("[data-canvas-name]").fill("选片");
-  await page.locator("[data-canvas-create]").click();
-  const second = await waitFor(async () => (await snapshot(workA)).workspace.canvases.find((c) => c.name === "选片")?.id, "the new canvas");
+  const second = await waitFor(async () => (await snapshot(workA)).workspace.canvases.find((c) => c.name === "画布 1")?.id, "the new canvas");
   await waitFor(async () => (await page.locator(`[data-canvas="${second}"][aria-current="true"]`).count()) === 1, "the new canvas to be the one open");
   await delay(500);
   check("making a canvas sends no message and starts no session",
@@ -180,6 +185,7 @@ try {
   check("a new canvas has no chats of its own, and the chat already here stays where it was",
     (await chatCards()) === 0 && (await idsOn(workA, second)).length === 0 && (await idsOn(workA)).join() === filmId,
     JSON.stringify({ chats: await chatCards(), onSecond: await idsOn(workA, second), onFirst: await idsOn(workA) }));
+  check("an empty new canvas starts at the composer even when the directory contains tickets", await page.locator('[data-empty-entry="true"]').count() === 1 && await composer().isVisible());
   // Tickets are files of the working directory, not of one canvas: every
   // canvas of this directory reads the same files, and lays them out itself.
   check("the working directory's own tickets are on the new canvas too, laid out by it",
@@ -220,7 +226,8 @@ try {
   const picker = () => page.getByRole("dialog", { name: /^(Select directory|选择目录)$/ });
   const pickerPath = () => picker().locator(".directory-picker-path");
   const browseToOtherWorkspace = async () => {
-    await page.locator("[data-workspace-switch]").click();
+    await openWorkspaceMenu();
+  await page.locator("[data-workspace-switch]").click();
     await page.locator("[data-workspace-browse]").click();
     await waitFor(async () => (await pickerPath().inputValue()).includes("one/放映会"), "browser starts at current directory");
     const up = picker().getByRole("button", { name: /^(Go to parent directory|转到上级目录)$/ });
@@ -234,20 +241,19 @@ try {
   await browseToOtherWorkspace();
   check("browsing folders leaves the current workspace and canvas unchanged",
     (await shownCwd()).includes("one/放映会")
-    && (await page.locator(`[data-canvas="${second}"][aria-current="true"]`).count()) === 1
+    && (await page.locator(".waygoal-workspace-menu > summary").getAttribute("data-canvas-id")) === second
     && model.requests.length === beforeSwitch);
   await picker().getByRole("button", { name: /^(Cancel|取消)$/ }).click();
   check("cancelling the folder browser keeps the original workspace",
     (await picker().count()) === 0 && (await shownCwd()).includes("one/放映会"));
-  // Cancel returns to the switch menu. Close it before testing a fresh browse.
-  await page.locator("[data-workspace-switch]").click();
+  // Reopen the directory selector after cancelling.
   await browseToOtherWorkspace();
   await page.screenshot({ animations: "disabled", path: join(evidence, "04-directory-browser.png") });
   await picker().getByRole("button", { name: /^(Select this folder|选择此文件夹)$/ }).click();
   await waitFor(async () => (await shownCwd()).includes("two/放映会"), "the other working directory");
   await delay(800);
   check("switching directory shows the other one, with its own single canvas and nothing on it",
-    (await canvasNames()).join() === "主画布" && (await chatCards()) === 0 && (await ticketCards()) === 0 && (await idsOn(workB)).length === 0,
+    (await canvasNames()).join() === "未归类会话" && (await chatCards()) === 0 && (await ticketCards()) === 0 && (await idsOn(workB)).length === 0,
     JSON.stringify({ canvases: await canvasNames(), chats: await chatCards(), tickets: await ticketCards() }));
   check("switching directory sends no message",
     model.requests.length === beforeSwitch, String(model.requests.length - beforeSwitch));
@@ -258,6 +264,7 @@ try {
   await page.screenshot({ animations: "disabled", path: join(evidence, "02-other-workspace.png") });
 
   // 8. A directory that is not there is said so, and nothing is swapped in.
+  await openWorkspaceMenu();
   await page.locator("[data-workspace-switch]").click();
   await page.locator("[data-workspace-input]").fill(join(agentDir, "work/没有这个目录"));
   await page.locator("[data-workspace-open]").click();
@@ -288,6 +295,23 @@ try {
     (await idsOn(workA)).join() === filmId && (await idsOn(workA, second)).join() === roomId);
   await page.screenshot({ animations: "disabled", path: join(evidence, "03-after-restart.png") });
 
+  const originalPi = sessionFile(roomId), beforeImport = model.requests.length;
+  await goToCanvas("main"); await openWorkspaceMenu();
+  await page.locator("[data-session-import-open]").click();
+  await page.locator(`[data-import-session="${roomId}"]`).click();
+  await waitFor(async () => (await idsOn(workA)).includes(roomId) && !(await idsOn(workA, second)).includes(roomId), "import membership");
+  check("import moves the same session into the chosen canvas without changing Pi or sending", sessionFile(roomId) === originalPi && model.requests.length === beforeImport);
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await waitFor(async () => await page.locator(`[data-node="${roomId}"]`).count() === 1, "import survives reload");
+  check("import membership survives reload", !(await idsOn(workA, second)).includes(roomId));
+  await goToCanvas(second); await openWorkspaceMenu();
+  await page.locator("[data-session-import-open]").click();
+  await page.locator(`[data-import-session="${roomId}"]`).click();
+  await waitFor(async () => (await idsOn(workA, second)).includes(roomId), "move back");
+  check("import can be reversed from the original canvas", sessionFile(roomId) === originalPi && !(await idsOn(workA)).includes(roomId));
+  const invalid = await fetch(`${base}/api/waygoal`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cwd: workB, canvas: 'main', registerSession: roomId }) });
+  check("import refuses a session from a different working directory", invalid.status === 400 && (await idsOn(workB)).length === 0);
+
   // Typing a directory that is not there is refused by the server, and the
   // browser logs that response itself: it is the one failed request this run
   // asks for, and nothing else may fail.
@@ -299,6 +323,7 @@ try {
   // 10. A remembered directory that has been moved away is reported, not
   //     quietly replaced by another one. The browser is closed first: this is
   //     about what the host answers when nobody says which directory.
+  await snapshot(workA, second);
   rmSync(join(agentDir, "work/one"), { recursive: true, force: true });
   const bare = await (await fetch(`${base}/api/waygoal`, { cache: "no-store" })).json();
   check("a remembered directory that is gone is named rather than swapped for another",

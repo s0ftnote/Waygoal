@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { createJiti } from "jiti";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 const jiti = createJiti(import.meta.url, { alias: { "@": new URL("../../", import.meta.url).pathname } });
+const { readTurns } = await jiti.import("./turn-reader.ts");
 const { captureMaterial } = await jiti.import("./material-reader.ts");
 const { cacheSessionPath } = await jiti.import("../session-reader.ts");
 const answer = text => ({ role: "assistant", content: [{ type: "text", text }], api: "openai-completions", provider: "e2e", model: "model", timestamp: Date.now(), stopReason: "stop", usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } });
@@ -59,6 +60,9 @@ test("capture follows SDK compaction, scopes copied IDs by session, and freezes 
     const forkFile = forkSource.createBranchedSession(a1);
     const fork = SessionManager.open(forkFile);
     cacheSessionPath(fork.getSessionId(), forkFile);
+    const sourceTurns = await readTurns(source.getSessionId());
+    const forkTurns = await readTurns(fork.getSessionId());
+    assert.equal(sourceTurns.turns[0].fingerprint, forkTurns.turns[0].fingerprint, "SDK fork preserves the complete entry digest");
     const crossFile = await captureMaterial(source.getSessionId(), u1, fork.getSessionId(), "answer");
     assert.equal(crossFile.parts[0].entryId, a1);
     assert.equal(crossFile.sessionId, source.getSessionId());

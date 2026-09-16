@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { rekeyDraft, getDraft, setDraft, clearDraft } from "@/lib/draft-store";
 import { cardBounds, cardCenter, thumbnail, viewCenteredOn, worldPoint, type WaygoalCard } from "@/lib/waygoal/locate";
@@ -19,6 +19,7 @@ import { WaygoalFind } from "./Find";
 import { WaygoalPathView } from "./PathView";
 import { WaygoalRename } from "./Rename";
 import { WaygoalWorkspaceBar } from "./WorkspaceBar";
+import { WaygoalPanelResize } from "./PanelResize";
 import { stateClass, WaygoalTicketPanel } from "./TicketPanel";
 
 const NODE_W = NODE_WIDTH;
@@ -136,10 +137,15 @@ export function WaygoalCanvas() {
   const [pendingTicket, setPendingTicket] = useState<string | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [createdSession, setCreatedSession] = useState<SessionInfo | null>(null);
+  const [overviewRequested, setOverviewRequested] = useState(false);
+  const [entranceSession, setEntranceSession] = useState<string | null>(null);
+  const chatPanel = useRef<HTMLElement>(null);
+  const previousPanelRect = useRef<{ rect: DOMRect; entering: boolean } | null>(null);
   const [panelKey, setPanelKey] = useState(0);
   const [turnsOpen, setTurnsOpen] = useState(true);
   const [searchTarget, setSearchTarget] = useState<{ sessionId: string; entryId: string } | null>(null);
   const [locateEntry, setLocateEntry] = useState<{ entryId: string; serial: number } | null>(null);
+  const [inspectEntry, setInspectEntry] = useState<{ entryId: string; serial: number } | null>(null);
   const [materials, setMaterials] = useState<MaterialSnapshot[]>([]);
   const materialDrafts = useRef(new Map<string, MaterialSnapshot[]>());
   const materialsRef = useRef(materials); materialsRef.current = materials;
@@ -244,6 +250,7 @@ export function WaygoalCanvas() {
       viewSaveTimer.current = null;
       await patch({ view });
     }
+    setOverviewRequested(false); setEntranceSession(null);
     setSnapshot(null);
     leavePanel(); setSelectedId(null); setOpenTicket(null); setPendingTicket(null); setTree(null); setPicked([]);
     setPanelKey(k => k + 1);
@@ -438,6 +445,19 @@ export function WaygoalCanvas() {
   const selectedNode = nodes.find(n => n.id === selectedId) ?? null;
   const panelSession: SessionInfo | null = selectedNode ? nodeToSession(selectedNode, snapshot!.cwd) : createdSession;
   const panelOpen = Boolean(panelSession || draftKey || openTicketMap);
+  const emptyCanvas = Boolean(snapshot && nodes.length === 0 && !panelSession && !openTicketMap && !pendingTicket && !overviewRequested);
+  const emptyEntry = emptyCanvas || entranceSession === panelSession?.id;
+  useLayoutEffect(() => {
+    const panel = chatPanel.current;
+    if (!panel) { previousPanelRect.current = null; return; }
+    const rect = panel.getBoundingClientRect(), before = previousPanelRect.current;
+    previousPanelRect.current = { rect, entering: emptyEntry };
+    if (!before?.entering || emptyEntry || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    panel.animate([
+      { transform: `translate(${before.rect.x - rect.x}px, ${before.rect.y - rect.y}px) scale(${before.rect.width / rect.width}, ${before.rect.height / rect.height})`, transformOrigin: "top left" },
+      { transform: "none", transformOrigin: "top left" },
+    ], { duration: 420, easing: "cubic-bezier(.2,.75,.2,1)" });
+  }, [emptyEntry, panelOpen]);
 
   // Kept in a ref, not read from the closure: ChatWindow reports a fork
   // asynchronously, and the panel may already show something else by then.
@@ -566,6 +586,11 @@ export function WaygoalCanvas() {
     setNotice("");
   }, [leavePanel, snapshot]);
 
+  // An empty canvas opens only a local composer. Pi is created by its first send.
+  useEffect(() => {
+    if (emptyCanvas && !panelOpen) startNewChat();
+  }, [emptyCanvas, panelOpen, startNewChat]);
+
   /** Start a discussion under one ticket. Like the plain new chat, this only
    *  opens a composer: the draft is kept under the ticket's own key, so coming
    *  back — or clicking twice — lands on the same unsent draft instead of a
@@ -600,6 +625,7 @@ export function WaygoalCanvas() {
   }, [leavePanel]);
 
   const onSessionCreated = useCallback((session: SessionInfo) => {
+    if (emptyCanvas) setEntranceSession(session.id);
     setCreatedSession(session);
     setSelectedId(session.id);
     const ticket = pendingTicket;
@@ -611,7 +637,7 @@ export function WaygoalCanvas() {
       ...(ticket ? { ticketSession: { sessionId: session.id, ticket }, ticketLast: { ticket, sessionId: session.id, entryId: null } } : {}),
     });
     void refresh(true);
-  }, [patch, pendingTicket, refresh]);
+  }, [patch, pendingTicket, refresh, emptyCanvas]);
 
   /** Land on a session that was just branched off, keeping where it came from. */
   const landOnFork = useCallback(async (newSessionId: string, originSessionId: string, originEntryId?: string) => {
@@ -874,12 +900,12 @@ export function WaygoalCanvas() {
   const branchNodeCount = nodes.filter(n => n.branchPointCount > 0).length;
   const panelOrigin = selectedNode?.origin ?? null;
 
-  return <main className="waygoal-app" data-panel-open={panelOpen || undefined}>
+  return <main className="waygoal-app waygoal-spatial" data-panel-open={panelOpen || undefined} data-empty-entry={emptyEntry || undefined}>
     <header className="waygoal-top">
       <div className="waygoal-brand">waygoal<span>.</span></div>
-      <WaygoalWorkspaceBar workspace={snapshot?.workspace ?? null} onOpen={openWorkspace} onSwitchCanvas={switchCanvas} onError={setError} />
+      <WaygoalWorkspaceBar workspace={snapshot?.workspace ?? null} onOpen={openWorkspace} onSwitchCanvas={switchCanvas} onError={setError} onImported={() => refresh(true)} onOverview={() => { setOverviewRequested(true); setTurnsOpen(false); }} />
       <div className="waygoal-top-right">
-        <button type="button" className="waygoal-button action" onClick={startNewChat} disabled={!snapshot}>新开聊天</button>
+        <button type="button" className="waygoal-button outlined" onClick={startNewChat} disabled={!snapshot}>新开聊天</button>
       </div>
     </header>
     {error && <div role="alert" className="waygoal-alert">{error}<button type="button" aria-label="关闭错误" onClick={() => setError("")}>×</button></div>}
@@ -887,7 +913,7 @@ export function WaygoalCanvas() {
     {trust?.requiresTrust && !trust.trusted && snapshot && <div role="status" className="waygoal-notice">这个目录带有项目级 skills 或扩展；Pi 需要你确认信任后才会加载它们。
       <button type="button" className="waygoal-button outlined small" onClick={() => void fetch("/api/project-trust", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cwd: snapshot.cwd }) }).then(r => r.json()).then(setTrust)}>信任此目录</button></div>}
     <div className="waygoal-stage">
-      <section className="waygoal-canvas-area" aria-label="会话画布区域">
+      <section className="waygoal-canvas-area" aria-label="会话画布区域" aria-hidden={emptyEntry || undefined} inert={emptyEntry}>
         <div className="waygoal-toolbar">
           <h1>{cwdName || "会话画布"}</h1>
           <span className="waygoal-count">{snapshot ? `${nodes.length} 段会话${ticketCount ? ` · ${ticketCount} 张本地票据` : ""}${branchNodeCount ? ` · ${branchNodeCount} 段有会话内分叉` : ""}${runningCount ? ` · ${runningCount} 段正在运行` : ""}` : "正在读取…"}</span>
@@ -1145,10 +1171,15 @@ export function WaygoalCanvas() {
               style={{ left: thumb.view.x, top: thumb.view.y, width: thumb.view.width, height: thumb.view.height }} />
           </button>
         </div>}
-        <div className="waygoal-statusline"><span>拖动卡片摆放 · 拖动空白处平移 · 滚轮缩放 · 点击卡片定位原文 · Tree 选择路径后继续聊天</span><span className="waygoal-id">{snapshot?.workspaceId}</span></div>
+        <div className="waygoal-statusline"><span>拖动卡片摆放 · 拖动空白处平移 · 滚轮缩放 · 点击卡片定位原文 · 选择路径后继续聊天</span><span className="waygoal-id">{snapshot?.workspaceId}</span></div>
         {panelSession && turnsOpen && !openTicketMap && <WaygoalTurnCanvas
-          sessionId={panelSession.id} targetVersion={panelKey} layouts={snapshot?.turnLayouts}
-          onSaveLayout={(sessionId, layout) => void patch({ turnLayout: { sessionId, layout } })} sessions={nodes.map(node => ({ id: node.id, title: node.title }))}
+          key={`${snapshot?.workspaceId}:${snapshot?.workspace.canvasId}`}
+          sessionId={panelSession.id} targetVersion={panelKey} layouts={snapshot?.turnLayouts} board={snapshot?.turnBoard}
+          onSaveBoard={layout => void patch({ turnBoard: layout })} sessions={nodes}
+          materials={materials} inspectEntry={inspectEntry} onDismissPreview={stopViewing}
+          onOpenSession={id => { const node = nodes.find(node => node.id === id); if (node && id !== panelSession.id) openNode(node); }}
+          onFork={(sessionId, entryId) => void forkFrom(sessionId, entryId, true)}
+          onReady={id => { if (entranceSession === id) setEntranceSession(null); }}
           locateEntry={locateEntry} busy={Boolean(busyReason) || navigating}
           onOverview={() => setTurnsOpen(false)}
           onLocate={(sessionId, turn) => {
@@ -1166,11 +1197,12 @@ export function WaygoalCanvas() {
             onFork={(entryId, message) => void forkFrom(viewing.sessionId, entryId, false, message)} />
         </div>}
       </section>
-      {panelOpen && snapshot && <aside className="waygoal-panel" aria-label="讨论面板">
+      {panelOpen && snapshot && <aside className="waygoal-panel" aria-label="讨论面板" ref={chatPanel}>
+        {!emptyEntry && !openTicketMap && <WaygoalPanelResize />}
         <div className="waygoal-panel-head">
           {isMobile && <button type="button" className="waygoal-button outlined small" onClick={closePanel}>← 回到画布</button>}
           <div className="waygoal-panel-title">
-            <span className="waygoal-eyebrow">{openTicketMap ? (openTicketCard ? ticketKind(Boolean(openTicketCard.remote)) : mapKind(openTicketMap.remote)) : panelSession ? (selectedNode?.running ? "正在运行" : "已有会话") : pendingTicket ? "这张票下的新讨论" : "新的会话"}</span>
+            <span className="waygoal-eyebrow">{openTicketMap ? (openTicketCard ? ticketKind(Boolean(openTicketCard.remote)) : mapKind(openTicketMap.remote)) : panelSession ? (selectedNode?.running ? "正在回复" : "正在继续") : pendingTicket ? "这张票下的新讨论" : "新的会话"}</span>
             <strong>{openTicketMap ? (openTicketCard?.title ?? openTicketMap.title)
               : panelSession ? (selectedNode?.title ?? createdSession?.firstMessage ?? "会话")
               : pendingTicket ? `${pendingTicketTitle ?? pendingTicket}：写下第一句，发送后这段讨论就挂在这张票下`
@@ -1178,9 +1210,9 @@ export function WaygoalCanvas() {
           </div>
           {/* A ticket keeps the name its source file gives it, and a path
               inside a session is not named at all: only a session gets these. */}
-          {selectedNode && <WaygoalRename key={selectedNode.id}
+          {selectedNode && <details className="waygoal-chat-settings"><summary aria-label="讨论设置">•••</summary><div><WaygoalRename key={selectedNode.id}
             sessionId={selectedNode.id} title={selectedNode.title} titleSource={selectedNode.titleSource}
-            onRenamed={() => refresh(true)} onError={setError} onNotice={setNotice} />}
+            onRenamed={() => refresh(true)} onError={setError} onNotice={setNotice} /></div></details>}
           {panelSession && !turnsOpen && <button type="button" className="waygoal-button outlined small" onClick={() => setTurnsOpen(true)}>轮次画布</button>}
           {!isMobile && <button type="button" className="waygoal-icon" aria-label="关闭面板" onClick={closePanel}>×</button>}
         </div>
@@ -1211,10 +1243,11 @@ export function WaygoalCanvas() {
           onView={choice => panelSession && viewPath(panelSession.id, choice.entryId, "这条路径", choice.leafId)}
         />}
         {!openTicketMap && <div className="waygoal-panel-body">
-          {<ChatWindow key={panelKey} session={panelSession} sessionRunning={selectedNode?.running ?? false}
+          {<ChatWindow hideWelcome key={panelKey} session={panelSession} sessionRunning={selectedNode?.running ?? false}
                 searchTarget={searchTarget} onSearchTargetHandled={clearSearchTarget}
                 onNavigateEntry={(entryId, message) => panelSession ? continueAt(panelSession.id, entryId, message) : Promise.resolve(false)}
                 onLocateEntry={locateTurn}
+                onInspectReferences={entryId => { stopViewing(); setTurnsOpen(true); setInspectEntry({ entryId, serial: Date.now() }); }}
                 onForkAfter={entryId => panelSession && void forkFrom(panelSession.id, entryId, true)}
                 promptMaterials={materials} onPromptAccepted={() => setMaterials([])}
                 composerAccessory={<WaygoalMaterialTray materials={materials} onRemove={index => setMaterials(current => current.filter((_, i) => i !== index))} />}

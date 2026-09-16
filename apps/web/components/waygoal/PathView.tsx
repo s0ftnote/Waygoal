@@ -47,7 +47,7 @@ export function WaygoalPathView({ sessionId, leafId, cwd, label, busyReason, for
     <div className="waygoal-readonly-bar">
       <span className="waygoal-tag reading">正在看</span>
       <span className="waygoal-readonly-label">{label}</span>
-      <span className="waygoal-readonly-hint">只读预览 · 通过 Tree 选择继续路径</span>
+      <span className="waygoal-readonly-hint">只读预览 · 当前聊天保持不变</span>
     </div>
     {busyReason && <p className="waygoal-readonly-note">{busyReason}</p>}
     <div className="waygoal-readonly-body">

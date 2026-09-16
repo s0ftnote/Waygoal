@@ -789,3 +789,19 @@ test("turn positions, associations and independent preview survive in the scoped
     assert.throws(() => store.applyCanvasPatch(s.sa, { turnLayout: { sessionId: "session", layout: { positions: { bad: { x: NaN, y: 0 } }, links: [] } } }));
   } finally { s.done(); }
 });
+
+
+test("shared turn board persists scoped identities without leaking between workspaces", () => {
+  const s = sandbox();
+  try {
+    const a = JSON.stringify(["session-a", "same-entry"]), b = JSON.stringify(["session-b", "same-entry"]);
+    const turnBoard = { positions: { [a]: { x: 40, y: 70 }, [b]: { x: 380, y: 70 } }, links: [[a, b]] };
+    store.applyCanvasPatch(s.sa, { turnBoard });
+    assert.deepEqual(store.readCanvasRecord(s.sa).turnBoard, turnBoard);
+    assert.deepEqual(store.buildSnapshot(s.sa, [], []).turnBoard, turnBoard);
+    assert.equal(store.readCanvasRecord(s.sb).turnBoard, undefined);
+    assert.throws(() => store.applyCanvasPatch(s.sa, { turnBoard: { positions: { unscoped: { x: 0, y: 0 } }, links: [] } }));
+    assert.throws(() => store.applyCanvasPatch(s.sa, { turnBoard: { positions: {}, links: [[a, "unscoped"]] } }));
+    assert.deepEqual(store.readCanvasRecord(s.sa).turnBoard, turnBoard);
+  } finally { s.done(); }
+});

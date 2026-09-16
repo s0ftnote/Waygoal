@@ -1,4 +1,4 @@
-import { evidenceDirectory } from "./waygoal-artifacts.mjs";
+import { evidenceDirectory, openOverview } from "./waygoal-artifacts.mjs";
 // Browser verification for a remote ticket reaching the canvas: the Agent
 // finishes a normal read of a source, hands Waygoal only the source identity
 // and where its raw result is, and Waygoal reads that result itself and shows
@@ -161,7 +161,9 @@ try {
     const p = await context.newPage();
     // These checks exercise workspace/session organization. Return through the
     // real overview control when the turn view covers those controls.
-    await p.addLocatorHandler(p.getByRole("button", { name: "← 总画布", exact: true }), async button => { await button.click(); });
+    await p.addLocatorHandler(p.locator('.waygoal-turn-more > summary'), async button => {
+      await button.click(); await p.getByRole('button', { name: '会话与票据', exact: true }).click();
+    });
     p.setDefaultTimeout(30_000);
     p.on("pageerror", (e) => note(e.message));
     p.on("crash", () => note("page crashed"));
@@ -186,6 +188,7 @@ try {
   const card = (id) => page.locator(`[data-node="${id}"]`);
 
   await page.goto(`${base}/waygoal?cwd=${encodeURIComponent(work)}`, { waitUntil: "domcontentloaded" });
+  await openOverview(page);
   await card(".scratch/party/map.md").waitFor();
   const requests = model.requests.length;
 
@@ -295,6 +298,7 @@ try {
   await page.close();
   page = fresh;
   await page.goto(`${base}/waygoal?cwd=${encodeURIComponent(work)}`, { waitUntil: "domcontentloaded" });
+  await openOverview(page);
   await card(GH).waitFor();
   await openCard(GH);
   check("after the host restarts, the sources and their tickets are still on the canvas, with their own text",

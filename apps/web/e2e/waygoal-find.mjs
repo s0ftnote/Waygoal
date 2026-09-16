@@ -1,4 +1,4 @@
-import { evidenceDirectory } from "./waygoal-artifacts.mjs";
+import { evidenceDirectory, openOverview } from "./waygoal-artifacts.mjs";
 // Browser verification for naming a discussion and finding it again (ticket #5).
 // Starts its own pi-web on a free loopback port with an isolated Pi data
 // directory and a fake OpenAI-compatible model, writes real tracker files into
@@ -117,7 +117,9 @@ try {
     const p = await context.newPage();
     // These checks exercise workspace/session organization. Return through the
     // real overview control when the turn view covers those controls.
-    await p.addLocatorHandler(p.getByRole("button", { name: "← 总画布", exact: true }), async button => { await button.click(); });
+    await p.addLocatorHandler(p.locator('.waygoal-turn-more > summary'), async button => {
+      await button.click(); await p.getByRole('button', { name: '会话与票据', exact: true }).click();
+    });
     p.setDefaultTimeout(30_000);
     p.on("pageerror", (e) => errors.push(e.message));
     p.on("crash", () => errors.push("page crashed"));
@@ -166,6 +168,7 @@ try {
   // 1. A session nobody has named falls back to its first message, and the
   //    fallback is shown as a fallback rather than as a name.
   await page.goto(canvasUrl, { waitUntil: "domcontentloaded" });
+  await openOverview(page);
   const filmId = await startChat("放映会放哪部片好");
   check("an unnamed session falls back to its first message without that becoming its name",
     (await nodeOf(filmId)).titleSource === "fallback", JSON.stringify(await nodeOf(filmId)));
@@ -173,6 +176,7 @@ try {
   // 2. Renaming goes through Pi's own rename, and the box starts empty: a
   //    fallback is not offered back as though the user had written it.
   const before = { position: (await nodeOf(filmId)).position, messages: messagesOf(filmId), count: (await nodeOf(filmId)).messageCount };
+  if (!await page.locator(".waygoal-chat-settings").evaluate(element => element.open)) await page.locator(".waygoal-chat-settings > summary").click();
   await page.locator("[data-rename]").click();
   check("the rename box does not start out holding the fallback title",
     (await page.locator("[data-rename-input]").inputValue()) === "");
@@ -202,6 +206,7 @@ try {
   const roomId = await startChat("场地就定在客厅吧");
   check("nothing asks a model for a title on its own", model.titleRequests() === 0, String(model.titleRequests()));
   const messagesBeforeNaming = messagesOf(roomId);
+  if (!await page.locator(".waygoal-chat-settings").evaluate(element => element.open)) await page.locator(".waygoal-chat-settings > summary").click();
   await page.locator("[data-autoname]").click();
   await waitFor(async () => (await nodeOf(roomId)).title === "挑一部适合朋友的片子", "the generated title");
   check("asking Pi for a name uses the host's own title generation, once, and adds no message to the session",
@@ -209,6 +214,7 @@ try {
     && JSON.stringify(messagesOf(roomId)) === JSON.stringify(messagesBeforeNaming),
     JSON.stringify({ titleRequests: model.titleRequests() }));
   // Rename it to something of its own, so the two sessions read apart.
+  if (!await page.locator(".waygoal-chat-settings").evaluate(element => element.open)) await page.locator(".waygoal-chat-settings > summary").click();
   await page.locator("[data-rename]").click();
   await page.locator("[data-rename-input]").fill("放映会场地");
   await page.locator("[data-rename-save]").click();
@@ -223,6 +229,7 @@ try {
   server = await startServer();
   page = await openPage();
   await page.goto(canvasUrl, { waitUntil: "domcontentloaded" });
+  await openOverview(page);
   await page.locator(`[data-node="${filmId}"]`).getByText("放映会选片").waitFor();
   check("the names survive a host restart", (await nodeOf(filmId)).title === "放映会选片" && (await nodeOf(roomId)).title === "放映会场地");
 

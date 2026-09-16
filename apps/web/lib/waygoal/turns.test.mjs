@@ -60,3 +60,20 @@ test("a fork through metadata cannot overwrite another path's answer", () => {
   const entries = [message("u", null, "user", "question"), message("a", "u", "assistant", "first"), { type: "model_change", id: "model", parentId: "u", provider: "e2e", modelId: "other" }, message("b", "model", "assistant", "second")];
   assert.deepEqual(projectTurns("s", entries, "b").turns.map(turn => [turn.id, turn.answer, turn.active]), [["u", "first", false], ["b", "second", true]]);
 });
+
+test("each sent reference can show its exact frozen block without rereading sources", () => {
+  const base = { sessionId: "a", turnId: "u", scope: "answer", capturedAt: "then", targetLeafId: "target", parts: [{ entryId: "answer", role: "assistant", text: "A原文\n#### 回答\n> preserved formatting" }] };
+  const other = { ...base, sessionId: "b", parts: [{ entryId: "answer", role: "assistant", text: "B的独立原文" }] };
+  const prompt = materialPrompt("combine", [base, other]);
+  const parsed = materialSources(prompt);
+  assert.equal(parsed.sources.length, 2);
+  assert.ok(parsed.sources[0].snapshot.includes("A原文"));
+  assert.ok(!parsed.sources[0].snapshot.includes("B的独立原文"));
+  assert.ok(parsed.sources[1].snapshot.includes("B的独立原文"));
+  base.parts[0].text = "changed later";
+  assert.ok(materialSources(prompt).sources[0].snapshot.includes("A原文"));
+  assert.ok(parsed.sources.every(source => !source.sharedSnapshot));
+  const legacy = 'question\n\n<!-- waygoal-materials:[{"sessionId":"a","turnId":"u","scope":"answer"}] -->\n\n### 引用材料\n\nlegacy captured body';
+  assert.equal(materialSources(legacy).sources[0].snapshot, "legacy captured body");
+  assert.equal(materialSources(legacy).sources[0].sharedSnapshot, true);
+});

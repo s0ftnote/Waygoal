@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { allowFileRoot } from "@/lib/file-access";
 import { getRpcSessionInfos, getRunningRpcSessionIds } from "@/lib/rpc-manager";
 import { attachSessionProjectInfo, listAllSessions, mergeSessionLists } from "@/lib/session-reader";
-import { applyCanvasPatch, buildSnapshot, buildTicketSnapshot, canvasSessions, resolveWorkspaceCwd } from "@/lib/waygoal/store";
+import { applyCanvasPatch, buildSnapshot, buildTicketSnapshot, canvasSessions, workspaceSessions, resolveWorkspaceCwd } from "@/lib/waygoal/store";
 import { readTreeInfos } from "@/lib/waygoal/tree";
 import { addCanvas, readWorkspaceRecord, recentWorkspaces, registerSession, rememberWorkspace, scopeFor } from "@/lib/waygoal/workspaces";
 import type { WaygoalCanvasPatch, WaygoalSnapshotResponse } from "@/lib/waygoal/types";
@@ -35,10 +35,11 @@ export async function GET(req: Request) {
     const snapshot = buildSnapshot(scope, sessions, getRunningRpcSessionIds(), trees);
     // Tickets come straight from the workspace's files on every read, so a file
     // created or edited outside Waygoal shows up on the next refresh.
+    const workspace = readWorkspaceRecord(cwd);
     const response: WaygoalSnapshotResponse = {
       ...snapshot,
       tickets: buildTicketSnapshot(scope, snapshot.nodes),
-      workspace: { cwd, canvasId: scope.canvasId, canvases: readWorkspaceRecord(cwd).canvases, recent: recentWorkspaces() },
+      workspace: { cwd, canvasId: scope.canvasId, canvases: workspace.canvases, recent: recentWorkspaces(), sessions: workspaceSessions(cwd, sessions).map(session => ({ id: session.id, title: session.name || session.firstMessage || "未命名会话", canvasId: workspace.sessionCanvas[session.id] ?? workspace.canvases[0].id })) },
     };
     return NextResponse.json(response, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
@@ -63,7 +64,11 @@ export async function PATCH(req: Request) {
     // Which canvas a session is on is the workspace's record, not the
     // canvas's: a session started from a canvas belongs to that canvas and no
     // other, and must not end up on two of them.
-    if (typeof started === "string" && started) registerSession(scope, started);
+    if (typeof started === "string" && started) {
+      const [persisted, runtime] = await Promise.all([listAllSessions({ force: true }), attachSessionProjectInfo(getRpcSessionInfos())]);
+      if (!workspaceSessions(cwd, mergeSessionLists(persisted, runtime)).some(session => session.id === started)) throw new Error("这段会话不在当前工作目录里。");
+      registerSession(scope, started);
+    }
     // The rest of the patch goes on whole: applyCanvasPatch checks every field
     // it accepts and ignores the rest, so re-listing the fields here would
     // only be a second place to forget when one is added.

@@ -10,6 +10,16 @@ export interface MaterialSnapshot {
   parts: { entryId: string; role: string; text: string }[];
 }
 const MARKER = "\n\n<!-- waygoal-materials:";
+const BODY = "\n\n### 引用材料\n\n";
+export interface MaterialSource {
+  sessionId: string;
+  turnId: string;
+  scope: MaterialScope;
+  capturedAt?: string;
+  /** The exact submitted material block, never a re-read of its source. */
+  snapshot: string;
+  sharedSnapshot: boolean;
+}
 
 /** Overlapping path/turn selections share original entries. Keep each piece
  * once in the review tray, so preview and send never disagree about dedup. */
@@ -24,19 +34,32 @@ export function addMaterial(current: MaterialSnapshot[], material: MaterialSnaps
 
 export function materialPrompt(text: string, materials: MaterialSnapshot[]): string {
   if (!materials.length) return text;
-  const metadata = materials.map(({ sessionId, turnId, scope, capturedAt, parts }) => ({ sessionId, turnId, scope, capturedAt, entryIds: parts.map(part => part.entryId) }));
-  return text + MARKER + JSON.stringify(metadata).replaceAll("--", "\\u002d\\u002d") + " -->\n\n### 引用材料\n\n"
-    + materials.map(material => `#### ${MATERIAL_SCOPES[material.scope]}\n来源会话：${material.sessionId} · 消息：${material.turnId}\n取得时间：${material.capturedAt}\n\n`
-      + material.parts.map(part => `**${part.role}**\n\n${part.text.split("\n").map(line => `> ${line}`).join("\n")}`).join("\n\n")).join("\n\n");
+  let body = "";
+  const metadata = materials.map(material => {
+    if (body) body += "\n\n";
+    const start = body.length;
+    body += `#### ${MATERIAL_SCOPES[material.scope]}\n来源会话：${material.sessionId} · 消息：${material.turnId}\n取得时间：${material.capturedAt}\n\n`
+      + material.parts.map(part => `**${part.role}**\n\n${part.text.split("\n").map(line => `> ${line}`).join("\n")}`).join("\n\n");
+    return { sessionId: material.sessionId, turnId: material.turnId, scope: material.scope, capturedAt: material.capturedAt,
+      entryIds: material.parts.map(part => part.entryId), start, end: body.length };
+  });
+  return text + MARKER + JSON.stringify(metadata).replaceAll("--", "\\u002d\\u002d") + " -->" + BODY + body;
 }
 
-export function materialSources(text: string): { question: string; sources: Pick<MaterialSnapshot, "sessionId" | "turnId" | "scope">[] } {
+export function materialSources(text: string): { question: string; sources: MaterialSource[] } {
   const start = text.lastIndexOf(MARKER);
   if (start < 0) return { question: text, sources: [] };
   try {
     const end = text.indexOf(" -->", start);
     const parsed: unknown = JSON.parse(text.slice(start + MARKER.length, end));
     if (!Array.isArray(parsed) || !parsed.every(source => source && typeof source.sessionId === "string" && typeof source.turnId === "string" && Object.hasOwn(MATERIAL_SCOPES, source.scope))) throw new Error("Invalid sources");
-    return { question: text.slice(0, start), sources: parsed };
+    const tail = text.slice(end + " -->".length);
+    const body = tail.startsWith(BODY) ? tail.slice(BODY.length) : tail;
+    return { question: text.slice(0, start), sources: parsed.map(source => {
+      const scoped = Number.isInteger(source.start) && Number.isInteger(source.end) && source.start >= 0 && source.end > source.start && source.end <= body.length;
+      return { sessionId: source.sessionId, turnId: source.turnId, scope: source.scope,
+        capturedAt: typeof source.capturedAt === "string" ? source.capturedAt : undefined,
+        snapshot: scoped ? body.slice(source.start, source.end) : body, sharedSnapshot: !scoped };
+    }) };
   } catch { return { question: text, sources: [] }; }
 }

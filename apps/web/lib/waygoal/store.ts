@@ -122,6 +122,15 @@ function validTurnLayout(value: unknown): value is WaygoalTurnLayout {
     && Array.isArray(layout.links) && layout.links.every(pair => Array.isArray(pair) && pair.length === 2 && pair.every(isNonEmptyString) && pair[0] !== pair[1]);
 }
 
+function validTurnBoard(value: unknown): value is WaygoalTurnLayout {
+  if (!validTurnLayout(value)) return false;
+  const validKey = (key: string) => {
+    try { const pair = JSON.parse(key); return Array.isArray(pair) && pair.length === 2 && pair.every(isNonEmptyString); }
+    catch { return false; }
+  };
+  return Object.keys(value.positions).every(validKey) && value.links.every(pair => pair.every(validKey));
+}
+
 export function readCanvasRecord(scope: WaygoalScope): WaygoalCanvasRecord {
   const { cwd } = scope;
   const path = recordPath(scope);
@@ -149,6 +158,7 @@ export function readCanvasRecord(scope: WaygoalScope): WaygoalCanvasRecord {
         .map(([t, place]) => [t, { sessionId: place.sessionId, entryId: typeof place.entryId === "string" && place.entryId ? place.entryId : null }])),
       groups: validGroups(parsed.groups),
       links: validLinks(parsed.links),
+      ...(validTurnBoard(parsed.turnBoard) ? { turnBoard: parsed.turnBoard } : {}),
       ...(parsed.turnLayouts ? { turnLayouts: Object.fromEntries(Object.entries(parsed.turnLayouts).flatMap(([id, layout]) => validTurnLayout(layout) ? [[id, layout]] : [])) } : {}),
       ...(validLayout(parsed.layoutUndo) && matchesPositions(nodes, parsed.layoutUndo.after) ? { layoutUndo: parsed.layoutUndo } : {}),
       ...(view ? { view } : {}),
@@ -172,6 +182,11 @@ export function applyCanvasPatch(scope: WaygoalScope, patch: WaygoalCanvasPatch)
   if ("preview" in patch) {
     if (patch.preview !== null && (!patch.preview || !isNonEmptyString(patch.preview.sessionId) || (patch.preview.entryId !== null && !isNonEmptyString(patch.preview.entryId)))) throw new Error("预览位置无效。");
     record.preview = patch.preview;
+    changed = true;
+  }
+  if (patch.turnBoard) {
+    if (!validTurnBoard(patch.turnBoard)) throw new Error("共同轮次布局无效。");
+    record.turnBoard = patch.turnBoard;
     changed = true;
   }
   if (patch.turnLayout) {
@@ -438,6 +453,7 @@ export function buildSnapshot(
     groups,
     links: record.links,
     canUndoLayout: Boolean(record.layoutUndo),
+    ...(record.turnBoard ? { turnBoard: record.turnBoard } : {}),
     ...(record.turnLayouts ? { turnLayouts: record.turnLayouts } : {}),
   };
 }

@@ -65,3 +65,5 @@ WAYGOAL_EVIDENCE_DIR="$PWD/docs/research/prototype-evidence" npm run test:e2e
 基础会话套件保留一段受控的慢缩放动画，等待动画结束后同帧读取节点相对位置，并核对保存坐标和缩放值。这样可以区分画布记录丢失与动画中途采样。
 
 CI 使用同一套根目录命令，执行静态检查、单元测试、生产构建和 Waygoal 浏览器回归；失败时上传测试输出。自动检查通过表示这些行为获得回归覆盖，视觉品质、分支带结论返回及真实使用体验仍需按设计文档验收。
+
+共同轮次投影位于 `lib/waygoal/turn-board.ts`，只读加载与画布交互在 `components/waygoal/TurnCanvas.tsx`。分支套件同时检查跨会话关系、引用快照及共同布局保存；共享前缀仅是展示投影，真实身份与 Pi 上下文保持分离。

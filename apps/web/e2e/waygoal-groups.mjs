@@ -1,4 +1,4 @@
-import { evidenceDirectory } from "./waygoal-artifacts.mjs";
+import { evidenceDirectory, openOverview } from "./waygoal-artifacts.mjs";
 // Browser verification for grouping nodes by hand and drawing relations between
 // them (ticket #6). Starts its own pi-web on a free loopback port with an
 // isolated Pi data directory and a fake OpenAI-compatible model, then actually
@@ -111,7 +111,9 @@ try {
     const p = await context.newPage();
     // These checks exercise workspace/session organization. Return through the
     // real overview control when the turn view covers those controls.
-    await p.addLocatorHandler(p.getByRole("button", { name: "← 总画布", exact: true }), async button => { await button.click(); });
+    await p.addLocatorHandler(p.locator('.waygoal-turn-more > summary'), async button => {
+      await button.click(); await p.getByRole('button', { name: '会话与票据', exact: true }).click();
+    });
     p.setDefaultTimeout(30_000);
     p.on("pageerror", (e) => note(e.message));
     p.on("crash", () => note("page crashed"));
@@ -152,6 +154,7 @@ try {
   const chatCards = () => page.locator("[data-node]:not(.waygoal-ticket-card):not(.waygoal-group-card)").count();
 
   await page.goto(`${base}/waygoal?cwd=${encodeURIComponent(work)}`, { waitUntil: "domcontentloaded" });
+  await openOverview(page);
   await page.locator(".waygoal-ticket-card").first().waitFor();
 
   // Three real Pi sessions to arrange, and a real fork among them.
@@ -313,6 +316,7 @@ try {
 
   // 6. Renaming a session leaves the arrangement alone.
   await page.locator(`[data-node="${filmId}"]`).click();
+  await page.locator(".waygoal-chat-settings > summary").click();
   await page.locator("[data-rename]").click();
   await page.locator("[data-rename-input]").fill("放映会选片");
   await page.locator("[data-rename-save]").click();
@@ -331,6 +335,7 @@ try {
   await page.close();
   page = fresh;
   await page.goto(`${base}/waygoal?cwd=${encodeURIComponent(work)}`, { waitUntil: "domcontentloaded" });
+  await openOverview(page);
   await waitFor(async () => (await page.locator(`[data-group="${group.id}"]`).count()) === 1, "the group after the restart");
   restarting = false;
   const back = await snapshot();

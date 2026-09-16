@@ -14,6 +14,8 @@ export interface WaygoalLayoutChange {
 export interface WaygoalCanvasRecord {
   preview?: WaygoalPlace | null;
   turnLayouts?: Record<string, WaygoalTurnLayout>;
+  /** Shared board keys encode [sessionId, turnId]; legacy layouts remain readable. */
+  turnBoard?: WaygoalTurnLayout;
   version: 1;
   cwd: string;
   nodes: Record<string, WaygoalPoint>;
@@ -131,6 +133,8 @@ export interface WaygoalManualLink {
 export interface WaygoalSnapshot {
   preview?: WaygoalPlace | null;
   turnLayouts?: Record<string, WaygoalTurnLayout>;
+  /** Shared board keys encode [sessionId, turnId]; legacy layouts remain readable. */
+  turnBoard?: WaygoalTurnLayout;
   canUndoLayout?: boolean;
   cwd: string;
   workspaceId: string;
@@ -147,6 +151,7 @@ export interface WaygoalSnapshot {
 export interface WaygoalCanvasPatch {
   preview?: WaygoalPlace | null;
   turnLayout?: { sessionId: string; layout: WaygoalTurnLayout };
+  turnBoard?: WaygoalTurnLayout;
   layout?: WaygoalLayoutChange;
   undoLayout?: boolean;
   positions?: Record<string, WaygoalPoint>;
@@ -467,6 +472,8 @@ export interface WaygoalWorkspaceView {
   canvases: WaygoalCanvasInfo[];
   /** Working directories opened before, most recent first. */
   recent: WaygoalRecentWorkspace[];
+  /** Existing sessions in this working directory, with their single canvas membership. */
+  sessions?: { id: string; title: string; canvasId: string }[];
 }
 
 /** What `GET /api/waygoal` answers: the sessions of one workspace and the
