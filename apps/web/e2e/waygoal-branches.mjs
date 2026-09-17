@@ -1,3 +1,4 @@
+import { observeFeedback, feedbackEvents, clearFeedback } from "./waygoal-feedback.mjs";
 import { evidenceDirectory } from "./waygoal-artifacts.mjs";
 // Continuous-chat acceptance against an isolated, real Pi SDK host and a
 // controlled model. Source identities and ancestry are checked in Pi files.
@@ -101,6 +102,7 @@ try {
   browser = await chromium.launch().catch(() => chromium.launch({ channel: "chrome" }));
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: "en-US" });
   const page = await context.newPage(); page.setDefaultTimeout(30_000);
+  await observeFeedback(page);
   const errors = []; page.on("pageerror", error => errors.push(error.message));
   const panel = page.locator(".waygoal-panel");
   const composer = panel.locator("textarea").first();
@@ -222,6 +224,7 @@ try {
   await page.getByRole("button", { name: "当前轮次", exact: true }).click();
   await page.locator("[data-next-turn]").click();
   const tray = page.getByLabel("下一轮引用材料"); await tray.waitFor();
+  check("successful pointer capture reveals only the arrived material", (await feedbackEvents(page)).some(event => event.material && event.duration === 160), JSON.stringify(await feedbackEvents(page)));
   await tray.locator("summary").click();
   const reviewed = await tray.locator("pre").allTextContents();
   check("reference selection keeps the ordinary draft", await composer.inputValue() === "A 路径草稿");
@@ -272,6 +275,7 @@ try {
   await assistant.getByRole("button", { name: "从这里分叉", exact: true }).click();
   const forkId = await waitFor(async () => (await snapshot()).nodes.find(node => ![id, otherSessionId].includes(node.id))?.id, "independent fork");
   await page.locator(`.waygoal-panel[data-session-id="${forkId}"][aria-busy="false"] textarea`).waitFor();
+  check("a real successful fork reveals its new branch and source line", (await feedbackEvents(page)).some(event => event.spatial === `node:${forkId}` && event.duration === 240) && (await feedbackEvents(page)).some(event => event.fork === forkId && event.duration === 160));
   await send("分叉里连续聊一"); await send("分叉里连续聊二");
   check("assistant fork includes its source answer and then continuous replies", ancestorsOf(forkId, (await turns(forkId)).activeLeafId).includes(firstTurn.endId));
   check("original session remains independent", !(JSON.stringify(sessionEntries(id))).includes("分叉里连续聊一"));
@@ -284,9 +288,11 @@ try {
   const foldingUrl = page.url();
   await page.evaluate(() => { window.keptWorld = document.querySelector(".waygoal-world"); });
   const collapseOriginal = page.locator(`[data-collapse-session="${id}"]`);
+  await clearFeedback(page);
   await collapseOriginal.focus(); await collapseOriginal.press("Enter");
   await waitFor(async () => await page.locator(`[data-node="${id}"]`).getAttribute("aria-expanded") === "false", "original collapses in place");
   check("folding keeps other sessions and the continuous composer in the same canvas", await page.locator(`[data-node="${forkId}"][data-expanded]`).count() === 1 && await composer.inputValue() === "分叉草稿保留" && await page.evaluate(() => window.keptInput === document.querySelector(".waygoal-panel textarea") && window.keptWorld === document.querySelector(".waygoal-world")) && page.url() === foldingUrl);
+  check("keyboard folding adds no spatial animation or exit ghosts", (await feedbackEvents(page)).length === 0 && await page.locator(".waygoal-spatial-exit").count() === 0);
   check("folding sends nothing and preserves the active Pi path", (await turns(forkId)).activeLeafId === forkLeaf);
   await tool("选择继续路径");
   await page.getByRole("navigation", { name: "Tree 路径选择" }).getByRole("button", { name: /分叉里连续聊二/ }).waitFor();
@@ -299,6 +305,20 @@ try {
   await waitFor(async () => await page.locator(`[data-session-origin="${forkId}"]`).count() === 0 && await page.locator('.waygoal-turn-lines path.fork').count() > 0, "precise fork line replaces its session fallback");
   check("an expanded fork is drawn once at its real turn endpoint", await page.locator(`[data-session-origin="${forkId}"]`).count() === 0 && await page.locator('.waygoal-turn-lines path.fork').count() > 0);
   // Keyboard activation works even when a wire lies outside the current camera.
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.getByRole("button", { name: "全景", exact: true }).click();
+  await clearFeedback(page);
+  await collapseOriginal.click();
+  await waitFor(async () => await page.locator(`[data-node="${id}"]`).getAttribute("aria-expanded") === "false", "pointer collapse");
+  check("pointer folding leaves only inert fading exits", (await feedbackEvents(page)).some(event => event.className.includes("waygoal-spatial-exit") && event.inert && event.duration === 120));
+  await page.keyboard.press("Escape");
+  await waitFor(async () => await page.locator(".waygoal-spatial-exit").count() === 0, "exit cleanup on interruption");
+  await clearFeedback(page);
+  await browseSession(id);
+  await waitFor(async () => await page.locator(`[data-node="${id}"][data-expanded]`).count() === 1, "pointer expansion");
+  check("reduced-motion expansion fades without translating reading surfaces", (await feedbackEvents(page)).some(event => event.spatial?.startsWith("turn:") && event.duration === 120) && (await feedbackEvents(page)).filter(event => event.spatial).every(event => event.frames.every(frame => !frame.transform)));
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+
   const forkWire = page.getByRole("button", { name: /^分叉来源：/ }).first();
   await forkWire.focus(); await forkWire.press("Enter");
   await page.getByLabel("关系来源").waitFor();
@@ -311,6 +331,17 @@ try {
   await page.locator("[data-next-turn]").click();
   await tray.waitFor(); await tray.locator("summary").click();
   const crossReviewed = await tray.locator("pre").allTextContents();
+  await clearFeedback(page);
+  await tray.getByRole("button", { name: "移除材料 1", exact: true }).click();
+  check("removed material exits as an inert visual only", (await feedbackEvents(page)).some(event => event.className.includes("waygoal-material-exit") && event.inert && event.duration === 120) && await tray.locator("[data-material-key]").count() === 0);
+  await send("移除后发送不带材料");
+  const withoutMaterial = (await turns(forkId)).turns.find(turn => turn.question === "移除后发送不带材料");
+  check("sending after removal excludes the fading material from Pi", withoutMaterial && !withoutMaterial.sources.length && !JSON.stringify(model.requests.at(-1).body.messages.at(-1)).includes("waygoal-materials"));
+  await waitFor(async () => await page.locator(`[data-turn="${withoutMaterial.id}"]`).count() === 1, "uncited turn appears");
+  await page.getByRole("button", { name: "全景", exact: true }).click();
+  await page.locator(`[data-turn="${sibling.id}"] .waygoal-turn-port`).click();
+  await page.locator("[data-next-turn]").click();
+  await tray.waitFor();
   await composer.fill("跨会话带回材料"); await composer.press("Enter");
   const crossTurn = await waitFor(async () => (await turns(forkId)).turns.find(turn => turn.question === "跨会话带回材料" && turn.answer), "cross-session material answered");
   check("cross-session reference retains the exact source identity and frozen submitted text", crossTurn.sources[0].sessionId === id && crossTurn.sources[0].turnId === sibling.id && crossReviewed.every(text => crossTurn.sources[0].snapshot.includes(text)));
@@ -416,7 +447,7 @@ try {
   const turnViewport = page.locator(".waygoal-viewport");
   const fittedScale = await canvasScale();
   await turnViewport.hover(); await page.mouse.wheel(0, -100);
-  await waitFor(() => page.locator(".waygoal-world").evaluate((element, before) => new DOMMatrix(element.style.transform).a > before, fittedScale), "wheel updates camera");
+  await waitFor(() => page.locator(".waygoal-world").evaluate((element, before) => new DOMMatrix(element.style.transform).a > before * 1.01, fittedScale), "wheel updates camera");
   const zoomedScale = await canvasScale();
   check("zooming from overview changes scale smoothly without jumping to the old minimum", zoomedScale > fittedScale && zoomedScale < fittedScale * 1.2, JSON.stringify({ fittedScale, zoomedScale }));
   await page.getByRole("button", { name: "当前轮次", exact: true }).click();

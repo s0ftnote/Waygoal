@@ -1,6 +1,7 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
+import { feedbackIntent, feedbackMotion } from "./feedback-motion";
 import { TakeawayEditor } from "./TakeawayEditor";
 import { zoomTier, takeawayChanged, type ZoomTier, type TurnTakeaway } from "@/lib/waygoal/takeaways";
 import { expandedTurns, type SessionSize } from "@/lib/waygoal/session-expansion";
@@ -20,6 +21,8 @@ interface Props {
   worldHost: HTMLDivElement | null;
   camera: WaygoalView;
   setCamera: Dispatch<SetStateAction<WaygoalView>>;
+  onGrabCamera: () => WaygoalView;
+  setCameraDirect: Dispatch<SetStateAction<WaygoalView>>;
   onExpand: (id: string) => void;
   onGeometry: (sizes: Record<string, SessionSize>, cards: BoardCard[], edges: BoardEdge[]) => void;
   onFit: () => void;
@@ -31,7 +34,7 @@ interface Props {
   onContinue: (sessionId: string, leafId: string) => void;
   onOpenSession: (sessionId: string) => void;
   onDismissPreview: () => void;
-  onMaterial: (material: MaterialSnapshot) => void;
+  onMaterial: (material: MaterialSnapshot, allowed: () => boolean) => void;
   onReady: (sessionId: string) => void;
   onOverview: () => void;
   onFork: (sessionId: string, entryId: string) => void;
@@ -40,10 +43,18 @@ type Point = { x: number; y: number };
 
 /** This board owns viewing/layout only. The persistent ChatWindow beside it
  * owns the continuation; neither selecting a card nor reading an edge moves it. */
-export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, onSaveBoard, sessions, locateEntry, inspectEntry, materials, busy, onLocate, onContinue, onOpenSession, onDismissPreview, onMaterial, onOverview, onFork, onReady, expanded, worldHost, camera, setCamera, onGeometry, onExpand, onFit }: Props) {
+export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, onSaveBoard, sessions, locateEntry, inspectEntry, materials, busy, onLocate, onContinue, onOpenSession, onDismissPreview, onMaterial, onOverview, onFork, onReady, expanded, worldHost, camera, setCamera, onGrabCamera, setCameraDirect, onGeometry, onExpand, onFit }: Props) {
   const tierRef = useRef<ZoomTier>("detail");
   const tier = zoomTier(camera.scale, tierRef.current);
   useEffect(() => { tierRef.current = tier; }, [tier]);
+  const [confirmation, setConfirmation] = useState<{ key: string; allowed: () => boolean } | null>(null);
+  useLayoutEffect(() => {
+    if (!confirmation?.allowed()) return;
+    const card = Array.from(worldHost?.querySelectorAll<HTMLElement>("[data-turn-key]") ?? []).find(element => element.dataset.turnKey === confirmation.key);
+    card?.querySelectorAll(".waygoal-takeaway-status, .waygoal-turn-glyph").forEach(element => {
+      if (element.getBoundingClientRect().width) feedbackMotion(element, { opacity: 0, transform: "scale(.97)" }, { opacity: 1, transform: "none" });
+    });
+  }, [confirmation, worldHost]);
   const [editingTakeaway, setEditingTakeaway] = useState<BoardCard | null>(null);
   const [actionKey, setActionKey] = useState<string | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
@@ -79,7 +90,7 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
     window.addEventListener("keydown", dismiss);
     return () => window.removeEventListener("keydown", dismiss);
   }, []);
-  const gesture = useRef<{ id?: string; start: Point; origin: Point; moved: boolean } | null>(null);
+  const gesture = useRef<{ id?: string; start: Point; origin: Point; moved: boolean; pointerId: number } | null>(null);
   const layoutRef = useRef(layout); layoutRef.current = layout;
   const positions = useRef<Record<string, Point>>({});
   const sessionIds = JSON.stringify(sessions.map(session => session.id).sort());
@@ -181,6 +192,7 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
     if (!card || capturing || busy) return;
     const member = memberFor(card);
     if (readErrors[member.sessionId]) { setError("来源读取失败，请等待恢复后重新选择材料。"); return; }
+    const allowed = feedbackIntent(worldHost);
     const controller = new AbortController(); captureRequest.current = controller;
     setCapturing(true); setError("");
     try {
@@ -189,7 +201,7 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
       const body = await response.json();
       if (controller.signal.aborted) return;
       if (!response.ok) throw new Error(body.error);
-      onMaterial(body); setFrom(null); setActionKey(null); onDismissPreview();
+      onMaterial(body, allowed); setFrom(null); setActionKey(null); onDismissPreview();
     } catch (error) { if (!controller.signal.aborted) setError(error instanceof Error ? error.message : String(error)); }
     finally { if (captureRequest.current === controller) setCapturing(false); }
   };
@@ -253,29 +265,29 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
     </nav>}
     {(error || Object.keys(readErrors).length > 0) && <p role="alert" className="waygoal-turn-error">{error || Object.keys(readErrors).map(id => `${title(id)} 读取失败，保留上次画面。`).join(" ")}</p>}
     <div className="waygoal-turn-viewport" ref={viewport} tabIndex={0} aria-label="轮次画布：拖动空白处平移，滚轮缩放"
-      onPointerDown={event => { if (event.target !== event.currentTarget) return; setActionKey(null); if (toolsMenu.current) toolsMenu.current.open = false; gesture.current = { start: { x: event.clientX, y: event.clientY }, origin: camera, moved: false }; event.currentTarget.setPointerCapture(event.pointerId); }}
-      onPointerMove={event => { const drag = gesture.current; if (!drag) return; const dx = event.clientX - drag.start.x, dy = event.clientY - drag.start.y; drag.moved ||= Math.abs(dx) + Math.abs(dy) > 4; if (drag.id) setLayout(layout => ({ ...layout, positions: { ...layout.positions, [drag.id!]: { x: drag.origin.x + dx / camera.scale, y: drag.origin.y + dy / camera.scale } } })); else setCamera(camera => ({ ...camera, x: drag.origin.x + dx, y: drag.origin.y + dy })); }}
-      onPointerUp={() => { if (gesture.current?.id && gesture.current.moved) persistLayout(layoutRef.current); requestAnimationFrame(() => { gesture.current = null; }); }} onPointerCancel={() => { gesture.current = null; }}>
+      onPointerDown={event => { if (event.target !== event.currentTarget || gesture.current || event.button !== 0) return; setActionKey(null); if (toolsMenu.current) toolsMenu.current.open = false; gesture.current = { start: { x: event.clientX, y: event.clientY }, origin: onGrabCamera(), moved: false, pointerId: event.pointerId }; event.currentTarget.setPointerCapture(event.pointerId); }}
+      onPointerMove={event => { const drag = gesture.current; if (!drag || drag.pointerId !== event.pointerId) return; const dx = event.clientX - drag.start.x, dy = event.clientY - drag.start.y; drag.moved ||= Math.abs(dx) + Math.abs(dy) > 4; if (drag.id) setLayout(layout => ({ ...layout, positions: { ...layout.positions, [drag.id!]: { x: drag.origin.x + dx / camera.scale, y: drag.origin.y + dy / camera.scale } } })); else setCameraDirect(camera => ({ ...camera, x: drag.origin.x + dx, y: drag.origin.y + dy })); }}
+      onPointerUp={event => { if (gesture.current?.pointerId !== event.pointerId) return; if (gesture.current?.id && gesture.current.moved) persistLayout(layoutRef.current); requestAnimationFrame(() => { gesture.current = null; }); }} onPointerCancel={event => { if (gesture.current?.pointerId === event.pointerId) gesture.current = null; }}>
       {worldHost && createPortal(<div className="waygoal-turn-world" data-zoom-tier={tier} data-mode={mode} style={{ "--turn-scale": camera.scale } as CSSProperties}>
         <svg className="waygoal-turn-lines" width="1" height="1">
-          {graph.edges.map(edge => { const a = byKey.get(edge.from), b = byKey.get(edge.to); if (edge.kind === "history" && (!a || !b) || edge.kind === "fork" && !a && !b) return null; const from = a?.position ?? sessions.find(session => session.id === edge.fromSession)?.position, to = b?.position ?? sessions.find(session => session.id === edge.toSession)?.position; if (!from || !to) return null; const path = edgePath(from, to, edge.kind === "reference" || edge.kind === "association", !!a, !!b); return <g key={edge.key}><path d={path} className={edge.kind} /><path d={path} className="edge-hit" role="button" tabIndex={0} aria-label={`${edge.kind === "reference" ? "引用材料" : edge.kind === "fork" ? "分叉来源" : edge.kind === "association" ? "手动关联" : "连续历史"}：${title(edge.fromSession)} → ${title(edge.toSession)}`} onClick={() => inspect(edge)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); inspect(edge); } }} /></g>; })}
-          {tier === "detail" && materials.map(material => { const key = graph.aliases.get(turnKey(material.sessionId, material.turnId)), card = key && byKey.get(key); return card ? <path key={`${material.sessionId}:${material.turnId}`} className="reference pending" d={edgePath(card.position, next, true)} /> : null; })}
+          {graph.edges.map(edge => { const a = byKey.get(edge.from), b = byKey.get(edge.to); if (edge.kind === "history" && (!a || !b) || edge.kind === "fork" && !a && !b) return null; const from = a?.position ?? sessions.find(session => session.id === edge.fromSession)?.position, to = b?.position ?? sessions.find(session => session.id === edge.toSession)?.position; if (!from || !to) return null; const path = edgePath(from, to, edge.kind === "reference" || edge.kind === "association", !!a, !!b); return <g key={edge.key} data-spatial-edge={edge.key} data-fork-target={edge.kind === "fork" ? edge.toSession : undefined} data-spatial-from={a ? `turn:${a.key}` : `node:${edge.fromSession}`} data-spatial-to={b ? `turn:${b.key}` : `node:${edge.toSession}`}><path d={path} className={edge.kind} /><path d={path} className="edge-hit" role="button" tabIndex={0} aria-label={`${edge.kind === "reference" ? "引用材料" : edge.kind === "fork" ? "分叉来源" : edge.kind === "association" ? "手动关联" : "连续历史"}：${title(edge.fromSession)} → ${title(edge.toSession)}`} onClick={() => inspect(edge)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); inspect(edge); } }} /></g>; })}
+          {tier === "detail" && materials.map(material => { const key = graph.aliases.get(turnKey(material.sessionId, material.turnId)), card = key && byKey.get(key); return card ? <path key={`${material.sessionId}:${material.turnId}`} className="reference pending" data-spatial-from={`turn:${card.key}`} data-spatial-to="pending" d={edgePath(card.position, next, true)} /> : null; })}
           {tier === "detail" && from && mode === "reference" && byKey.has(from) && <path className="reference pending" d={edgePath(byKey.get(from)!.position, next, true)} />}
         </svg>
         {cards.map((card, index) => {
           const takeaway = layout.takeaways?.[card.key];
           const changed = takeaway && takeawayChanged(takeaway, card.turn.fingerprint);
           const confirmed = takeaway?.status === "confirmed" && !changed;
-          return <article key={card.key} data-turn={card.turn.id} data-session={card.sessionId} data-turn-key={card.key} data-takeaway={takeaway ? changed ? "changed" : takeaway.status : undefined} className={`waygoal-turn-card${activeKey === card.key ? " active" : ""}${selected === card.key ? " selected" : ""}`} style={{ left: card.position.x, top: card.position.y, width: WIDTH, height: HEIGHT }}>
-          <button type="button" className="waygoal-turn-content" aria-label={`${index + 1} · ${card.turn.question}`} aria-pressed={selected === card.key}
-            onPointerDown={event => { setActionKey(null); gesture.current = { id: card.key, start: { x: event.clientX, y: event.clientY }, origin: positions.current[card.key] ?? card.position, moved: false }; event.currentTarget.setPointerCapture(event.pointerId); }}
+          return <article key={card.key} data-turn={card.turn.id} data-session={card.sessionId} data-turn-key={card.key} data-spatial-key={`turn:${card.key}`} data-spatial-owner={projection.owners.get(card.key)} data-takeaway={takeaway ? changed ? "changed" : takeaway.status : undefined} className={`waygoal-turn-card${activeKey === card.key ? " active" : ""}${selected === card.key ? " selected" : ""}`} style={{ left: card.position.x, top: card.position.y, width: WIDTH, height: HEIGHT }}>
+          <button type="button" className="waygoal-turn-content" data-spatial-face aria-label={`${index + 1} · ${card.turn.question}`} aria-pressed={selected === card.key}
+            onPointerDown={event => { if (gesture.current || event.button !== 0) return; onGrabCamera(); setActionKey(null); gesture.current = { id: card.key, start: { x: event.clientX, y: event.clientY }, origin: positions.current[card.key] ?? card.position, moved: false, pointerId: event.pointerId }; event.currentTarget.setPointerCapture(event.pointerId); }}
             title={takeaway?.text || card.turn.question}
             onClick={() => { if (gesture.current?.moved) return; if (tier !== "detail") { setActionKey(null); focusCard(card.key, true); const member = memberFor(card); onLocate(member.sessionId, member.turn); } else locate(card); }}>
             <span className="waygoal-turn-number">{String(index + 1).padStart(2, "0")}</span>
             <span className="waygoal-turn-glyph" aria-hidden="true"><svg viewBox="0 0 24 24">{confirmed ? <path d="m6 12 4 4 8-8" /> : activeKey === card.key ? <><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="1" /></> : <circle cx="12" cy="12" r="3" />}</svg></span>
             <strong>{tier === "map" && takeaway ? takeaway.text : card.turn.question || "图片消息"}</strong>
             <p>{card.turn.answer || (activeKey === card.key && busy ? "正在回复…" : "…")}</p>
-            {takeaway && <span className="waygoal-turn-takeaway">{tier === "detail" && <span>{takeaway.text}</span>}<small>{changed ? "原文已变化" : confirmed ? "已确认" : "待确认"}</small></span>}
+            {takeaway && <span className="waygoal-turn-takeaway">{tier === "detail" && <span>{takeaway.text}</span>}<small className="waygoal-takeaway-status">{changed ? "原文已变化" : confirmed ? "✓ 已确认" : "待确认"}</small></span>}
           </button>
           {mode !== "read" && <button type="button" className={`waygoal-turn-port${from === card.key ? " selected" : ""}`} aria-label={`从 ${index + 1} 连线`} draggable
             onDragStart={event => { event.dataTransfer.setData("text/plain", card.key); setFrom(card.key); }}
@@ -302,12 +314,15 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
     {editingTakeaway && <TakeawayEditor key={editingTakeaway.key} card={editingTakeaway} initial={layout.takeaways?.[editingTakeaway.key]}
       busy={Boolean(sessions.find(session => session.id === editingTakeaway.sessionId)?.running)} onClose={() => setEditingTakeaway(null)}
       onSave={async (value: TurnTakeaway | null) => {
+        const allowed = feedbackIntent(worldHost);
         const current = layoutRef.current;
         const takeaways = { ...current.takeaways };
         if (value) takeaways[editingTakeaway.key] = value; else delete takeaways[editingTakeaway.key];
         const saved = { ...current, takeaways, sessionOrigins: sessionOrigins.current, positions: { ...positions.current } };
         if (!await onSaveBoard(saved)) return false;
-        layoutRef.current = saved; setLayout(saved); return true;
+        layoutRef.current = saved; setLayout(saved);
+        if (value?.status === "confirmed") setConfirmation({ key: editingTakeaway.key, allowed });
+        return true;
       }} />}
     {inspected && <aside className="waygoal-edge-preview" aria-label="关系来源">
       <header><strong>{inspected.kind === "reference" ? "发送时的引用材料" : inspected.kind === "fork" ? "分叉来源" : inspected.kind === "association" ? "仅作关联" : "连续历史"}</strong><button type="button" onClick={() => setInspected(null)} aria-label="关闭关系预览">×</button></header>
@@ -320,15 +335,4 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
       {inspected.pair && <button type="button" onClick={() => { persistLayout({ ...layout, links: layout.links.filter(([a, b]) => !((a === inspected.pair![0] && b === inspected.pair![1]) || (b === inspected.pair![0] && a === inspected.pair![1]))) }); setInspected(null); }}>取消关联</button>}
     </aside>}
   </section>;
-}
-export function WaygoalMaterialTray({ materials, onRemove }: { materials: MaterialSnapshot[]; onRemove: (index: number) => void }) {
-  if (!materials.length) return null;
-  return <div className="waygoal-material-tray" aria-label="下一轮引用材料">
-    <strong>下一轮引用 · 发送时带入以下原文</strong>
-    {materials.map((material, index) => <details key={`${material.sessionId}:${material.turnId}:${index}`}>
-      <summary>{MATERIAL_SCOPES[material.scope]} · {material.parts.length} 条文字 <button type="button" onClick={event => { event.preventDefault(); onRemove(index); }} aria-label={`移除材料 ${index + 1}`}>×</button></summary>
-      <p>来源：{material.sessionId} / {material.turnId} · {material.capturedAt}</p>
-      {material.parts.map(part => <pre key={part.entryId}>{part.text}</pre>)}
-    </details>)}
-  </div>;
 }

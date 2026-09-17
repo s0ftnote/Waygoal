@@ -62,7 +62,7 @@ npm --prefix apps/web run test:waygoal-branches
 WAYGOAL_EVIDENCE_DIR="$PWD/docs/research/prototype-evidence" npm run test:e2e
 ```
 
-基础会话套件保留一段受控的慢缩放动画，等待动画结束后同帧读取节点相对位置，并核对保存坐标和缩放值。这样可以区分画布记录丢失与动画中途采样。
+基础会话套件保留一段受控的慢缩放动画，等待动画结束后同帧读取节点相对位置，并核对保存坐标和缩放值。这样可以区分画布记录丢失与动画中途采样。套件还调用 `waygoal-motion.mjs`，暂停实际镜头转场后抓取画布，核对从可见位置接手、跟手平移，以及滚轮、键盘与减少动态效果下的即时响应。
 
 CI 使用同一套根目录命令，执行静态检查、单元测试、生产构建和 Waygoal 浏览器回归；失败时上传测试输出。自动检查通过表示这些行为获得回归覆盖，视觉品质、分支带结论返回及真实使用体验仍需按设计文档验收。
 
@@ -71,3 +71,5 @@ CI 使用同一套根目录命令，执行静态检查、单元测试、生产�
 所得与语义缩放检查使用 `npm --prefix apps/web run test:waygoal-takeaways`，覆盖主动提炼、人工确认、保存失败保留文字、重载、缩放定位及 Pi 历史和草稿不变。证据目录为 `semantic/`。
 
 同源分支检查使用 `npm --prefix apps/web run test:waygoal-sibling-forks`，覆盖来源不在画布时共享历史、无新轮次的分叉落点，以及卡片与消息按钮包含所选消息的分叉边界。证据位于 `sibling-forks/`。
+
+分支和所得套件还通过 `waygoal-feedback.mjs` 记录浏览器实际执行的 Web Animations，核对反馈出现在引用、真实分叉和人工确认成功之后；同时检查键盘收拢、减少动态效果、退出残影清理、保存失败与历史恢复不误播。记录仅用于测试，不进入产品页面。

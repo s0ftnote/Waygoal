@@ -1,4 +1,5 @@
 import { evidenceDirectory, openOverview } from "./waygoal-artifacts.mjs";
+import { verifyCanvasMotion } from "./waygoal-motion.mjs";
 // Browser verification for the Waygoal session canvas (ticket #2).
 // Starts its own pi-web on a free loopback port with an isolated Pi data
 // directory and a fake OpenAI-compatible model, then checks discovery,
@@ -158,6 +159,7 @@ try {
   await node(PLAIN_FIRST).waitFor();
   check("discovery shows both workspace sessions with real titles", await page.locator(".waygoal-node").count() === 2);
   check("other workspace session is not shown", await page.getByText("别的目录").count() === 0);
+  await verifyCanvasMotion(page, check);
   check("no Wayfinder root entry or workflow tips", await page.getByText(/wayfinder|地图|票据/i).filter({ visible: true }).count() === 0);
   const bg = await page.evaluate(() => getComputedStyle(document.querySelector(".waygoal-app")).backgroundColor);
   check("confirmed light theme background", bg === "rgb(246, 250, 246)", bg);

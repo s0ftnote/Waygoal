@@ -1,3 +1,4 @@
+import { observeFeedback, feedbackEvents, clearFeedback } from "./waygoal-feedback.mjs";
 import { evidenceDirectory } from "./waygoal-artifacts.mjs";
 // Continuous-chat acceptance against an isolated, real Pi SDK host and a
 // controlled model. Source identities and ancestry are checked in Pi files.
@@ -104,6 +105,7 @@ try {
   browser = await chromium.launch().catch(() => chromium.launch({ channel: "chrome" }));
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: "en-US" });
   const page = await context.newPage(); page.setDefaultTimeout(20_000);
+  await observeFeedback(page);
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   const composer = page.locator('.waygoal-panel textarea').first();
   await page.goto(canvasUrl, { waitUntil: 'domcontentloaded', timeout: 120_000 });
@@ -134,13 +136,16 @@ try {
     if (route.request().method() === 'PATCH') await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: '保存暂不可用' }) });
     else await route.continue();
   });
+  await clearFeedback(page);
   await editor.getByRole('button', { name: '确认并保存' }).click();
   await editor.getByRole('alert').waitFor();
+  check('failed saves never show confirmation feedback', !(await feedbackEvents(page)).some(event => event.className.includes('waygoal-takeaway-status')));
   check('save failure retains editable text', await editor.getByRole('textbox').inputValue() === '网关在线；消息链路仍待验证');
   await page.unroute( /\/api\/waygoal(?:\?.*)?$/);
   await editor.getByRole('button', { name: '确认并保存' }).click();
   await editor.waitFor({ state: 'detached' });
   await waitFor(async () => await currentCard.getAttribute('data-takeaway') === 'confirmed', 'confirmed takeaway');
+  check('confirmation feedback follows a successful save', (await feedbackEvents(page)).some(event => event.className.includes('waygoal-takeaway-status') && event.duration === 160));
   const key = await currentCard.getAttribute('data-turn-key');
   check('confirmation is persisted separately in the canvas', (await snapshot()).turnBoard.takeaways[key].status === 'confirmed');
   await page.screenshot({ path: join(evidence, '01-detail.png') });
@@ -164,6 +169,7 @@ try {
   await editor.getByRole('button', { name: '关闭所得编辑' }).click();
   await page.reload();
   await page.locator('[data-takeaway="confirmed"]').waitFor();
+  check('restoring confirmed history does not replay confirmation', !(await feedbackEvents(page)).some(event => event.className.includes('waygoal-takeaway-status')));
   check('takeaway survives reload', await page.locator('[data-takeaway="confirmed"]').textContent().then(text => text.includes('消息链路仍待验证')));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('.waygoal-panel-head').getByRole('button', { name: '← 回到画布', exact: true }).waitFor();

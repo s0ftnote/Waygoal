@@ -11,4 +11,9 @@
   --wg-path: #597B82;
   --wg-danger: #AA3540;
   --wg-shadow: 0 10px 28px rgb(29 54 90 / 7%);
+  --wg-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --wg-ease-travel: cubic-bezier(0.77, 0, 0.175, 1);
+  --wg-motion-press: 120ms;
+  --wg-motion-reveal: 160ms;
+  --wg-motion-travel: 240ms;
 }

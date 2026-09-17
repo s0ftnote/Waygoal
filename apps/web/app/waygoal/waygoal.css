@@ -17,6 +17,12 @@
   --wg-path: #597B82;
   --wg-danger: #AA3540;
   --wg-shadow: 0 10px 28px rgb(29 54 90 / 7%);
+  --wg-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --wg-ease-travel: cubic-bezier(0.77, 0, 0.175, 1);
+  --wg-motion-press: 120ms;
+  --wg-motion-reveal: 160ms;
+  --wg-motion-travel: 240ms;
+
   --bg: var(--wg-surface);
   --bg-panel: var(--wg-canvas);
   --bg-hover: var(--wg-accent-soft);
@@ -57,7 +63,7 @@
 .waygoal-workspace code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; color: var(--wg-ink); }
 .waygoal-top-right { display: flex; align-items: center; gap: 12px; }
 .waygoal-link { font-size: 12px; color: var(--wg-muted); text-decoration: none; white-space: nowrap; }
-.waygoal-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 8px 16px; border-radius: 24px; font-size: 13px; white-space: nowrap; transition: background-color 140ms ease-out; }
+.waygoal-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 8px 16px; border-radius: 24px; font-size: 13px; white-space: nowrap; transition: background-color var(--wg-motion-press) ease; }
 .waygoal-button.outlined { border: 1px solid var(--wg-border); background: var(--wg-surface); }
 .waygoal-button.outlined:hover:not(:disabled) { background: var(--wg-accent-soft); }
 .waygoal-button.action { background: var(--wg-action); color: #fff; font-weight: 700; font-size: 15px; padding: 10px 19px; min-height: 44px; }
@@ -104,9 +110,9 @@
 
 .waygoal-viewport { flex: 1; min-height: 200px; position: relative; overflow: hidden; touch-action: none; cursor: grab; background-image: radial-gradient(#bfd2cd .7px, transparent .7px); background-size: 24px 24px; }
 .waygoal-viewport:active { cursor: grabbing; }
-.waygoal-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; transition: transform 240ms cubic-bezier(.2, .75, .2, 1); }
-.waygoal-world.dragging { transition: none; }
-.waygoal-node { position: absolute; width: 250px; min-height: 140px; background: var(--wg-surface); border: 1px solid var(--wg-border); border-radius: 21px; text-align: left; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--wg-shadow); cursor: grab; transition: border-color 140ms ease-out, box-shadow 140ms ease-out; touch-action: none; }
+.waygoal-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.waygoal-app[data-input="pointer"] .waygoal-world:not([data-direct]) { transition: transform var(--wg-motion-travel) var(--wg-ease-travel); }
+.waygoal-node { position: absolute; width: 250px; min-height: 140px; background: var(--wg-surface); border: 1px solid var(--wg-border); border-radius: 21px; text-align: left; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--wg-shadow); cursor: grab; transition: border-color var(--wg-motion-press) ease; touch-action: none; }
 .waygoal-node:hover { border-color: var(--wg-path); }
 .waygoal-node.selected { border: 2px solid var(--wg-ink); padding: 17px 19px; box-shadow: 0 0 0 5px rgb(169 219 220 / 45%); z-index: 1; }
 .waygoal-node strong { font-size: 16px; font-weight: 650; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
@@ -114,10 +120,10 @@
 .waygoal-node-foot { margin-top: auto; }
 .waygoal-node-state { display: inline-flex; align-items: center; gap: 6px; }
 .waygoal-node.running .waygoal-node-state { color: var(--wg-ink); font-weight: 600; }
-.waygoal-node-state i { width: 8px; height: 8px; border-radius: 50%; background: var(--wg-accent); box-shadow: 0 0 0 3px rgb(169 219 220 / 40%); animation: waygoal-pulse 1.4s ease-in-out infinite; }
+.waygoal-node-state i { width: 8px; height: 8px; border-radius: 50%; background: var(--wg-accent); box-shadow: 0 0 0 3px rgb(169 219 220 / 40%); }
 /* Local maps and tickets: the workspace's own files, drawn beside the sessions
    but never mistaken for them — square corners, dashed for a map. */
-.waygoal-ticket-card { position: absolute; width: 250px; min-height: 118px; background: var(--wg-surface); border: 1px solid var(--wg-path); border-radius: 8px; text-align: left; padding: 16px 18px; display: flex; flex-direction: column; gap: 9px; box-shadow: var(--wg-shadow); cursor: grab; transition: border-color 140ms ease-out, box-shadow 140ms ease-out; touch-action: none; }
+.waygoal-ticket-card { position: absolute; width: 250px; min-height: 118px; background: var(--wg-surface); border: 1px solid var(--wg-path); border-radius: 8px; text-align: left; padding: 16px 18px; display: flex; flex-direction: column; gap: 9px; box-shadow: var(--wg-shadow); cursor: grab; transition: border-color var(--wg-motion-press) ease; touch-action: none; }
 .waygoal-ticket-card.map { border-style: dashed; background: var(--wg-canvas); }
 .waygoal-ticket-card:hover { border-color: var(--wg-ink); }
 .waygoal-ticket-card.selected { border: 2px solid var(--wg-ink); padding: 15px 17px; box-shadow: 0 0 0 5px rgb(169 219 220 / 45%); z-index: 1; }
@@ -184,7 +190,7 @@
 .waygoal-statusline { height: 37px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 0 30px; border-top: 1px solid var(--wg-border); font-size: 10px; color: var(--wg-muted); flex-shrink: 0; white-space: nowrap; overflow: hidden; }
 .waygoal-id { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
 
-.waygoal-panel { width: min(46%, 640px); min-width: 420px; flex-shrink: 0; background: var(--wg-surface); border-left: 1px solid var(--wg-border); display: flex; flex-direction: column; min-height: 0; z-index: 3; animation: waygoal-panel-in 260ms ease-out; }
+.waygoal-panel { width: min(46%, 640px); min-width: 420px; flex-shrink: 0; background: var(--wg-surface); border-left: 1px solid var(--wg-border); display: flex; flex-direction: column; min-height: 0; z-index: 3; }
 .waygoal-panel-head { display: flex; align-items: center; gap: 14px; padding: 16px 20px 14px 24px; border-bottom: 1px solid var(--wg-border); }
 .waygoal-panel-title { flex: 1; min-width: 0; }
 .waygoal-eyebrow { display: block; font-size: 11px; letter-spacing: 1.5px; color: var(--wg-muted); }
@@ -284,14 +290,12 @@
 .waygoal-readonly-composer textarea:focus-visible { outline: 2px solid var(--wg-accent); outline-offset: 1px; }
 .waygoal-readonly-composer textarea:disabled { color: var(--wg-muted); }
 
-@keyframes waygoal-panel-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
-@keyframes waygoal-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 /* A ticket that has just stopped waiting is lit once. The state and the words
    on the card are there either way, and the card stays clickable throughout;
    with reduced motion the light is simply not drawn. The light is a static
    soft layer that only fades (opacity), so nothing repaints a growing shadow. */
 @keyframes waygoal-unblocked { from { opacity: 1; } to { opacity: 0; } }
-.waygoal-ticket-card.unblocked::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none; box-shadow: 0 0 0 7px var(--wg-accent-soft), 0 0 0 1px var(--wg-accent); animation: waygoal-unblocked 900ms ease-out 1 forwards; }
+.waygoal-ticket-card.unblocked::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none; box-shadow: 0 0 0 7px var(--wg-accent-soft), 0 0 0 1px var(--wg-accent); animation: waygoal-unblocked 900ms var(--wg-ease-out) 1 forwards; }
 
 @media (max-width: 1100px) {
   .waygoal-top { padding: 0 20px; gap: 18px; }
@@ -321,7 +325,7 @@
   .waygoal-ticket-head, .waygoal-ticket-body { padding-left: 14px; padding-right: 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .waygoal-app *, .waygoal-app *::before, .waygoal-app *::after { animation: none !important; transition: none !important; }
+  .waygoal-app *, .waygoal-app *::before, .waygoal-app *::after { animation: none !important; transition-property: opacity, color, background-color, border-color !important; }
   .waygoal-ticket-card.unblocked::after { display: none; }
 }
 
@@ -349,7 +353,7 @@
 .waygoal-turn-options textarea { width: 100%; padding: 6px; border: 1px solid var(--wg-border); }
 .waygoal-turn-viewport { flex: 1; min-height: 0; overflow: hidden; position: relative; touch-action: none; background-image: radial-gradient(var(--wg-border) .8px, transparent .8px); background-size: 22px 22px; }
 .waygoal-turn-world { position: absolute; top: 0; left: 0; transform-origin: 0 0; pointer-events: none; }
-.waygoal-turn-card { position: absolute; background: var(--wg-surface); border: 1px solid var(--wg-border); border-radius: 12px; box-shadow: 0 3px 12px rgb(29 54 90 / 3%); pointer-events: auto; animation: waygoal-turn-grow 220ms ease-out; }
+.waygoal-turn-card { position: absolute; background: var(--wg-surface); border: 1px solid var(--wg-border); border-radius: 12px; box-shadow: 0 3px 12px rgb(29 54 90 / 3%); pointer-events: auto; }
 .waygoal-turn-card.active { border-color: var(--wg-path); }
 .waygoal-turn-card.selected { border-color: var(--wg-ink); box-shadow: 0 0 0 1px var(--wg-ink), 0 5px 18px rgb(29 54 90 / 5%); }
 .waygoal-turn-content { display: flex; flex-direction: column; align-items: stretch; width: 100%; height: 100%; text-align: left; padding: 13px 17px 16px; border-radius: 11px; touch-action: none; }
@@ -381,7 +385,6 @@
 .waygoal-material-tray p { overflow-wrap: anywhere; color: var(--wg-muted); }
 .waygoal-message-actions { display: flex; gap: 12px; opacity: 0; transition: opacity 120ms; font-size: 11px; color: var(--wg-muted); justify-content: flex-end; }
 .chat-entry:hover > .waygoal-message-actions, .chat-entry:focus-within > .waygoal-message-actions { opacity: 1; }
-@keyframes waygoal-turn-grow { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
 @media (hover: none) { .waygoal-message-actions { opacity: 1; } }
 @media (max-width: 767px) {
   .waygoal-stage:has(.waygoal-turn-canvas) { flex-direction: column; }
@@ -492,8 +495,11 @@
 .waygoal-spatial[data-empty-entry] .waygoal-panel { inset: auto; top: max(30px, calc(50% - 140px)); left: 50%; margin-left: calc(min(620px, 100% - 40px) / -2); width: min(620px, calc(100% - 40px)); height: min(280px, 65dvh); border: 0; background: transparent; box-shadow: none; border-radius: 16px; }
 .waygoal-spatial[data-empty-entry] .waygoal-panel-head { display: none; }
 .waygoal-spatial[data-empty-entry] .waygoal-panel-body, .waygoal-spatial[data-empty-entry] .chat-content { background: transparent; }
-@keyframes waygoal-reveal-space { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-.waygoal-spatial:not([data-empty-entry]) .waygoal-canvas-area { animation: waygoal-reveal-space 420ms cubic-bezier(.2,.75,.2,1); }
+/* The empty composer is a floating input, not a scrolling conversation.
+   Its upward-opening controls must escape the compact 280px entry box. */
+.waygoal-spatial[data-empty-entry] .waygoal-panel,
+.waygoal-spatial[data-empty-entry] .chat-content { overflow: visible; }
+.waygoal-spatial[data-empty-entry] .waygoal-panel:focus-within { z-index: 13; }
 @media(max-width:767px) {
   .waygoal-panel-resize { display: none; }
   .waygoal-spatial .waygoal-panel { height: auto; }
@@ -516,7 +522,6 @@
   .waygoal-spatial .waygoal-turn-actions button { font-size: 11px; padding: 5px; }
   .waygoal-spatial[data-empty-entry] .waygoal-stage .waygoal-panel { position: absolute; top: max(20px, calc(45% - 130px)); bottom: auto; left: 10px; right: 10px; width: calc(100% - 20px); height: min(260px, 65dvh); margin: 0; border: 0; border-radius: 15px; }
 }
-@media(prefers-reduced-motion:reduce) { .waygoal-spatial:not([data-empty-entry]) .waygoal-canvas-area { animation: none; } }
 
 .waygoal-import { grid-column:1/-1; border-top:1px solid var(--wg-border); padding-top:10px; }
 .waygoal-import summary { cursor:pointer; padding:8px 0; }
@@ -634,3 +639,31 @@
   .waygoal-takeaway-editor { position: fixed; left: 12px; right: 12px; bottom: max(16px, env(safe-area-inset-bottom)); width: auto; max-height: calc(100dvh - 96px); box-shadow: var(--wg-shadow); }
 }
 @media (prefers-reduced-motion: reduce) { .waygoal-world { transition: none; } }
+
+/* Small feedback stays local: never scale a draggable card or reading surface. */
+.waygoal-app[data-input="pointer"] :is(.waygoal-button, .waygoal-icon, .waygoal-turn-toolbar > button, .waygoal-turn-actions button, .waygoal-zoom button, .waygoal-session-collapse) {
+  transition: transform var(--wg-motion-press) var(--wg-ease-out), background-color var(--wg-motion-press) ease;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .waygoal-app[data-input="pointer"] :is(.waygoal-button, .waygoal-icon, .waygoal-turn-toolbar > button, .waygoal-turn-actions button, .waygoal-zoom button, .waygoal-session-collapse):active:not(:disabled) { transform: scale(.97); }
+}
+
+/* Context surfaces fade in without displacing the text the user is reading.
+   Frequent find/menu toggles remain instant; no remount animation on turn cards. */
+.waygoal-app[data-input="pointer"] :is(.waygoal-turn-actions, .waygoal-edge-preview, .waygoal-takeaway-editor, .waygoal-panel) {
+  transition: opacity var(--wg-motion-reveal) var(--wg-ease-out);
+}
+@starting-style {
+  .waygoal-app[data-input="pointer"] :is(.waygoal-turn-actions, .waygoal-edge-preview, .waygoal-takeaway-editor, .waygoal-panel) { opacity: 0; }
+}
+
+/* Keyboard-triggered feedback is immediate. Host loading indicators and
+   independently verified ticket updates keep their own state semantics. */
+.waygoal-app[data-input="keyboard"] :is(.waygoal-world, .waygoal-button, .waygoal-icon, .waygoal-node, .waygoal-ticket-card, .waygoal-turn-toolbar > button, .waygoal-turn-actions, .waygoal-turn-actions button, .waygoal-zoom button, .waygoal-session-collapse, .waygoal-edge-preview, .waygoal-takeaway-editor, .waygoal-panel, .waygoal-message-actions) { transition: none !important; }
+
+/* Event-scoped feedback uses the shared durations through WAAPI. Visual exits
+   are never focusable, draggable or included in the next prompt. */
+.waygoal-spatial-exit { pointer-events: none !important; }
+.waygoal-material-tray { position: relative; }
+.waygoal-material-exit { position: absolute; pointer-events: none; padding: 4px 0; color: var(--wg-muted); font-size: 12px; }
+.waygoal-takeaway-status { display: inline-block; transform-origin: left center; }
