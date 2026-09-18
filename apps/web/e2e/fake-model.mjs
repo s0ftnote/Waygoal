@@ -11,7 +11,7 @@ export async function startFakeModel({ reply = "E2E reply", titleReply = null } 
   const requests = [];
   /** Milliseconds to hold an answer open, so a test can act while a session is
    *  still running. Set it on the returned object; 0 answers at once. */
-  const control = { slowMs: 0 };
+  const control = { slowMs: 0, afterText: null };
   const server = createServer((req, res) => {
     if (req.method === "GET" && req.url === "/models") {
       res.writeHead(200, { "content-type": "application/json" });
@@ -45,6 +45,7 @@ export async function startFakeModel({ reply = "E2E reply", titleReply = null } 
       void (async () => {
         if (control.slowMs > 0) await delay(control.slowMs);
         res.write(chunk({ content: text }));
+        if (control.afterText) await control.afterText;
         res.write(chunk({}, "stop", { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }));
         res.write("data: [DONE]\n\n");
         res.end();
@@ -60,6 +61,14 @@ export async function startFakeModel({ reply = "E2E reply", titleReply = null } 
     /** Hold the next answers open for this many ms (0 = answer at once). */
     set slowMs(ms) { control.slowMs = ms; },
     get slowMs() { return control.slowMs; },
+    /** Emit visible answer text but withhold completion/persistence until the
+     * returned release function is called. Used to inspect unsaved selections. */
+    pauseAfterText() {
+      let release;
+      const gate = new Promise(resolve => { release = resolve; });
+      control.afterText = gate;
+      return () => { if (control.afterText === gate) control.afterText = null; release(); };
+    },
     close: () => new Promise((resolve) => server.close(() => resolve())),
     /** How many of the requests so far asked for a title. */
     titleRequests: () => requests.filter((r) => JSON.stringify(r.body?.messages ?? []).includes(TITLE_MARKER)).length,

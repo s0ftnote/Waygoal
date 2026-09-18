@@ -1,12 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, realpathSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, realpathSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createJiti } from "jiti";
 import { fileURLToPath } from "node:url";
 const jiti = createJiti(import.meta.url, { alias: { "@": fileURLToPath(new URL("../../", import.meta.url)) } });
 const ws = await jiti.import("./workspaces.ts");
+const { workspaceDir } = await jiti.import("./dirs.ts");
 
 function sandbox() {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "waygoal-ws-test-")));
@@ -26,6 +27,41 @@ test("a working directory starts with one canvas, and that is the one shown", ()
     assert.equal(scope.canvasId, record.canvases[0].id);
     assert.equal(record.current, scope.canvasId);
     assert.equal(ws.scopeFor(s.a, null, s.agentDir).canvasId, scope.canvasId, "reading again is the same canvas, not a second one");
+  } finally { s.done(); }
+});
+
+test("resolving an unopened workspace does not create its record", () => {
+  const s = sandbox();
+  try {
+    const record = ws.readWorkspaceRecord(s.a, s.agentDir);
+    assert.deepEqual(ws.resolveScope(s.a, null, s.agentDir), { cwd: s.a, canvasId: record.current, agentDir: s.agentDir });
+    assert.equal(existsSync(workspaceDir(s.a, s.agentDir)), false);
+    ws.scopeFor(s.a, null, s.agentDir);
+    assert.equal(existsSync(join(workspaceDir(s.a, s.agentDir), "workspace.json")), true, "opening still persists the workspace");
+  } finally { s.done(); }
+});
+
+test("resolving a canvas validates ownership without activating it", () => {
+  const s = sandbox();
+  try {
+    const a = ws.scopeFor(s.a, null, s.agentDir).canvasId;
+    const b = ws.addCanvas(s.a, "B", s.agentDir).id;
+    const elsewhere = ws.addCanvas(s.b, "Elsewhere", s.agentDir).id;
+    ws.scopeFor(s.a, b, s.agentDir);
+    const before = ws.readWorkspaceRecord(s.a, s.agentDir);
+    const scope = ws.resolveScope(s.a, ` ${a} `, s.agentDir);
+    assert.deepEqual(scope, { cwd: s.a, canvasId: a, agentDir: s.agentDir });
+    for (const omitted of [null, undefined, "", "  "]) {
+      assert.equal(ws.resolveScope(s.a, omitted, s.agentDir).canvasId, b);
+    }
+    for (const unknown of ["nope", elsewhere]) {
+      assert.throws(() => ws.resolveScope(s.a, unknown, s.agentDir), /这个工作目录里没有/);
+    }
+    assert.deepEqual(ws.readWorkspaceRecord(s.a, s.agentDir), before);
+    ws.registerSession(scope, "late-fork");
+    const after = ws.readWorkspaceRecord(s.a, s.agentDir);
+    assert.equal(after.sessionCanvas["late-fork"], a);
+    assert.equal(after.current, b);
   } finally { s.done(); }
 });
 

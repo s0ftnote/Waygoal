@@ -32,6 +32,14 @@ export function addMaterial(current: MaterialSnapshot[], material: MaterialSnaps
   });
 }
 
+/** A send may settle after the user has opened a different composer. Consume
+ * only the immutable snapshot instances submitted by that send, including
+ * their parked copies. A newly captured version of the same source is not it. */
+export function consumeMaterials(current: MaterialSnapshot[], submitted: readonly MaterialSnapshot[]): MaterialSnapshot[] {
+  if (!submitted.length || !current.some(material => submitted.includes(material))) return current;
+  return current.filter(material => !submitted.includes(material));
+}
+
 export function materialPrompt(text: string, materials: MaterialSnapshot[]): string {
   if (!materials.length) return text;
   let body = "";

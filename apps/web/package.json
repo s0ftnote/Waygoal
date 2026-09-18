@@ -45,6 +45,8 @@
     "test:waygoal-takeaways": "node e2e/waygoal-takeaways.mjs",
     "test:waygoal-sibling-forks": "node e2e/waygoal-sibling-forks.mjs",
     "test:waygoal-branches": "node e2e/waygoal-branches.mjs",
+    "test:waygoal-exploration": "node e2e/waygoal-exploration.mjs",
+    "test:waygoal-review": "node e2e/waygoal-review.mjs",
     "test:waygoal-tickets": "node e2e/waygoal-tickets.mjs",
     "test:waygoal-dependencies": "node e2e/waygoal-dependencies.mjs",
     "test:waygoal-find": "node e2e/waygoal-find.mjs",

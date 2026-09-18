@@ -1,0 +1,24 @@
+/* The host selection popover portals to body. Scope its theme explicitly so
+   reading/asking elsewhere in pi-web keeps the host's appearance. */
+.waygoal-selection-popover {
+  color: var(--wg-ink);
+  font-family: var(--wg-font-body, "Geist", "PingFang SC", sans-serif);
+  border-radius: 16px !important;
+  box-shadow: 0 8px 24px rgb(29 54 90 / 10%) !important;
+}
+.waygoal-selection-popover .selection-branch-hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--wg-muted);
+}
+.waygoal-selection-popover button:focus-visible,
+.waygoal-selection-popover textarea:focus-visible {
+  outline: 2px solid var(--wg-ink);
+  outline-offset: 2px;
+}
+.waygoal-selection-popover ::selection { background: var(--wg-accent); color: var(--wg-ink); }
+.waygoal-selection-popover textarea { caret-color: var(--wg-ink); }
+@media (pointer: coarse), (max-width: 720px) {
+  .waygoal-selection-popover button { min-height: 44px; min-width: 44px; }
+}

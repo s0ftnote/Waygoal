@@ -4,7 +4,7 @@
    remapped so ChatWindow inherits the same theme. Derived shades:
    --bg-selected #DCEEEC (accent-soft, slightly deeper) and hover states
    #294B74 / #CA2D39 (ink / action, darkened) are not in DESIGN.md's table. */
-.waygoal-app {
+.waygoal-app, .waygoal-selection-popover {
   color-scheme: light;
   --wg-canvas: #F6FAF6;
   --wg-surface: #FFFFFF;
@@ -38,6 +38,8 @@
   --assistant-bg: var(--wg-surface);
   --tool-bg: var(--wg-canvas);
   --bg-subtle: rgb(29 54 90 / 3%);
+}
+.waygoal-app {
   height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -195,8 +197,10 @@
 .waygoal-panel-title { flex: 1; min-width: 0; }
 .waygoal-eyebrow { display: block; font-size: 11px; letter-spacing: 1.5px; color: var(--wg-muted); }
 .waygoal-panel-title strong { display: block; font-size: 16px; font-weight: 650; line-height: 1.45; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.waygoal-panel-body { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--wg-surface); }
+.waygoal-panel-body { --chat-composer-padding-right: 16px; flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--wg-surface); }
 .waygoal-panel-body > * { flex: 1; min-height: 0; }
+.waygoal-chat-body { position: relative; }
+.waygoal-chat-host { display: flex; flex-direction: column; }
 
 /* --- Real branches: origin links, in-session paths, read-only review --- */
 
@@ -457,7 +461,8 @@
 .waygoal-resize-height::after { content: ""; position: absolute; top: 3px; left: calc(50% - 18px); width: 36px; height: 3px; border-radius: 3px; background: var(--wg-border); }
 .waygoal-resize-both::after { content: ""; position: absolute; top: 9px; left: 9px; width: 9px; height: 9px; border-top: 2px solid var(--wg-border); border-left: 2px solid var(--wg-border); border-radius: 3px 0 0; }
 .waygoal-resize-handle:hover::after, .waygoal-resize-handle:focus-visible::after { background: var(--wg-accent-soft); border-color: var(--wg-muted); }
-.waygoal-resize-handle:focus-visible { outline: 2px solid var(--wg-muted); outline-offset: -2px; }
+.waygoal-app .waygoal-resize-handle:focus-visible { outline: none; }
+.waygoal-app .waygoal-resize-handle:focus-visible::after { outline: 2px solid var(--wg-ink); outline-offset: 3px; }
 .waygoal-spatial .waygoal-panel-head { min-height: 74px; padding: 12px 18px; gap: 8px; }
 .waygoal-spatial .waygoal-panel-title strong { font-size: 15px; }
 .waygoal-chat-settings { position: relative; }

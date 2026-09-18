@@ -4,7 +4,7 @@ import { getRpcSessionInfos, getRunningRpcSessionIds } from "@/lib/rpc-manager";
 import { attachSessionProjectInfo, listAllSessions, mergeSessionLists } from "@/lib/session-reader";
 import { applyCanvasPatch, buildSnapshot, buildTicketSnapshot, canvasSessions, workspaceSessions, resolveWorkspaceCwd } from "@/lib/waygoal/store";
 import { readTreeInfos } from "@/lib/waygoal/tree";
-import { addCanvas, readWorkspaceRecord, recentWorkspaces, registerSession, rememberWorkspace, scopeFor } from "@/lib/waygoal/workspaces";
+import { addCanvas, readWorkspaceRecord, recentWorkspaces, registerSession, rememberWorkspace, resolveScope, scopeFor } from "@/lib/waygoal/workspaces";
 import type { WaygoalCanvasPatch, WaygoalSnapshotResponse } from "@/lib/waygoal/types";
 
 export const dynamic = "force-dynamic";
@@ -60,7 +60,8 @@ export async function PATCH(req: Request) {
     if (typeof given !== "string" || !given) throw new Error("cwd is required");
     const cwd = resolveWorkspaceCwd(given);
     allowFileRoot(cwd);
-    const scope = scopeFor(cwd, typeof canvas === "string" ? canvas : null);
+    // A delayed write belongs to its canvas, but does not open it again.
+    const scope = resolveScope(cwd, typeof canvas === "string" ? canvas : null);
     // Which canvas a session is on is the workspace's record, not the
     // canvas's: a session started from a canvas belongs to that canvas and no
     // other, and must not end up on two of them.

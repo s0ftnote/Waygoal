@@ -235,14 +235,14 @@ try {
     (await page.locator(`[data-node="${roomPath}"]`).getAttribute("aria-pressed")) === "true");
 
   await panel().locator('[data-reference-open="../../../产物/方案.md"]').click();
-  await panel().locator(".waygoal-file-view").waitFor();
+  await page.getByRole("region", { name: "文件阅读区", exact: true }).waitFor();
   const shown = await waitFor(async () => {
-    const text = await panel().locator(".waygoal-file-view").innerText();
+    const text = await page.getByRole("region", { name: "文件阅读区", exact: true }).innerText();
     return text.includes("客厅，六个人，八点开始") ? text : null;
-  }, "the artifact to be read into the panel", 20_000).catch(async () => panel().locator(".waygoal-file-view").innerText());
+  }, "the artifact to be read into the panel", 20_000).catch(async () => page.getByRole("region", { name: "文件阅读区", exact: true }).innerText());
   check("a ticket's conclusion opens the artifact it points at, with the viewer the app already has",
     shown.includes("客厅，六个人，八点开始"), shown);
-  await panel().locator("[data-file-back]").click();
+  await page.getByRole("button", { name: "收起文件", exact: true }).click();
   await panel().locator(".waygoal-ticket-refs").waitFor();
   check("and coming back lands on the ticket it was opened from, unchanged",
     (await panel().innerText()).includes("场地定在哪"));
@@ -333,13 +333,13 @@ try {
   await panel().locator(".waygoal-ticket-refs").waitFor();
   await panel().locator('[data-reference-open="../../../产物/方案.md"]').click();
   const afterRestart = await waitFor(async () => {
-    const text = await panel().locator(".waygoal-file-view").innerText();
+    const text = await page.getByRole("region", { name: "文件阅读区", exact: true }).innerText();
     return text.includes("客厅，六个人，八点开始") ? text : null;
   }, "the artifact to be readable again after the restart", 20_000);
   check("after the restart the ticket, the artifact and the discussion under the ticket are all still reachable",
     afterRestart.includes("客厅，六个人，八点开始")
-    && (await page.locator(`[data-talk="${talkId}"]`).count()) === 1);
-  await panel().locator("[data-file-back]").click();
+    && (await panel().locator(`[data-talk="${talkId}"]`).count()) === 1);
+  await page.getByRole("button", { name: "收起文件", exact: true }).click();
   await closePanel();
 
   await openCard(mapPath);

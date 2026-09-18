@@ -1,0 +1,73 @@
+/* Local selection UI; stays inside the canvas area, clear of the chat panel. */
+.waygoal-turn-embedded .waygoal-turn-selection {
+  position: absolute;
+  left: 16px;
+  bottom: 82px;
+  z-index: 8;
+  width: 360px;
+  max-width: calc(100% - 32px);
+  max-height: calc(100% - 98px);
+  box-sizing: border-box;
+  overflow: auto;
+  pointer-events: auto;
+  padding: 12px;
+  border: 1px solid var(--wg-border);
+  border-radius: 14px;
+  background: var(--wg-surface);
+  color: var(--wg-ink);
+  font-size: 13px;
+  scrollbar-color: var(--wg-path) var(--wg-surface);
+  scrollbar-width: thin;
+}
+.waygoal-turn-selection-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.waygoal-turn-selection-head strong { margin-right: auto; font-variant-numeric: tabular-nums; }
+.waygoal-turn-selection :is(button, select) {
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font: inherit;
+}
+.waygoal-turn-selection select {
+  max-width: 100%;
+  border: 1px solid var(--wg-path);
+  background: var(--wg-surface);
+  color: var(--wg-ink);
+}
+.waygoal-turn-selection button { cursor: pointer; }
+.waygoal-turn-selection button:hover:not(:disabled) { background: var(--wg-accent-soft); }
+.waygoal-turn-selection .waygoal-turn-selection-submit { width: 100%; background: var(--wg-ink); color: var(--wg-surface); font-weight: 600; }
+.waygoal-turn-selection .waygoal-turn-selection-submit:hover:not(:disabled) { background: var(--wg-ink); color: var(--wg-accent); }
+.waygoal-turn-selection :is(button, select):disabled { opacity: .55; cursor: not-allowed; }
+.waygoal-turn-selection :is(button, select):focus-visible { outline: 2px solid var(--wg-ink); outline-offset: 2px; }
+.waygoal-turn-selection p { margin: 8px 0 0; color: var(--wg-muted); line-height: 1.5; overflow-wrap: anywhere; }
+.waygoal-turn-selection p[role="alert"] { color: var(--wg-danger); }
+.waygoal-turn-selection ::selection { background: var(--wg-accent); color: var(--wg-ink); }
+.waygoal-turn-canvas[data-selecting] > .waygoal-turn-legend-wrap { display: none; }
+.waygoal-turn-world[data-selecting] .waygoal-turn-content { cursor: pointer; }
+.waygoal-turn-world .waygoal-turn-card[data-material-selected="true"] { border-color: var(--wg-ink); background: var(--wg-accent-soft); }
+.waygoal-turn-selection-mark {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--wg-path);
+  border-radius: 5px;
+  background: var(--wg-surface);
+  color: var(--wg-ink);
+}
+[data-material-selected="true"] .waygoal-turn-selection-mark { background: var(--wg-ink); color: var(--wg-surface); }
+.waygoal-turn-selection-mark svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.waygoal-turn-world[data-zoom-tier="overview"][data-selecting] .waygoal-turn-content > .waygoal-turn-selection-mark { display: grid; top: 50%; right: auto; left: 50%; transform: translate(14px, -36px); }
+@media (pointer: coarse) { .waygoal-turn-selection :is(button, select) { min-height: 44px; } }
+@media (max-width: 767px) {
+  .waygoal-turn-embedded .waygoal-turn-selection { left: 8px; bottom: 64px; max-width: calc(100% - 16px); max-height: calc(100% - 72px); padding: 8px; }
+}

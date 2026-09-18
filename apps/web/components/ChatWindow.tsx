@@ -69,6 +69,9 @@ interface Props {
   onOpenSession?: (sessionId: string) => void;
   onAskInNewChat?: (prompt: string, sourceSessionId: string, sourceEntryId: string) => Promise<void>;
   quoteSelectionEnabled?: boolean;
+  selectionBranchLabel?: string;
+  selectionBranchHint?: string;
+  quoteSelectionClassName?: string;
   initialPrompt?: string;
   onInitialPromptConsumed?: () => void;
   /** Completion sound state + controls, owned by AppShell so tasks finishing in
@@ -251,7 +254,7 @@ function ProcessDetailsGroup({ messageCount, toolCallCount, defaultExpanded = fa
   );
 }
 
-export function ChatWindow({ hideWelcome = false, promptMaterials, onPromptAccepted, composerAccessory, session, searchTarget, onSearchTargetHandled, initialScrollPosition, onScrollPositionChange, sessionRunning, newSessionCwd, newSessionDraftKey, onAgentEnd, onAttentionNeeded, onSessionCreated, onSessionForked, forkLabel, onNavigateEntry, onLocateEntry, onInspectReferences, onForkAfter, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemToolsChange, onSystemInfoLoaderChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, onOpenFile, onOpenSession, onAskInNewChat, quoteSelectionEnabled = false, initialPrompt, onInitialPromptConsumed, soundEnabled = true, onSoundToggle, playDoneSound = () => {}, unlockAudio }: Props) {
+export function ChatWindow({ hideWelcome = false, promptMaterials, onPromptAccepted, composerAccessory, session, searchTarget, onSearchTargetHandled, initialScrollPosition, onScrollPositionChange, sessionRunning, newSessionCwd, newSessionDraftKey, onAgentEnd, onAttentionNeeded, onSessionCreated, onSessionForked, forkLabel, onNavigateEntry, onLocateEntry, onInspectReferences, onForkAfter, modelsRefreshKey, chatInputRef, onBranchDataChange, onSystemPromptChange, onSystemToolsChange, onSystemInfoLoaderChange, onSessionStatsChange, onSessionStatsPanelOpen, onContextUsageChange, onOpenFile, onOpenSession, onAskInNewChat, quoteSelectionEnabled = false, selectionBranchLabel, selectionBranchHint, quoteSelectionClassName, initialPrompt, onInitialPromptConsumed, soundEnabled = true, onSoundToggle, playDoneSound = () => {}, unlockAudio }: Props) {
   const fallbackInputRef = useRef<ChatInputHandle | null>(null);
   chatInputRef ??= fallbackInputRef;
   const { t } = useI18n();
@@ -347,18 +350,17 @@ export function ChatWindow({ hideWelcome = false, promptMaterials, onPromptAccep
       return;
     }
     const rect = range.getBoundingClientRect();
-    const ancestor = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
-      ? range.commonAncestorContainer as Element
-      : range.commonAncestorContainer.parentElement;
     const start = range.startContainer.nodeType === Node.ELEMENT_NODE
       ? range.startContainer as Element
       : range.startContainer.parentElement;
     const end = range.endContainer.nodeType === Node.ELEMENT_NODE
       ? range.endContainer as Element
       : range.endContainer.parentElement;
-    const sourceEntryId = [ancestor, start, end]
-      .map((element) => element?.closest<HTMLElement>("[data-message-role=\"assistant\"]")?.dataset.entryId)
-      .find((entryId): entryId is string => Boolean(entryId));
+    // A range across messages cannot be attributed to whichever endpoint
+    // happens to be an assistant. Branch only from one saved answer.
+    const startMessage = start?.closest<HTMLElement>("[data-message-role=\"assistant\"]");
+    const endMessage = end?.closest<HTMLElement>("[data-message-role=\"assistant\"]");
+    const sourceEntryId = startMessage && startMessage === endMessage ? startMessage.dataset.entryId : undefined;
     setQuotedSelection({
       text,
       top: Math.min(window.innerHeight - 44, rect.bottom + 8),
@@ -413,10 +415,12 @@ export function ChatWindow({ hideWelcome = false, promptMaterials, onPromptAccep
       if (!quoteSubmitting) closeQuotedSelection();
     };
     document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
+    // The floating selection owns Escape even if focus stayed in the main
+    // composer. Consume it before that composer's streaming-abort shortcut.
+    document.addEventListener("keydown", onKeyDown, true);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("keydown", onKeyDown, true);
     };
   }, [quotedSelection, quoteInputOpen, quoteSubmitting, closeQuotedSelection]);
 
@@ -1011,7 +1015,9 @@ export function ChatWindow({ hideWelcome = false, promptMaterials, onPromptAccep
           style={{ visibility: pendingScrollRestore ? "hidden" : undefined }}
         >
           <div style={{ minWidth: 0, padding: `0 ${CHAT_COLUMN_PADDING}px` }}>
-            <div ref={messageContentRef} onPointerUp={captureQuotedSelection} style={{ width: "100%", minWidth: 0, maxWidth: "var(--chat-content-max-width, 820px)", margin: "0 auto" }}>
+            <div ref={messageContentRef} onPointerUp={captureQuotedSelection} style={{ width: "100%", minWidth: 0, maxWidth: "var(--chat-content-max-width, 820px)", margin: "0 auto" }} onKeyUp={event => {
+              if (event.key.startsWith("Arrow") || event.key === "Home" || event.key === "End") captureQuotedSelection();
+            }}>
             {(() => {
               let lastUserIdx = -1;
               for (let i = messages.length - 1; i >= 0; i--) {
@@ -1272,8 +1278,9 @@ export function ChatWindow({ hideWelcome = false, promptMaterials, onPromptAccep
       {quoteSelectionEnabled && quotedSelection && createPortal(
         <div
           ref={quotePopoverRef}
+          className={quoteSelectionClassName}
           role={quoteInputOpen ? "dialog" : "toolbar"}
-          aria-label={t(quoteInputOpen ? "chat.newQuoteChat" : "chat.askSelection")}
+          aria-label={quoteInputOpen && selectionBranchLabel ? selectionBranchLabel : t(quoteInputOpen ? "chat.newQuoteChat" : "chat.askSelection")}
           style={{
             position: "fixed",
             top: quotedSelection.top,
@@ -1300,11 +1307,12 @@ export function ChatWindow({ hideWelcome = false, promptMaterials, onPromptAccep
               style={{ width: "100%", minWidth: 0, margin: 0, padding: 0, border: "none", display: "flex", flexDirection: "column", gap: 10 }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600 }}>{t("chat.askInNewChat")}</span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600 }}>{selectionBranchLabel ?? t("chat.askInNewChat")}</span>
                 <button type="button" className="file-viewer-icon-button" title={t("i18n.close")} aria-label={t("i18n.close")} disabled={quoteSubmitting} onClick={closeQuotedSelection} style={{ border: "none" }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
                 </button>
               </div>
+              {selectionBranchHint && <p className="selection-branch-hint">{selectionBranchHint}</p>}
               <ChatInput
                 ref={quoteChatInputRef}
                 compact
@@ -1331,8 +1339,8 @@ export function ChatWindow({ hideWelcome = false, promptMaterials, onPromptAccep
             <button
               type="button"
               className="file-viewer-icon-button"
-              title={t("chat.askInNewChat")}
-              aria-label={t("chat.askInNewChat")}
+              title={selectionBranchLabel ?? t("chat.askInNewChat")}
+              aria-label={selectionBranchLabel ?? t("chat.askInNewChat")}
               onPointerDown={(event) => event.preventDefault()}
               onClick={() => { setQuoteInputOpen(true); window.getSelection()?.removeAllRanges(); }}
               style={{ width: "auto", height: 35, flex: "0 0 auto", gap: 5, padding: "0 10px", border: "none", fontSize: 12, fontWeight: 500 }}
@@ -1340,7 +1348,7 @@ export function ChatWindow({ hideWelcome = false, promptMaterials, onPromptAccep
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M6 3v12M18 9a9 9 0 0 1-9 9" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="18" r="3" />
               </svg>
-              <span>{t("chat.askInNewChat")}</span>
+              <span>{selectionBranchLabel ?? t("chat.askInNewChat")}</span>
             </button>
           )}
           </>}
@@ -1372,7 +1380,7 @@ export function ChatWindow({ hideWelcome = false, promptMaterials, onPromptAccep
         {chatInputElement}
         <ExtensionStatusBar statuses={extensionStatuses} widgets={extensionWidgets} />
       </div>
-      {isEmptyNew && <div className="min-h-0 flex-1" />}
+      {isEmptyNew && !hideWelcome && <div className="min-h-0 flex-1" />}
     </div>
   );
 }

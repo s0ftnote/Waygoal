@@ -1,7 +1,8 @@
 "use client";
+import "./SelectionPopover.css";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { rekeyDraft, getDraft, setDraft, clearDraft } from "@/lib/draft-store";
+import { rekeyDraft, getDraft, setDraft, clearDraft, restoreDraftSubmission } from "@/lib/draft-store";
 import { cardBounds, cardCenter, thumbnail, viewCenteredOn, worldPoint, type WaygoalCard } from "@/lib/waygoal/locate";
 import type { SessionInfo, UserMessage } from "@/lib/types";
 import type { WaygoalBranchChoice, WaygoalBranchPoint, WaygoalSessionTreeResponse } from "@/lib/waygoal/branches";
@@ -10,14 +11,15 @@ import { placeExpandedSessions, SESSION_HEADER, type SessionSize } from "@/lib/w
 import { TURN_WIDTH, TURN_HEIGHT, TURN_GAP, type BoardCard, type BoardEdge } from "@/lib/waygoal/turn-board";
 import { arrangeCards } from "@/lib/waygoal/layout";
 import { NODE_HEIGHT, NODE_WIDTH, canOpen, needsCheck, ticketCardHeight, ticketChipTop, type WaygoalCanvasPatch, type WaygoalNode, type WaygoalReference, type WaygoalPoint, type WaygoalSnapshotResponse, type WaygoalTicketCard, type WaygoalView } from "@/lib/waygoal/types";
-import { getUserMessageText, getUserMessageDraftImages } from "../ChatInput";
+import { getUserMessageText, getUserMessageDraftImages, type ChatInputHandle } from "../ChatInput";
 import { ChatWindow } from "../ChatWindow";
-import { FileViewer } from "../FileViewer";
+import { FileWorkspace, useFileWorkspace } from "./FileWorkspace";
 import { WaygoalTurnCanvas } from "./TurnCanvas";
 import { WaygoalMaterialTray, type MaterialArrival } from "./MaterialTray";
 import { feedbackIntent } from "./feedback-motion";
 import { useBoardFeedback } from "./useBoardFeedback";
-import { addMaterial, type MaterialSnapshot } from "@/lib/waygoal/materials";
+import { addMaterial, consumeMaterials, type MaterialSnapshot } from "@/lib/waygoal/materials";
+import type { WaygoalTurns } from "@/lib/waygoal/turns";
 import { WaygoalPaths } from "./Paths";
 import { WaygoalArrange } from "./Arrange";
 import { WaygoalFind } from "./Find";
@@ -120,13 +122,15 @@ export function WaygoalCanvas() {
     return new URLSearchParams(window.location.search).get("canvas");
   });
   const [snapshot, setSnapshot] = useState<WaygoalSnapshotResponse | null>(null);
+  const canvasEpoch = useRef(0);
+  const continuationEpoch = useRef(0);
+  const readScope = JSON.stringify([cwd, canvasId]);
+  const readScopeRef = useRef(readScope); readScopeRef.current = readScope;
+  useEffect(() => () => { canvasEpoch.current++; continuationEpoch.current++; }, []);
   // The local ticket the panel is showing, by source path; a map's own path
   // when the map itself is open. Tickets are files, never Pi sessions.
   const [openTicket, setOpenTicket] = useState<string | null>(null);
-  // A file the open ticket or map points at, read inside the same panel. It is
-  // shown with the viewer the app already has, read-only: nothing is edited
-  // here and no session is touched by looking.
-  const [openFile, setOpenFile] = useState<string | null>(null);
+  const fileWorkspace = useFileWorkspace(cwd || snapshot?.cwd || "");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [view, updateView] = useState<WaygoalView>(DEFAULT_VIEW);
@@ -169,6 +173,9 @@ export function WaygoalCanvas() {
   const [searchTarget, setSearchTarget] = useState<{ sessionId: string; entryId: string } | null>(null);
   const [locateEntry, setLocateEntry] = useState<{ entryId: string; serial: number } | null>(null);
   const [inspectEntry, setInspectEntry] = useState<{ entryId: string; serial: number } | null>(null);
+  const [locateMaterial, setLocateMaterial] = useState<{ sessionId: string; turnId: string; serial: number } | null>(null);
+  const materialLocateRequest = useRef<AbortController | null>(null);
+  const [explorationPrompt, setExplorationPrompt] = useState<{ sessionId: string; text: string } | null>(null);
   const [materials, setMaterials] = useState<MaterialSnapshot[]>([]);
   const [materialArrival, setMaterialArrival] = useState<MaterialArrival | null>(null);
   const materialDrafts = useRef(new Map<string, MaterialSnapshot[]>());
@@ -180,6 +187,9 @@ export function WaygoalCanvas() {
   const [tree, setTree] = useState<WaygoalSessionTreeResponse | null>(null);
   const [viewing, setViewing] = useState<Viewing | null>(null);
   const forkInFlight = useRef(false);
+  // A failed landing is not a failed Pi fork. Retry the read/registration,
+  // rather than create another session from the same explicit submission.
+  const pendingForks = useRef(new Map<string, string>());
   const [forkingEntryId, setForkingEntryId] = useState<string | null>(null);
   const restoredFor = useRef<string | null>(null);
   // Set only by user interaction (wheel, drag, buttons, keys). Restoring the
@@ -191,6 +201,9 @@ export function WaygoalCanvas() {
    *  one, a read-only reading position. Every way of opening something else
    *  starts here; what it opens instead is that caller's own business. */
   const leavePanel = useCallback(() => {
+    continuationEpoch.current++;
+    setForkingEntryId(null);
+    materialLocateRequest.current?.abort();
     if (chatSessionId.current) materialDrafts.current.set(`session:${chatSessionId.current}`, materialsRef.current);
     setDraftKey(null); setCreatedSession(null); setViewing(null); setMaterials([]);
   }, []);
@@ -198,6 +211,15 @@ export function WaygoalCanvas() {
   const viewportRef = useRef<HTMLDivElement>(null);
   // The session ChatWindow is showing, so a fork it reports can be attributed.
   const chatSessionId = useRef<string | null>(null);
+  const chatInput = useRef<ChatInputHandle | null>(null);
+  const recoverForkPrompt = useCallback((sessionId: string, prompt: string) => {
+    // Repeated landing failures need not prepend the same submitted text
+    // again. If the user opened the fork meanwhile, update its live input as
+    // well as the store, merging their new draft without stealing focus.
+    if (getDraft(sessionId)?.value.includes(prompt)) return;
+    if (chatInput.current) chatInput.current.restoreSubmission(prompt, undefined, sessionId, { focus: false });
+    else restoreDraftSubmission(sessionId, prompt);
+  }, []);
   const pendingRestoreEntry = useRef<string | null>(null);
   const pendingRestoreSession = useRef<string | null>(null);
   // Whether the error on screen came from reading the canvas.
@@ -205,7 +227,7 @@ export function WaygoalCanvas() {
 
   /** One PATCH: the canvas's own patch, plus — for a session that was just
    *  started here — the workspace's note of which canvas it belongs on. */
-  const patch = useCallback(async (body: WaygoalCanvasPatch & { registerSession?: string }) => {
+  const patch = useCallback(async (body: WaygoalCanvasPatch & { registerSession?: string }, report: () => boolean = () => true) => {
     if (!snapshot?.cwd) return false;
     try {
       // The canvas comes from the snapshot, not from the URL: a patch belongs
@@ -213,7 +235,7 @@ export function WaygoalCanvas() {
       const res = await fetch("/api/waygoal", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cwd: snapshot.cwd, canvas: snapshot.workspace.canvasId, ...body }) });
       if (!res.ok) throw new Error((await res.json()).error);
       return true;
-    } catch (e) { setError(`画布记录没有保存：${e instanceof Error ? e.message : String(e)}`); return false; }
+    } catch (e) { if (report()) setError(`画布记录没有保存：${e instanceof Error ? e.message : String(e)}`); return false; }
   }, [snapshot?.cwd, snapshot?.workspace.canvasId]);
 
   const expandedRef = useRef(expandedSessions); expandedRef.current = expandedSessions;
@@ -239,7 +261,10 @@ export function WaygoalCanvas() {
     } catch (e) { setError(`没能重新取得：${e instanceof Error ? e.message : String(e)}`); }
   }, [snapshot?.cwd]);
 
-  const refresh = useCallback(async (force = false) => {
+  const refresh = useCallback(async (force = false, allowed: () => boolean = () => true) => {
+    const epoch = canvasEpoch.current;
+    const current = () => epoch === canvasEpoch.current && readScopeRef.current === readScope && allowed();
+    if (!current()) return;
     try {
       const params = new URLSearchParams();
       if (cwd) params.set("cwd", cwd);
@@ -247,6 +272,7 @@ export function WaygoalCanvas() {
       if (force) params.set("force", "1");
       const res = await fetch(`/api/waygoal${params.size ? `?${params}` : ""}`, { cache: "no-store" });
       const next = await res.json();
+      if (!current()) return;
       if (!res.ok) throw new Error(next.error);
       setSnapshot(next as WaygoalSnapshotResponse);
       // Only what reading the canvas reported is taken back by reading it
@@ -254,8 +280,8 @@ export function WaygoalCanvas() {
       // on screen until they close it.
       if (readError.current) { readError.current = false; setError(""); }
       return next as WaygoalSnapshotResponse;
-    } catch (e) { readError.current = true; setError(e instanceof Error ? e.message : String(e)); }
-  }, [canvasId, cwd]);
+    } catch (e) { if (current()) { readError.current = true; setError(e instanceof Error ? e.message : String(e)); } }
+  }, [canvasId, cwd, readScope]);
 
   useEffect(() => {
     void refresh(true);
@@ -281,6 +307,7 @@ export function WaygoalCanvas() {
    *  view moved just before leaving is saved on the way out rather than
    *  dropped with the timer that was still waiting to save it. */
   const leaveCanvas = useCallback(async () => {
+    canvasEpoch.current++; continuationEpoch.current++;
     if (viewSaveTimer.current) {
       clearTimeout(viewSaveTimer.current);
       viewSaveTimer.current = null;
@@ -298,6 +325,7 @@ export function WaygoalCanvas() {
    *  directory is read before anything moves, so a path that is not there
    *  says so and leaves the canvas on screen where it was. */
   const openWorkspace = useCallback(async (next: string) => {
+    continuationEpoch.current++;
     try {
       const res = await fetch(`/api/waygoal?cwd=${encodeURIComponent(next)}&force=1`, { cache: "no-store" });
       const body = await res.json();
@@ -595,7 +623,6 @@ export function WaygoalCanvas() {
     leavePanel(); setPendingTicket(null);
     setSelectedId(null);
     setOpenTicket(path);
-    setOpenFile(null);
     setNotice("");
   }, [leavePanel]);
 
@@ -615,6 +642,66 @@ export function WaygoalCanvas() {
     setViewing(null);
     if (openSessionId) void patch({ lastViewed: openSessionId, lastViewedEntry: null, preview: null });
   }, [openSessionId, patch]);
+
+  const materialLabels = useMemo(() => Object.fromEntries(materials.map(material => {
+    const member = turnGeometry.cards.flatMap(card => card.members).find(member => member.sessionId === material.sessionId && member.turn.id === material.turnId);
+    return [`${material.sessionId}:${material.turnId}`, {
+      title: nodes.find(node => node.id === material.sessionId)?.title ?? "来源会话不在当前画布",
+      turnLabel: member?.turn.question || `轮次 ${material.turnId}`,
+    }];
+  })), [materials, nodes, turnGeometry.cards]);
+
+  useEffect(() => {
+    materialLocateRequest.current?.abort();
+    return () => materialLocateRequest.current?.abort();
+  }, [panelSession?.id, panelKey, snapshot?.workspaceId, snapshot?.workspace.canvasId]);
+
+  useEffect(() => {
+    // A late read must not replay navigation after a newer gesture, keystroke,
+    // or wheel movement. This also cancels a location awaiting graph loading.
+    const cancel = () => { materialLocateRequest.current?.abort(); setLocateMaterial(null); };
+    document.addEventListener("pointerdown", cancel, true);
+    document.addEventListener("keydown", cancel, true);
+    document.addEventListener("wheel", cancel, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener("pointerdown", cancel, true);
+      document.removeEventListener("keydown", cancel, true);
+      document.removeEventListener("wheel", cancel, true);
+    };
+  }, []);
+
+  useEffect(() => {
+    for (const [key, id] of pendingForks.current) if (id === panelSession?.id) pendingForks.current.delete(key);
+  }, [panelSession?.id]);
+
+  /** Read the source, never navigate Pi to it. Frozen material remains usable
+   * even if its source can no longer be opened. */
+  const locateMaterialSource = useCallback(async (material: MaterialSnapshot) => {
+    materialLocateRequest.current?.abort();
+    const controller = new AbortController(); materialLocateRequest.current = controller;
+    try {
+      const response = await fetch(`/api/waygoal/session/${encodeURIComponent(material.sessionId)}/turns`, { signal: controller.signal, cache: "no-store" });
+      const body = await response.json() as WaygoalTurns & { error?: string };
+      if (controller.signal.aborted) return;
+      if (!response.ok) throw new Error(body.error || "来源读取失败");
+      const turn = body.turns.find(turn => turn.id === material.turnId);
+      if (!turn) throw new Error("来源轮次已找不到");
+      setLocateMaterial({ sessionId: material.sessionId, turnId: material.turnId, serial: Date.now() });
+      if (material.sessionId === panelSession?.id && turn.active) {
+        setSearchTarget({ sessionId: material.sessionId, entryId: turn.id }); stopViewing();
+      } else viewPath(material.sessionId, turn.endId, turn.question, turn.endId);
+    } catch (error) {
+      if (!controller.signal.aborted) setError(`没能打开来源：${error instanceof Error ? error.message : String(error)}。已选原文仍保留，可继续使用。`);
+    }
+  }, [panelSession?.id, stopViewing, viewPath]);
+
+  const receiveMaterials = useCallback((incoming: MaterialSnapshot[], allowed: () => boolean, focus: boolean) => {
+    setMaterials(current => incoming.reduce(addMaterial, current));
+    if (incoming.length) setMaterialArrival({ material: incoming[incoming.length - 1], allowed });
+    if (focus) stopViewing();
+    setNotice("材料已加入。请在右侧写下综合目的，再发送；原来的讨论和草稿都保留。");
+    if (focus) chatPanel.current?.querySelector<HTMLTextAreaElement>("textarea")?.focus();
+  }, [stopViewing]);
 
   const startNewChat = useCallback(() => {
     if (!snapshot) return;
@@ -659,7 +746,7 @@ export function WaygoalCanvas() {
   }, [patch]);
 
   const closePanel = useCallback(() => {
-    leavePanel(); setSelectedId(null); setOpenTicket(null); setOpenFile(null); setPendingTicket(null);
+    leavePanel(); setSelectedId(null); setOpenTicket(null); setPendingTicket(null);
     viewportRef.current?.focus();
   }, [leavePanel]);
 
@@ -680,23 +767,28 @@ export function WaygoalCanvas() {
   }, [patch, pendingTicket, refresh, emptyCanvas, expandSession]);
 
   /** Land on a session that was just branched off, keeping where it came from. */
-  const landOnFork = useCallback(async (newSessionId: string, originSessionId: string, originEntryId?: string, allowed = feedbackIntent(worldHost)) => {
+  const landOnFork = useCallback(async (newSessionId: string, originSessionId: string, originEntryId?: string, allowed = feedbackIntent(worldHost), current: () => boolean = () => true) => {
     // The ticket comes along either way: with a message position the store
     // carries it over with the origin, and without one it is said outright, so
     // a fork Pi can only trace back to the session does not leave the ticket.
     const ticket = ticketOfSession.get(originSessionId);
     const sourceCard = originEntryId && turnGeometry.cards.find(card => card.members.some(member => member.sessionId === originSessionId && member.turn.entryIds.includes(originEntryId)));
-    await patch({
+    const registered = await patch({
       ...(sourceCard ? { positions: { [newSessionId]: { x: Math.round(sourceCard.position.x + TURN_WIDTH + TURN_GAP), y: Math.round(sourceCard.position.y + TURN_HEIGHT + TURN_GAP - SESSION_HEADER) } } } : {}),
       registerSession: newSessionId,
       ...(originEntryId ? { origin: { sessionId: newSessionId, originSessionId, originEntryId } }
         : ticket ? { ticketSession: { sessionId: newSessionId, ticket } } : {}),
-    });
-    await patch({ lastViewed: newSessionId, lastViewedEntry: null, preview: null });
+    }, current);
+    if (!registered) throw new Error("新会话已创建，但画布记录未保存；重试会继续使用这个会话。");
+    if (!current()) return false;
     boardFeedback("fork", newSessionId, allowed);
-    const next = await refresh(true);
+    const next = await refresh(true, current);
+    if (!current()) return false;
     const fork = next?.nodes.find(node => node.id === newSessionId);
-    if (!fork || !next) throw new Error("新会话已创建，但暂时没能载入，请刷新画布后继续。");
+    if (!fork || !next) throw new Error("新会话已创建，但暂时没能载入；重试会继续使用这个会话。");
+    const recorded = await patch({ lastViewed: newSessionId, lastViewedEntry: null, preview: null }, current);
+    if (!current()) return false;
+    if (!recorded) throw new Error("新会话已创建，但位置未保存；请重试。");
     // Switch once the fork is available. A polling snapshot may still be old;
     // retain the real session as a fallback so the composer never opens empty.
     leavePanel();
@@ -709,33 +801,58 @@ export function WaygoalCanvas() {
     setNotice(originEntryId
       ? "已分出一段新会话。原来的讨论还在画布上，连线指向它分出的那条消息。"
       : "已分出一段新会话。这次没有记下具体消息位置，画布只显示来源会话。");
+    return true;
   }, [leavePanel, patch, refresh, ticketOfSession, setSessionExpanded, turnGeometry.cards, worldHost, boardFeedback]);
 
   /** The real Pi fork, from a message in the read-only view. */
-  const forkFrom = useCallback(async (sessionId: string, entryId: string, after = false, editedMessage?: UserMessage) => {
-    if (forkInFlight.current) return;
+  const forkFrom = useCallback(async (sessionId: string, entryId: string, after = false, editedMessage?: UserMessage, prompt?: string) => {
+    if (forkInFlight.current) { if (prompt) throw new Error("正在分叉，请稍候。"); return; }
     forkInFlight.current = true;
+    const epoch = continuationEpoch.current;
+    const current = () => continuationEpoch.current === epoch;
+    const key = JSON.stringify([snapshot?.cwd, snapshot?.workspace.canvasId, sessionId, entryId, after]);
+    let newSessionId = pendingForks.current.get(key);
     const allowed = feedbackIntent(worldHost);
     setForkingEntryId(entryId);
     try {
-      const res = await fetch(`/api/agent/${encodeURIComponent(sessionId)}`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: after ? "fork_branch" : "fork", entryId }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error);
-      const newSessionId = (body.data as { newSessionId?: string } | undefined)?.newSessionId;
+      if (!newSessionId) {
+        const res = await fetch(`/api/agent/${encodeURIComponent(sessionId)}`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: after ? "fork_branch" : "fork", entryId }),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error);
+        newSessionId = (body.data as { newSessionId?: string } | undefined)?.newSessionId;
+        if (newSessionId) pendingForks.current.set(key, newSessionId);
+      }
       if (!newSessionId) throw new Error("这段历史还没有保存，暂时不能从这里分叉。");
       if (editedMessage) setDraft(newSessionId, { value: getUserMessageText(editedMessage), images: getUserMessageDraftImages(editedMessage) });
-      await landOnFork(newSessionId, sessionId, entryId, allowed);
+      const landed = await landOnFork(newSessionId, sessionId, entryId, allowed, current);
+      if (!landed) {
+        if (prompt) recoverForkPrompt(newSessionId, prompt);
+        return;
+      }
+      pendingForks.current.delete(key);
+      // Only the explicit send in the selection composer authorizes this
+      // prompt. The newly mounted host performs its usual send/retry flow.
+      if (prompt) {
+        clearDraft(newSessionId);
+        setExplorationPrompt({ sessionId: newSessionId, text: prompt });
+      }
     } catch (e) {
-      setError(`分叉没有完成：${e instanceof Error ? e.message : String(e)}`);
+      if (newSessionId && prompt) recoverForkPrompt(newSessionId, prompt);
+      if (current()) {
+        setError(`分叉没有完成：${e instanceof Error ? e.message : String(e)}`);
+        if (prompt) throw e;
+      }
     } finally { forkInFlight.current = false; setForkingEntryId(null); }
-  }, [landOnFork, worldHost]);
+  }, [landOnFork, worldHost, snapshot?.cwd, snapshot?.workspace.canvasId, recoverForkPrompt]);
 
   /** The one action that moves the agent: continue this session in one path. */
   const continueAt = useCallback(async (sessionId: string, entryId: string, editedMessage?: UserMessage): Promise<boolean> => {
     if (navigating) return false;
+    continuationEpoch.current++;
+    materialLocateRequest.current?.abort();
     setNavigating(true);
     try {
       const beforeResponse = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}?tail=1`);
@@ -898,8 +1015,8 @@ export function WaygoalCanvas() {
   const openReference = useCallback((reference: WaygoalReference) => {
     if (!canOpen(reference) || !reference.path) return;
     if (reference.kind === "ticket") openLocalTicket(reference.path);
-    else if (snapshot?.cwd) setOpenFile(`${snapshot.cwd}/${reference.path}`);
-  }, [openLocalTicket, snapshot?.cwd]);
+    else if (snapshot?.cwd) fileWorkspace.open({ path: `${snapshot.cwd}/${reference.path}`, cwd: snapshot.cwd });
+  }, [openLocalTicket, snapshot?.cwd, fileWorkspace]);
 
   /** Everything a group frame or a manual link offers is one patch and a read;
    *  Pi's history, the active leaf and the tracker files are never touched. */
@@ -966,20 +1083,25 @@ export function WaygoalCanvas() {
   return <main ref={motion.app} className="waygoal-app waygoal-spatial"
     onPointerDownCapture={() => motion.input("pointer")} onKeyDownCapture={() => motion.input("keyboard")}
     onClickCapture={event => { if (event.detail === 0) motion.input("keyboard"); }}
-    data-panel-open={panelOpen || undefined} data-empty-entry={emptyEntry || undefined}>
+    data-panel-open={panelOpen || undefined} data-empty-entry={emptyEntry || undefined}
+    data-files-visible={fileWorkspace.visible || undefined} data-files-expanded={fileWorkspace.expanded || undefined}>
     <header className="waygoal-top">
       <div className="waygoal-brand">waygoal<span>.</span></div>
       <WaygoalWorkspaceBar workspace={snapshot?.workspace ?? null} onOpen={openWorkspace} onSwitchCanvas={switchCanvas} onError={setError} onImported={async () => { await refresh(true); }} onOverview={() => { setOverviewRequested(true); setManageOpen(true); }} />
       <div className="waygoal-top-right">
         <button type="button" className="waygoal-button outlined" onClick={startNewChat} disabled={!snapshot}>新开聊天</button>
       </div>
+      <nav className="waygoal-surface-switch" aria-label="工作区域">
+        <button type="button" aria-pressed={!fileWorkspace.visible} onClick={fileWorkspace.hide}>画布</button>
+        <button type="button" aria-pressed={fileWorkspace.visible} onClick={fileWorkspace.show}>文件{fileWorkspace.files.length ? ` · ${fileWorkspace.files.length}` : ""}</button>
+      </nav>
     </header>
     {error && <div role="alert" className="waygoal-alert">{error}<button type="button" aria-label="关闭错误" onClick={() => setError("")}>×</button></div>}
     {notice && <div role="status" className="waygoal-notice">{notice}<button type="button" aria-label="关闭提示" onClick={() => setNotice("")}>×</button></div>}
     {trust?.requiresTrust && !trust.trusted && snapshot && <div role="status" className="waygoal-notice">这个目录带有项目级 skills 或扩展；Pi 需要你确认信任后才会加载它们。
       <button type="button" className="waygoal-button outlined small" onClick={() => void fetch("/api/project-trust", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cwd: snapshot.cwd }) }).then(r => r.json()).then(setTrust)}>信任此目录</button></div>}
     <div className="waygoal-stage">
-      <section className="waygoal-canvas-area" aria-label="会话画布区域" aria-hidden={emptyEntry || undefined} inert={emptyEntry} data-managing={manageOpen || undefined}>
+      <section className="waygoal-canvas-area" aria-label="会话画布区域" aria-hidden={emptyEntry || fileWorkspace.visible || undefined} inert={emptyEntry || fileWorkspace.visible} data-managing={manageOpen || undefined}>
         <div className="waygoal-toolbar">
           <button type="button" className="waygoal-icon" aria-label="收起整理工具" onClick={() => setManageOpen(false)}>×</button>
           <h1>{cwdName || "会话画布"}</h1>
@@ -1219,6 +1341,7 @@ export function WaygoalCanvas() {
           expanded={expandedSessions} worldHost={worldHost} camera={view} setCamera={setView} onGrabCamera={motion.grab} setCameraDirect={next => { viewDirty.current = true; setViewDirect(next); }}
           onExpand={expandSession} onGeometry={receiveGeometry} onFit={fitAll}
           materials={materials} inspectEntry={inspectEntry} onDismissPreview={stopViewing}
+          locateMaterial={locateMaterial ?? undefined} onMaterials={receiveMaterials}
           onOpenSession={id => { const node = nodes.find(node => node.id === id); if (node && id !== panelSession?.id) openNode(node); }}
           onFork={(sessionId, entryId) => void forkFrom(sessionId, entryId, true)}
           onReady={id => { if (entranceSession === id) setEntranceSession(null); }}
@@ -1268,6 +1391,7 @@ export function WaygoalCanvas() {
             onFork={(entryId, message) => void forkFrom(viewing.sessionId, entryId, false, message)} />
         </div>}
       </section>
+      <FileWorkspace workspace={fileWorkspace} scope={cwd || snapshot?.cwd || ""} />
       {panelOpen && snapshot && <aside className="waygoal-panel" aria-label="讨论面板" data-session-id={panelSession?.id} aria-busy={Boolean(forkingEntryId)} ref={chatPanel}>
         {!emptyEntry && !openTicketMap && <WaygoalPanelResize />}
         <div className="waygoal-panel-head">
@@ -1286,12 +1410,7 @@ export function WaygoalCanvas() {
             onRenamed={async () => { await refresh(true); }} onError={setError} onNotice={setNotice} /></div></details>}
           {!isMobile && <button type="button" className="waygoal-icon" aria-label="关闭面板" onClick={closePanel}>×</button>}
         </div>
-        {openTicketMap && openFile && <div className="waygoal-file-view">
-          <button type="button" className="waygoal-button outlined small" data-file-back
-            onClick={() => setOpenFile(null)}>← 回到{openTicketCard ? "这张票" : "这张地图"}</button>
-          <FileViewer filePath={openFile} cwd={snapshot.cwd} initialDisplayMode="preview" />
-        </div>}
-        {openTicketMap && !openFile && <WaygoalTicketPanel map={openTicketMap} ticket={openTicketCard} readAt={snapshot.tickets.readAt}
+        {openTicketMap && <WaygoalTicketPanel map={openTicketMap} ticket={openTicketCard} readAt={snapshot.tickets.readAt}
           onStart={ticket => startTicketChat(ticket.id)}
           onOpenDiscussion={id => { const node = nodes.find(n => n.id === id); if (node) openNode(node); }}
           onOpenReference={openReference}
@@ -1312,15 +1431,29 @@ export function WaygoalCanvas() {
           }}
           onView={choice => panelSession && viewPath(panelSession.id, choice.entryId, "这条路径", choice.leafId)}
         />}
-        {!openTicketMap && <div className="waygoal-panel-body" inert={Boolean(forkingEntryId)}>
-          {<ChatWindow hideWelcome key={panelKey} session={panelSession} sessionRunning={selectedNode?.running ?? false}
+        {!openTicketMap && <div className="waygoal-panel-body waygoal-chat-body" inert={Boolean(forkingEntryId)}>
+          <div className="waygoal-chat-host">
+          {<ChatWindow hideWelcome key={panelKey} chatInputRef={chatInput} session={panelSession} sessionRunning={selectedNode?.running ?? false}
+                onOpenFile={path => fileWorkspace.open({ path, cwd: panelSession?.cwd ?? snapshot.cwd, sessionId: panelSession?.id })}
+                quoteSelectionEnabled selectionBranchLabel="分叉探索"
+                selectionBranchHint="发送后从这条回答分叉，带着所选片段继续探索。原讨论、草稿和待发送材料都会保留。"
+                quoteSelectionClassName="waygoal-selection-popover"
+                onAskInNewChat={async (prompt, sourceSessionId, sourceEntryId) => { await forkFrom(sourceSessionId, sourceEntryId, true, undefined, prompt); }}
+                initialPrompt={explorationPrompt?.sessionId === panelSession?.id ? explorationPrompt?.text : undefined}
+                onInitialPromptConsumed={() => setExplorationPrompt(null)}
                 searchTarget={searchTarget} onSearchTargetHandled={clearSearchTarget}
                 onNavigateEntry={(entryId, message) => panelSession ? continueAt(panelSession.id, entryId, message) : Promise.resolve(false)}
                 onLocateEntry={locateTurn}
                 onInspectReferences={entryId => { stopViewing(); setManageOpen(false); setInspectEntry({ entryId, serial: Date.now() }); }}
                 onForkAfter={entryId => panelSession && void forkFrom(panelSession.id, entryId, true)}
-                promptMaterials={materials} onPromptAccepted={() => setMaterials([])}
-                composerAccessory={<WaygoalMaterialTray key={panelSession?.id ?? draftKey ?? "new"} arrival={materialArrival} materials={materials} onRemove={index => setMaterials(current => current.filter((_, i) => i !== index))} />}
+                promptMaterials={materials} onPromptAccepted={() => {
+                  // This callback belongs to the submitted render, not whatever
+                  // session/path is visible when the response finally arrives.
+                  if (!materials.length) return;
+                  setMaterials(current => consumeMaterials(current, materials));
+                  for (const [key, parked] of materialDrafts.current) materialDrafts.current.set(key, consumeMaterials(parked, materials));
+                }}
+                composerAccessory={<WaygoalMaterialTray key={panelSession?.id ?? draftKey ?? "new"} arrival={materialArrival} materials={materials} sourceLabels={materialLabels} onLocate={material => void locateMaterialSource(material)} onRemove={index => setMaterials(current => current.filter((_, i) => i !== index))} />}
                 newSessionCwd={panelSession ? null : snapshot.cwd} newSessionDraftKey={panelSession ? null : draftKey}
                 onSessionCreated={onSessionCreated}
                 onSessionForked={(newSessionId, originEntryId) => {
@@ -1330,6 +1463,7 @@ export function WaygoalCanvas() {
                 forkLabel="从这里分叉"
                 onAgentEnd={() => { void refresh(true); if (openSessionId) void loadTree(openSessionId); }} soundEnabled={false}
                 onOpenSession={id => { const node = snapshot.nodes.find(n => n.id === id); if (node) openNode(node); }} />}
+          </div>
         </div>}
       </aside>}
     </div>

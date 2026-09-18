@@ -34,7 +34,7 @@ Waygoal 直接复用宿主的聊天组件、会话读取和运行能力。目录
 | `npm run setup` | 按应用锁文件安装依赖，运行依赖与宿主的安装脚本 |
 | `npm run dev` | 在 `127.0.0.1:30142/waygoal` 启动开发服务 |
 | `npm run check` | 顺序运行 lint、类型检查及全部单元测试 |
-| `npm run test:e2e` | 顺序执行全部 12 组 Waygoal 浏览器检查 |
+| `npm run test:e2e` | 顺序执行全部 14 组 Waygoal 浏览器检查 |
 | `npm run build` / `npm start` | 构建并启动生产宿主，使用同一 Waygoal 入口 |
 | `npm run prototype:canvas` | 在 30145 端口查看独立静态交互原型 |
 
@@ -73,3 +73,7 @@ CI 使用同一套根目录命令，执行静态检查、单元测试、生产�
 同源分支检查使用 `npm --prefix apps/web run test:waygoal-sibling-forks`，覆盖来源不在画布时共享历史、无新轮次的分叉落点，以及卡片与消息按钮包含所选消息的分叉边界。证据位于 `sibling-forks/`。
 
 分支和所得套件还通过 `waygoal-feedback.mjs` 记录浏览器实际执行的 Web Animations，核对反馈出现在引用、真实分叉和人工确认成功之后；同时检查键盘收拢、减少动态效果、退出残影清理、保存失败与历史恢复不误播。记录仅用于测试，不进入产品页面。
+
+探索与综合检查使用 `npm --prefix apps/web run test:waygoal-exploration`，覆盖选文分叉、取消与发送失败恢复、材料托盘只读回源、多选批量材料、失败和迟到响应隔离，以及真实 Pi 发送后的来源快照。桌面与窄屏截图、`checks.json` 位于 `exploration/`。同样要求没有活动开发服务；可在独立副本中验证，避免中断用户工作。
+
+探索竞态回归使用 `npm --prefix apps/web run test:waygoal-review`，对真实读取／分叉结果注入延迟或落地失败，验证回源不覆盖新导航、材料不抢输入焦点、离开画布后不自动跳回或发送、提前打开新分叉时合并恢复问题，以及重试不重复分叉。`WAYGOAL_REVIEW_CASE=locate|focus|fork-leave|fork-retry|fork-open` 可单独选一案；证据写入 `review-<案名>/`。

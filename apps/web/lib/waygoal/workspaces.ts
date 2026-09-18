@@ -69,15 +69,20 @@ function writeWorkspaceRecord(record: WaygoalWorkspaceRecord, agentDir: string):
   writePrivateFileAtomicSync(workspacePath(record.cwd, agentDir), JSON.stringify({ ...record, updatedAt: now() }, null, 2));
 }
 
-/** Where a request is to be read and written: one working directory and one
- *  canvas in it. Reading a canvas is also what says this directory is now
- *  stopped on it. */
-export function scopeFor(cwd: string, canvasId: string | null | undefined, agentDir = getAgentDir()): WaygoalScope {
+/** Resolve and validate a request's canvas without opening it or writing any
+ *  workspace record. A late write to a canvas is not navigation back to it. */
+export function resolveScope(cwd: string, canvasId: string | null | undefined, agentDir = getAgentDir()): WaygoalScope {
   const record = readWorkspaceRecord(cwd, agentDir);
   const wanted = canvasId?.trim() || null;
-  const current = wanted ? requireCanvas(record, wanted).id : record.current;
-  if (record.current !== current || !existsSync(workspacePath(cwd, agentDir))) writeWorkspaceRecord({ ...record, current }, agentDir);
-  return { cwd, canvasId: current, agentDir };
+  return { cwd, canvasId: wanted ? requireCanvas(record, wanted).id : record.current, agentDir };
+}
+
+/** Open a canvas and remember where this working directory is stopped. */
+export function scopeFor(cwd: string, canvasId: string | null | undefined, agentDir = getAgentDir()): WaygoalScope {
+  const scope = resolveScope(cwd, canvasId, agentDir);
+  const record = readWorkspaceRecord(cwd, agentDir);
+  if (record.current !== scope.canvasId || !existsSync(workspacePath(cwd, agentDir))) writeWorkspaceRecord({ ...record, current: scope.canvasId }, agentDir);
+  return scope;
 }
 
 /** Another board in the same working directory. Making one does not by itself

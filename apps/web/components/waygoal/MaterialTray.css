@@ -1,0 +1,111 @@
+/* More specific than the legacy tray rules in waygoal.css, independent of
+   stylesheet chunk order. Only this component's surface is affected. */
+.waygoal-material-tray.waygoal-material-review {
+  position: relative;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: min(240px, 28dvh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--wg-path) var(--wg-canvas);
+  scrollbar-width: thin;
+  padding: 12px 16px;
+  background: var(--wg-canvas);
+  color: var(--wg-ink);
+  border-top: 1px solid var(--wg-border);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.waygoal-material-review .waygoal-material-heading {
+  position: sticky;
+  top: -12px;
+  z-index: 1;
+  padding: 4px 0;
+  background: var(--wg-canvas);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.waygoal-material-review .waygoal-material-heading > strong { font-size: 14px; }
+.waygoal-material-review .waygoal-material-total {
+  color: var(--wg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.waygoal-material-review p.waygoal-material-note { margin: 4px 0 10px; }
+.waygoal-material-review .waygoal-material-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0 8px;
+  padding: 10px 0 2px;
+  border-top: 1px solid var(--wg-border);
+  color: var(--wg-ink);
+  font-size: inherit;
+}
+
+.waygoal-material-review .waygoal-material-source { min-width: 0; overflow-wrap: anywhere; }
+.waygoal-material-review .waygoal-material-source strong { display: block; font-weight: 600; }
+.waygoal-material-review .waygoal-material-source > span { display: block; color: var(--wg-muted); }
+.waygoal-material-review .waygoal-material-actions { display: flex; align-items: center; }
+.waygoal-material-review .waygoal-material-actions button {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font: inherit;
+  color: var(--wg-ink);
+}
+.waygoal-material-review .waygoal-material-locate { text-decoration: underline; text-underline-offset: 3px; }
+.waygoal-material-review .waygoal-material-actions button:disabled { opacity: 1; color: var(--wg-muted); cursor: not-allowed; text-decoration: none; }
+.waygoal-material-review .waygoal-material-remove { display: grid; place-items: center; }
+.waygoal-material-review .waygoal-material-remove svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.waygoal-material-review .waygoal-material-actions button:hover:not(:disabled) { background: var(--wg-accent-soft); }
+.waygoal-material-review .waygoal-material-remove:hover:not(:disabled) { color: var(--wg-danger); }
+
+.waygoal-material-review details { grid-column: 1 / -1; min-width: 0; }
+.waygoal-material-tray.waygoal-material-review summary {
+  min-height: 44px;
+  padding: 10px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.waygoal-material-review summary::marker { color: var(--wg-path); }
+.waygoal-material-review summary:hover { background: var(--wg-accent-soft); }
+.waygoal-material-review .waygoal-material-disclosure { margin-left: 12px; color: var(--wg-muted); white-space: nowrap; }
+.waygoal-material-review .waygoal-material-collapse,
+.waygoal-material-review details[open] .waygoal-material-expand { display: none; }
+.waygoal-material-review details[open] .waygoal-material-collapse { display: inline; }
+.waygoal-material-review p.waygoal-material-provenance,
+.waygoal-material-review p.waygoal-material-captured { margin: 4px 0; color: var(--wg-muted); overflow-wrap: anywhere; }
+.waygoal-material-review .waygoal-material-captured { font-variant-numeric: tabular-nums; }
+.waygoal-material-tray.waygoal-material-review pre {
+  margin: 10px 0;
+  padding: 10px 12px;
+  max-width: 75ch;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  line-height: 1.7;
+  background: var(--wg-surface);
+  border-radius: 8px;
+}
+.waygoal-material-tray.waygoal-material-review:focus-visible,
+.waygoal-material-tray.waygoal-material-review :is(summary, button):focus-visible {
+  outline: 2px solid var(--wg-ink);
+  outline-offset: -2px;
+}
+.waygoal-material-review ::selection { background: var(--wg-accent); color: var(--wg-ink); }
+.waygoal-material-review .waygoal-material-exit { position: absolute; pointer-events: none; background: var(--wg-canvas); }
+
+@media (max-width: 480px) {
+  .waygoal-material-tray.waygoal-material-review { padding: 10px 12px; max-height: min(200px, 25dvh); }
+  .waygoal-material-review .waygoal-material-row { grid-template-columns: minmax(0, 1fr); }
+  .waygoal-material-review .waygoal-material-actions { justify-content: flex-end; }
+  .waygoal-material-review .waygoal-material-heading { top: -10px; }
+}
