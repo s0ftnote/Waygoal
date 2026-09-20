@@ -433,7 +433,14 @@
 @media (max-width: 767px) { .waygoal-turn-legend { gap: 8px; padding: 5px 10px; } .waygoal-session-label button { min-height: 44px; } }
 
 /* Accepted B layout: spatial canvas, persistent floating conversation. */
-.waygoal-spatial { --wg-chat-width: clamp(360px, var(--wg-chat-preferred-width, clamp(420px, 44vw, 720px)), calc(100vw - 280px)); position: relative; }
+.waygoal-spatial {
+  --wg-chat-width: min(calc(var(--wg-visible-width, 100vw) - 32px), clamp(360px, var(--wg-chat-preferred-width, clamp(420px, 44vw, 720px)), calc(var(--wg-visible-width, 100vw) - 280px)));
+  position: fixed;
+  left: var(--wg-visible-left, 0px);
+  top: var(--wg-visible-top, 0px);
+  width: var(--wg-visible-width, 100vw);
+  height: var(--wg-visible-height, 100dvh);
+}
 .waygoal-spatial .waygoal-top { position: absolute; top: 14px; left: 16px; z-index: 12; height: 56px; min-height: 56px; margin: 0; padding: 0 14px; width: min(560px, calc(100% - 32px)); max-width: calc(100% - 32px); border: 1px solid var(--wg-border); border-radius: 15px; background: var(--wg-canvas); box-shadow: 0 3px 15px rgb(29 54 90 / 4%); container: workspace-navigation / inline-size; }
 .waygoal-top-content { display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; }
 .waygoal-spatial .waygoal-top-content > .waygoal-workspace { flex: 1; }
@@ -874,3 +881,6 @@
 .waygoal-ticket-cluster-discuss { white-space: nowrap; }
 .waygoal-map-session-region { position: absolute; pointer-events: none; border: 1px dashed var(--wg-path); border-radius: 12px; background: rgb(169 219 220 / 10%); }
 .waygoal-map-session-owner { display: block; padding: 6px 14px; color: var(--wg-ink); font-size: calc(14px * var(--wg-map-text-scale, 1)); line-height: 1.4; font-weight: 600; }
+
+/* Active canvas controls stay above the minimap in a narrow canvas column. */
+.waygoal-turn-embedded:has(.waygoal-turn-more[open], .waygoal-link-guide, .waygoal-edge-preview) { z-index: 4; }

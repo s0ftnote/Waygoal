@@ -71,3 +71,10 @@
 @media (max-width: 767px) {
   .waygoal-turn-embedded .waygoal-turn-selection { left: 8px; bottom: 64px; max-width: calc(100% - 16px); max-height: calc(100% - 72px); padding: 8px; }
 }
+
+.waygoal-turn-world[data-mode="link"] .waygoal-turn-content { cursor: crosshair; }
+.waygoal-turn-world[data-mode="link"] .waygoal-turn-card:hover { border-color: var(--wg-ink); }
+.waygoal-turn-card[data-link-source] { border: 2px solid var(--wg-ink); background: var(--wg-accent-soft); }
+.waygoal-link-guide .waygoal-link-source { color: var(--wg-ink); font-weight: 600; max-height: 4.5em; overflow: auto; }
+.waygoal-link-endpoints { margin: 12px 0; padding-left: 20px; overflow-wrap: anywhere; }
+.waygoal-link-endpoints li + li { margin-top: 8px; }

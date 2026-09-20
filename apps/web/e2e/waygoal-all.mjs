@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const suites = [
-  "waygoal", "waygoal-branches", "waygoal-tickets", "waygoal-ticket-talks",
+  "waygoal", "waygoal-branches", "waygoal-panel-bounds", "waygoal-tickets", "waygoal-ticket-talks",
   "waygoal-dependencies", "waygoal-find", "waygoal-workspaces",
   "waygoal-groups", "waygoal-map", "waygoal-remote", "waygoal-takeaways", "waygoal-sibling-forks", "waygoal-exploration", "waygoal-review", "waygoal-rename-lineage",
 ];

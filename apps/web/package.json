@@ -44,6 +44,7 @@
     "test:waygoal-all": "node e2e/waygoal-all.mjs",
     "test:waygoal-takeaways": "node e2e/waygoal-takeaways.mjs",
     "test:waygoal-sibling-forks": "node e2e/waygoal-sibling-forks.mjs",
+    "test:waygoal-panel-bounds": "node e2e/waygoal-panel-bounds.mjs",
     "test:waygoal-branches": "node e2e/waygoal-branches.mjs",
     "test:waygoal-exploration": "node e2e/waygoal-exploration.mjs",
     "test:waygoal-review": "node e2e/waygoal-review.mjs",

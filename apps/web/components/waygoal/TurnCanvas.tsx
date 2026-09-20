@@ -76,6 +76,10 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
   const [selectionError, setSelectionError] = useState("");
   const [mode, setMode] = useState<"read" | "reference" | "link">("read");
   const [from, setFrom] = useState<string | null>(null);
+  const [linkSaving, setLinkSaving] = useState(false);
+  const linkInFlight = useRef(false);
+  const [linkError, setLinkError] = useState("");
+  const [linkSaved, setLinkSaved] = useState(false);
   const [scope, setScope] = useState<MaterialScope>("answer");
   const [excerpt, setExcerpt] = useState("");
   const [treeOpen, setTreeOpen] = useState(false);
@@ -102,13 +106,24 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
   useEffect(() => {
     const dismiss = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      setEditingTakeaway(null); setActionKey(null); setTreeOpen(false); setMode("read"); setFrom(null); setInspected(null);
+      setEditingTakeaway(null); setActionKey(null); setTreeOpen(false); setMode("read"); setFrom(null); setInspected(null); setLinkSaved(false);
       exitSelection();
       if (toolsMenu.current) toolsMenu.current.open = false;
     };
     window.addEventListener("keydown", dismiss);
     return () => window.removeEventListener("keydown", dismiss);
   }, [exitSelection]);
+  useEffect(() => {
+    if (mode !== "link") return;
+    const cancelLink = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault(); event.stopPropagation();
+      if (!linkInFlight.current) { setMode("read"); setFrom(null); setLinkError(""); }
+    };
+    // Cancel selection before the canvas handles Escape by closing the chat.
+    window.addEventListener("keydown", cancelLink, true);
+    return () => window.removeEventListener("keydown", cancelLink, true);
+  }, [mode]);
   const gesture = useRef<{ id?: string; start: Point; origin: Point; moved: boolean; pointerId: number } | null>(null);
   const layoutRef = useRef(layout); layoutRef.current = layout;
   const positions = useRef<Record<string, Point>>({});
@@ -312,10 +327,28 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
       if (captureRequest.current === controller) { captureRequest.current = null; captureSources.current = []; setCapturing(false); }
     }
   };
-  const connect = (to: string) => {
-    if (!from || from === to) { setFrom(to); return; }
-    const exists = layout.links.some(([a, b]) => (a === from && b === to) || (a === to && b === from));
-    persistLayout({ ...layout, links: exists ? layout.links.filter(([a, b]) => !((a === from && b === to) || (a === to && b === from))) : [...layout.links, [from, to]] }); setFrom(null);
+  const beginLink = (key: string | null = null) => {
+    exitSelection(); setMode("link"); setFrom(key); setActionKey(null);
+    setInspected(null); setLinkSaved(false); setLinkError(""); setTreeOpen(false);
+    if (toolsMenu.current) toolsMenu.current.open = false;
+  };
+  const connect = async (to: string) => {
+    if (linkInFlight.current) return;
+    if (!from || from === to) { setFrom(to); setLinkError(""); return; }
+    const pair: [string, string] = [from, to];
+    const current = layoutRef.current;
+    const exists = current.links.some(([a, b]) => (a === from && b === to) || (a === to && b === from));
+    linkInFlight.current = true; setLinkSaving(true); setLinkError("");
+    try {
+      if (!exists) {
+        const saved = { ...current, sessionOrigins: sessionOrigins.current, positions: { ...current.positions, ...positions.current }, links: [...current.links, pair] };
+        if (!await onSaveBoard(saved)) throw new Error("保存失败");
+        layoutRef.current = saved; setLayout(saved);
+      }
+      setFrom(null); setMode("read"); setLinkSaved(true);
+    } catch {
+      setLinkError("关联没有保存，请重新点选目标卡片重试。");
+    } finally { linkInFlight.current = false; setLinkSaving(false); }
   };
   const edgePath = (a: Point, b: Point, side = false, fromTurn = true, toTurn = true) => {
     const compactA = tier === "overview" && fromTurn, compactB = tier === "overview" && toTurn;
@@ -325,12 +358,12 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
     return `M ${ax} ${start} C ${ax} ${start + GAP / 2}, ${bx} ${end - GAP / 2}, ${bx} ${end}`;
   };
   const locate = (card: BoardCard) => { setInspected(null); setSelected(card.key); setActionKey(card.key); const member = memberFor(card); onLocate(member.sessionId, member.turn); };
-  const inspect = (edge: BoardEdge) => { onDismissPreview(); setInspected(edge); };
+  const inspect = (edge: BoardEdge) => { onDismissPreview(); setLinkSaved(false); setInspected(edge); };
   const actionCard = actionKey ? byKey.get(actionKey) : undefined;
   const actionMember = actionCard && memberFor(actionCard);
   const actionOnCurrentPath = actionMember?.sessionId === sessionId && actionMember.turn.active;
   const forkBlocked = busy || Boolean(sessions.find(session => session.id === actionMember?.sessionId)?.running);
-  const menuWidth = Math.min(actionOnCurrentPath ? 238 : 398, viewportSize.width - 16);
+  const menuWidth = Math.min(actionOnCurrentPath ? 270 : 430, viewportSize.width - 16);
   const actionBounds = actionCard ? {
     left: camera.x + actionCard.position.x * camera.scale,
     top: camera.y + actionCard.position.y * camera.scale,
@@ -360,8 +393,8 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
       }}>{sessions.map(session => <option key={session.id} value={session.id}>{session.title}</option>)}</select>
       <button type="button" aria-expanded={treeOpen} onClick={() => { exitSelection(); setTreeOpen(!treeOpen); if (toolsMenu.current) toolsMenu.current.open = false; }}>选择继续路径</button>
       <button type="button" aria-pressed={mode === "reference"} onClick={() => { exitSelection(); setMode(mode === "reference" ? "read" : "reference"); setFrom(null); }}>引用连线</button>
-      <button type="button" aria-pressed={mode === "link"} onClick={() => { exitSelection(); setMode(mode === "link" ? "read" : "link"); setFrom(null); }}>仅作关联</button>
-      <details className="waygoal-turn-legend-wrap"><summary>连线说明</summary><div className="waygoal-turn-legend"><span>— 连续历史</span><span>━ 分叉来源</span><span>┄ 引用材料</span><span>┈ 仅作关联</span></div></details>
+      <button type="button" aria-pressed={mode === "link"} onClick={() => beginLink()}>标记相关</button>
+      <details className="waygoal-turn-legend-wrap"><summary>连线说明</summary><div className="waygoal-turn-legend"><span>— 连续历史</span><span>━ 分叉来源</span><span>┄ 引用材料</span><span>┈ 手动标记相关</span></div></details>
         </div>
       </details>
     </div>
@@ -381,7 +414,17 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
       <span>将来源连到当前对话的「下一轮」。文字范围不含图片、思考与工具参数。</span>
       {scope === "excerpt" && <textarea aria-label="回答摘录" value={excerpt} onChange={event => setExcerpt(event.target.value)} placeholder="粘贴回答中的原文摘录" />}
     </div>}
-    {mode === "link" && <p className="waygoal-turn-options">依次点击两张卡片的连线点；再次连接同一对可取消。只作关联，不带入模型。</p>}
+    {mode === "link" && <div className="waygoal-turn-selection waygoal-link-guide" role="group" aria-label="标记相关" aria-busy={linkSaving}>
+      <div className="waygoal-turn-selection-head"><strong role="status">{linkSaving ? "正在保存关联…" : from ? "再点一张相关的卡片" : "先点选一张卡片"}</strong>
+        <button type="button" disabled={linkSaving} onClick={() => { setMode("read"); setFrom(null); setLinkError(""); }}>取消关联</button></div>
+      {from && <p className="waygoal-link-source">已选：{byKey.get(from)?.turn.question || "这轮讨论"}</p>}
+      <p>把讨论同一问题的两轮连起来，方便回看对照。只在画布上标记，不会把内容发给 Agent。</p>
+      {linkError && <p role="alert">{linkError}</p>}
+    </div>}
+    {linkSaved && mode !== "link" && <div className="waygoal-turn-selection waygoal-link-guide" role="status">
+      <div className="waygoal-turn-selection-head"><strong>已标记相关</strong><button type="button" onClick={() => setLinkSaved(false)}>关闭提示</button></div>
+      <p>点两张卡片之间的连线，可以回看或移除关联。</p>
+    </div>}
     {treeOpen && <nav className="waygoal-turn-tree" aria-label="Tree 路径选择">
       <strong>{title(sourceId)}</strong>
       {(data[sourceId]?.turns ?? []).filter(turn => !data[sourceId]?.turns.some(child => child.parentId === turn.id)).map((turn, index) => <button key={turn.id} type="button" disabled={busy || !!readErrors[sourceId] || sessions.find(s => s.id === sourceId)?.running} onClick={() => { onContinue(sourceId, turn.endId); setTreeOpen(false); }}>路径 {index + 1} · {turn.question.slice(0, 40)}{turn.active && sourceId === sessionId ? " · 当前" : " · 在此继续"}</button>)}
@@ -402,11 +445,11 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
           const takeaway = layout.takeaways?.[card.key];
           const changed = takeaway && takeawayChanged(takeaway, card.turn.fingerprint);
           const confirmed = takeaway?.status === "confirmed" && !changed;
-          return <article key={card.key} data-turn={card.turn.id} data-session={card.sessionId} data-turn-key={card.key} data-material-selected={selection.includes(card.key) || undefined} data-spatial-key={`turn:${card.key}`} data-spatial-owner={projection.owners.get(card.key)} data-takeaway={takeaway ? changed ? "changed" : takeaway.status : undefined} className={`waygoal-turn-card${activeKey === card.key ? " active" : ""}${selected === card.key ? " selected" : ""}`} style={{ left: card.position.x, top: card.position.y, width: WIDTH, height: HEIGHT }}>
-          <button type="button" className="waygoal-turn-content" data-spatial-face aria-label={`${index + 1} · ${card.turn.question}`} aria-pressed={selecting ? selection.includes(card.key) : selected === card.key}
-            onPointerDown={event => { if (selecting || event.metaKey || event.ctrlKey) { event.stopPropagation(); return; } if (gesture.current || event.button !== 0) return; onGrabCamera(); setActionKey(null); gesture.current = { id: card.key, start: { x: event.clientX, y: event.clientY }, origin: positions.current[card.key] ?? card.position, moved: false, pointerId: event.pointerId }; event.currentTarget.setPointerCapture(event.pointerId); }}
+          return <article key={card.key} data-turn={card.turn.id} data-session={card.sessionId} data-turn-key={card.key} data-material-selected={selection.includes(card.key) || undefined} data-link-source={mode === "link" && from === card.key || undefined} data-spatial-key={`turn:${card.key}`} data-spatial-owner={projection.owners.get(card.key)} data-takeaway={takeaway ? changed ? "changed" : takeaway.status : undefined} className={`waygoal-turn-card${activeKey === card.key ? " active" : ""}${selected === card.key ? " selected" : ""}`} style={{ left: card.position.x, top: card.position.y, width: WIDTH, height: HEIGHT }}>
+          <button type="button" className="waygoal-turn-content" data-spatial-face aria-label={`${index + 1} · ${card.turn.question}`} aria-pressed={mode === "link" ? from === card.key : selecting ? selection.includes(card.key) : selected === card.key}
+            onPointerDown={event => { if (mode === "link") { event.stopPropagation(); event.preventDefault(); event.currentTarget.focus({ preventScroll: true }); return; } if (selecting || event.metaKey || event.ctrlKey) { event.stopPropagation(); return; } if (gesture.current || event.button !== 0) return; onGrabCamera(); setActionKey(null); gesture.current = { id: card.key, start: { x: event.clientX, y: event.clientY }, origin: positions.current[card.key] ?? card.position, moved: false, pointerId: event.pointerId }; event.currentTarget.setPointerCapture(event.pointerId); }}
             title={takeaway?.text || card.turn.question}
-            onClick={event => { if (selecting || event.metaKey || event.ctrlKey) { event.stopPropagation(); toggleSelection(card.key); return; } if (gesture.current?.moved) return; if (tier !== "detail") { setActionKey(null); focusCard(card.key, true); const member = memberFor(card); onLocate(member.sessionId, member.turn); } else locate(card); }}>
+            onClick={event => { if (mode === "link") { event.stopPropagation(); void connect(card.key); return; } if (selecting || event.metaKey || event.ctrlKey) { event.stopPropagation(); toggleSelection(card.key); return; } if (gesture.current?.moved) return; if (tier !== "detail") { setActionKey(null); focusCard(card.key, true); const member = memberFor(card); onLocate(member.sessionId, member.turn); } else locate(card); }}>
             {selecting && <span className="waygoal-turn-selection-mark" aria-hidden="true"><svg viewBox="0 0 16 16">{selection.includes(card.key) && <path d="m3.5 8 3 3 6-6" />}</svg></span>}
             <span className="waygoal-turn-number">{String(index + 1).padStart(2, "0")}</span>
             <span className="waygoal-turn-glyph" aria-hidden="true"><svg viewBox="0 0 24 24">{confirmed ? <path d="m6 12 4 4 8-8" /> : activeKey === card.key ? <><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="1" /></> : <circle cx="12" cy="12" r="3" />}</svg></span>
@@ -414,10 +457,9 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
             <p>{card.turn.answer || (activeKey === card.key && busy ? "正在回复…" : "…")}</p>
             {takeaway && <span className="waygoal-turn-takeaway">{tier === "detail" && <span>{takeaway.text}</span>}<small className="waygoal-takeaway-status">{changed ? "原文已变化" : confirmed ? "✓ 已确认" : "待确认"}</small></span>}
           </button>
-          {mode !== "read" && <button type="button" className={`waygoal-turn-port${from === card.key ? " selected" : ""}`} aria-label={`从 ${index + 1} 连线`} draggable
+          {mode === "reference" && <button type="button" className={`waygoal-turn-port${from === card.key ? " selected" : ""}`} aria-label={`从 ${index + 1} 连线`} draggable
             onDragStart={event => { event.dataTransfer.setData("text/plain", card.key); setFrom(card.key); }}
-            onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); const source = event.dataTransfer.getData("text/plain"); if (mode === "link" && byKey.has(source) && source !== card.key) { persistLayout({ ...layout, links: [...layout.links.filter(([a, b]) => !((a === source && b === card.key) || (b === source && a === card.key))), [source, card.key]] }); setFrom(null); } }}
-            onClick={() => mode === "link" ? connect(card.key) : setFrom(card.key)}>●</button>}
+            onClick={() => setFrom(card.key)}>●</button>}
         </article>; })}
         {active && <button type="button" className="waygoal-next-turn" data-next-turn style={{ left: next.x, top: next.y, width: WIDTH }} disabled={busy || capturing || mode !== "reference" || !from}
           onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); const key = event.dataTransfer.getData("text/plain"); if (mode === "reference") void reference(key); }} onClick={() => from && void reference(from)}>下一轮{capturing ? " · 正在读取材料…" : materials.length ? ` · 带入 ${materials.length} 份材料` : " · 在右侧继续聊"}</button>}
@@ -432,7 +474,7 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
           {!actionMember.turn.active && <button type="button" disabled={busy} onClick={() => { setActionKey(null); onContinue(actionMember.sessionId, actionMember.turn.endId); }}>切换到这条分支</button>}
         </>}
         <button type="button" onClick={() => { onDismissPreview(); setEditingTakeaway(actionCard); setActionKey(null); }}>所得</button>
-        <button type="button" aria-label="关联其他卡片" onClick={() => { setMode("link"); setFrom(actionCard.key); setActionKey(null); }}>关联</button>
+        <button type="button" title="连接相关的两轮讨论，方便回看对照" onClick={() => beginLink(actionCard.key)}>标记相关</button>
       </div>}
     </div>
     {editingTakeaway && <TakeawayEditor key={editingTakeaway.key} card={editingTakeaway} initial={layout.takeaways?.[editingTakeaway.key]}
@@ -449,14 +491,14 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
         return true;
       }} />}
     {inspected && <aside className="waygoal-edge-preview" aria-label="关系来源">
-      <header><strong>{inspected.kind === "reference" ? "发送时的引用材料" : inspected.kind === "fork" ? "分叉来源" : inspected.kind === "association" ? "仅作关联" : "连续历史"}</strong><button type="button" onClick={() => setInspected(null)} aria-label="关闭关系预览">×</button></header>
+      <header><strong>{inspected.kind === "reference" ? "发送时的引用材料" : inspected.kind === "fork" ? "分叉来源" : inspected.kind === "association" ? "相关讨论" : "连续历史"}</strong><button type="button" onClick={() => setInspected(null)} aria-label="关闭关系预览">×</button></header>
       {inspected.kind === "reference" && graph.edges.filter(edge => edge.kind === "reference" && edge.to === inspected.to).length > 1 && <select aria-label="本轮引用来源" value={inspected.key} onChange={event => { const edge = graph.edges.find(edge => edge.key === event.target.value); if (edge) setInspected(edge); }}>{graph.edges.filter(edge => edge.kind === "reference" && edge.to === inspected.to).map((edge, index) => <option key={edge.key} value={edge.key}>{index + 1} · {title(edge.fromSession)} · {edge.source && MATERIAL_SCOPES[edge.source.scope]}</option>)}</select>}
-      <p>{title(inspected.fromSession)} → {title(inspected.toSession)}</p>
+      {inspected.kind === "association" ? <ul className="waygoal-link-endpoints">{[inspected.from, inspected.to].map(key => <li key={key}>{graph.cards.find(card => card.key === key)?.turn.question || "暂不可读取的讨论"}</li>)}</ul> : <p>{title(inspected.fromSession)} → {title(inspected.toSession)}</p>}
       {inspected.source && <><p>{MATERIAL_SCOPES[inspected.source.scope]}{inspected.source.sharedSnapshot ? " · 旧记录展示本轮全部引用原文" : ""}</p><pre>{inspected.source.snapshot || "这条历史没有保存可读取的材料正文。"}</pre></>}
-      {inspected.kind === "association" && <p>这条联系只作整理，不影响下一轮输入。</p>}
-      <div>{[inspected.from, inspected.to].map((key, index) => <button key={index} type="button" disabled={!graph.cards.some(card => card.key === key)} onClick={() => { const card = byKey.get(key); if (card) { locate(card); focusCard(key, true); } else onExpand(index === 0 ? inspected.fromSession : inspected.toSession); }}>{index === 0 ? "查看来源" : "查看使用位置"}</button>)}</div>
+      {inspected.kind === "association" && <p>这是你手动标记的相关讨论，方便回看对照；不会把内容发给 Agent。</p>}
+      <div>{[inspected.from, inspected.to].map((key, index) => <button key={index} type="button" disabled={!graph.cards.some(card => card.key === key)} onClick={() => { const card = byKey.get(key); if (card) { locate(card); focusCard(key, true); } else onExpand(index === 0 ? inspected.fromSession : inspected.toSession); }}>{inspected.kind === "association" ? index === 0 ? "查看第一张卡片" : "查看第二张卡片" : index === 0 ? "查看来源" : "查看使用位置"}</button>)}</div>
       {!graph.cards.some(card => card.key === inspected.from) && <p>来源不在当前画布或已不可读取；已发送的原文仍保留。</p>}
-      {inspected.pair && <button type="button" onClick={() => { persistLayout({ ...layout, links: layout.links.filter(([a, b]) => !((a === inspected.pair![0] && b === inspected.pair![1]) || (b === inspected.pair![0] && a === inspected.pair![1]))) }); setInspected(null); }}>取消关联</button>}
+      {inspected.pair && <button type="button" onClick={() => { persistLayout({ ...layout, links: layout.links.filter(([a, b]) => !((a === inspected.pair![0] && b === inspected.pair![1]) || (b === inspected.pair![0] && a === inspected.pair![1]))) }); setInspected(null); setLinkSaved(false); }}>移除关联</button>}
     </aside>}
   </section>;
 }

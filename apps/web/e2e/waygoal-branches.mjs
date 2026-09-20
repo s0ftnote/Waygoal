@@ -381,10 +381,10 @@ try {
   await page.getByLabel("关系来源").waitFor();
   check("the right-hand original opens its exact sent reference", await page.getByLabel("关系来源").locator("pre").textContent() === crossTurn.sources[0].snapshot);
   await page.getByRole("button", { name: "关闭关系预览" }).click();
-  await tool("仅作关联");
+  await tool("标记相关");
   await page.getByRole("button", { name: "全景", exact: true }).focus(); await page.keyboard.press("Enter");
-  await page.locator(`[data-turn="${sibling.id}"] .waygoal-turn-port`).click();
-  await page.locator(`[data-turn="${forkOwn.id}"] .waygoal-turn-port`).click();
+  await page.locator(`[data-turn="${sibling.id}"] .waygoal-turn-content`).click();
+  await page.locator(`[data-turn="${forkOwn.id}"] .waygoal-turn-content`).click();
   await waitFor(async () => (await snapshot()).turnBoard?.links.length === 1, "cross-session association persisted");
   await page.getByRole("button", { name: "当前轮次", exact: true }).focus(); await page.keyboard.press("Enter");
   const draggedCard = page.locator(`[data-turn="${crossTurn.id}"]`);

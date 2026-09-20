@@ -177,6 +177,29 @@ export function WaygoalCanvas() {
   const [clusterHeaderHeights, setClusterHeaderHeights] = useState<Record<string, number>>({});
   const [worldHost, setWorldHost] = useState<HTMLDivElement | null>(null);
   const motion = useCanvasMotion(worldHost, view, updateView);
+  useLayoutEffect(() => {
+    const app = motion.app.current, viewport = window.visualViewport;
+    if (!app || !viewport) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      // A tab may already be pinched/offset when a conversation opens. Keep
+      // the workspace inside what is actually visible, including its composer.
+      app.style.setProperty("--wg-visible-width", `${viewport.width}px`);
+      app.style.setProperty("--wg-visible-height", `${viewport.height}px`);
+      app.style.setProperty("--wg-visible-left", `${viewport.offsetLeft}px`);
+      app.style.setProperty("--wg-visible-top", `${viewport.offsetTop}px`);
+    };
+    const schedule = () => { if (!frame) frame = requestAnimationFrame(update); };
+    update();
+    viewport.addEventListener("resize", schedule);
+    viewport.addEventListener("scroll", schedule);
+    return () => {
+      cancelAnimationFrame(frame);
+      viewport.removeEventListener("resize", schedule);
+      viewport.removeEventListener("scroll", schedule);
+    };
+  }, [motion.app]);
   const boardFeedback = useBoardFeedback(worldHost, `${snapshot?.workspaceId}:${snapshot?.workspace.canvasId}`);
   const { navigate: setView, direct: setViewDirect } = motion;
   const [turnGeometry, setTurnGeometry] = useState<{ sizes: Record<string, SessionSize>; cards: BoardCard[]; edges: BoardEdge[] }>({ sizes: {}, cards: [], edges: [] });
@@ -230,6 +253,15 @@ export function WaygoalCanvas() {
   }, []);
 
   const viewportRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    // Trackpad pinches arrive as Ctrl+wheel. React's passive wheel handler
+    // zooms the canvas but cannot cancel the browser's simultaneous page zoom.
+    const containZoom = (event: WheelEvent) => { if (event.ctrlKey) event.preventDefault(); };
+    viewport.addEventListener("wheel", containZoom, { passive: false });
+    return () => viewport.removeEventListener("wheel", containZoom);
+  }, []);
   const [thumbnailFrame, setThumbnailFrame] = useState<WaygoalThumbnail | null>(null);
   const thumbnailDrag = useRef<{ pointerId: number; frame: WaygoalThumbnail; camera: WaygoalView; offset: WaygoalPoint } | null>(null);
   // The session ChatWindow is showing, so a fork it reports can be attributed.
