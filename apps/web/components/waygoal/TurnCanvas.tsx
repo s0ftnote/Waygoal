@@ -342,10 +342,10 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
     && actionBounds.right > 0 && actionBounds.left < viewportSize.width && actionBounds.bottom > 0 && actionBounds.top < viewportSize.height;
   return <section className="waygoal-turn-canvas waygoal-turn-embedded" aria-label="轮次画布" data-selecting={selecting || undefined}>
     <div className="waygoal-turn-toolbar">
-      <button type="button" aria-label="当前轮次" onClick={() => { setActionKey(null); if (active) focusCard(active.key, true); else if (sessionId) { pendingFocus.current = activeKey ?? null; onExpand(graph.cards.find(card => card.key === activeKey)?.sessionId ?? sessionId); } }}>◎ 回到正在聊的位置</button>
-      <button type="button" aria-label="全景" onClick={() => { setActionKey(null); onFit(); }}>看全局</button>
+      <button type="button" aria-label="当前轮次" title="定位当前对话正在聊的轮次" onClick={() => { setActionKey(null); if (active) focusCard(active.key, true); else if (sessionId) { pendingFocus.current = activeKey ?? null; onExpand(graph.cards.find(card => card.key === activeKey)?.sessionId ?? sessionId); } }}>定位对话</button>
+      <button type="button" aria-label="全景" title="缩放画布，查看所有会话与分支" onClick={() => { setActionKey(null); onFit(); }}>查看全部</button>
       <details className="waygoal-turn-more" ref={toolsMenu}>
-        <summary aria-label="画布操作">•••</summary>
+        <summary aria-label="画布操作" title="画布工具：多选、连线与路径">画布工具</summary>
         <div className="waygoal-turn-more-body">
       <button type="button" aria-pressed={selecting} onClick={() => {
         if (selecting) exitSelection();
@@ -361,6 +361,7 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
       <button type="button" aria-expanded={treeOpen} onClick={() => { exitSelection(); setTreeOpen(!treeOpen); if (toolsMenu.current) toolsMenu.current.open = false; }}>选择继续路径</button>
       <button type="button" aria-pressed={mode === "reference"} onClick={() => { exitSelection(); setMode(mode === "reference" ? "read" : "reference"); setFrom(null); }}>引用连线</button>
       <button type="button" aria-pressed={mode === "link"} onClick={() => { exitSelection(); setMode(mode === "link" ? "read" : "link"); setFrom(null); }}>仅作关联</button>
+      <details className="waygoal-turn-legend-wrap"><summary>连线说明</summary><div className="waygoal-turn-legend"><span>— 连续历史</span><span>━ 分叉来源</span><span>┄ 引用材料</span><span>┈ 仅作关联</span></div></details>
         </div>
       </details>
     </div>
@@ -434,7 +435,6 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
         <button type="button" aria-label="关联其他卡片" onClick={() => { setMode("link"); setFrom(actionCard.key); setActionKey(null); }}>关联</button>
       </div>}
     </div>
-    <details className="waygoal-turn-legend-wrap"><summary>连线说明</summary><div className="waygoal-turn-legend"><span>— 连续历史</span><span>━ 分叉来源</span><span>┄ 引用材料</span><span>┈ 仅作关联</span></div></details>
     {editingTakeaway && <TakeawayEditor key={editingTakeaway.key} card={editingTakeaway} initial={layout.takeaways?.[editingTakeaway.key]}
       busy={Boolean(sessions.find(session => session.id === editingTakeaway.sessionId)?.running)} onClose={() => setEditingTakeaway(null)}
       onSave={async (value: TurnTakeaway | null) => {

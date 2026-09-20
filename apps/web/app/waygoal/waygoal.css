@@ -387,9 +387,10 @@
 .waygoal-material-tray summary button { float: right; padding: 0 8px; }
 .waygoal-material-tray pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; background: var(--wg-surface); padding: 10px; border-radius: 10px; }
 .waygoal-material-tray p { overflow-wrap: anywhere; color: var(--wg-muted); }
-.waygoal-message-actions { display: flex; gap: 12px; opacity: 0; transition: opacity 120ms; font-size: 11px; color: var(--wg-muted); justify-content: flex-end; }
-.chat-entry:hover > .waygoal-message-actions, .chat-entry:focus-within > .waygoal-message-actions { opacity: 1; }
-@media (hover: none) { .waygoal-message-actions { opacity: 1; } }
+.waygoal-chat-host .chat-entry { position: relative; padding-top: 12px; }
+.waygoal-message-actions { position: absolute; top: -10px; right: 0; z-index: 2; padding: 0 6px; border-radius: 6px; background: var(--wg-surface); pointer-events: none; display: flex; gap: 12px; opacity: 0; transition: opacity 120ms; font-size: 11px; color: var(--wg-muted); justify-content: flex-end; }
+.chat-entry:hover > .waygoal-message-actions, .chat-entry:focus-within > .waygoal-message-actions { opacity: 1; pointer-events: auto; }
+@media (hover: none) { .waygoal-message-actions { position: static; opacity: 1; pointer-events: auto; } }
 @media (max-width: 767px) {
   .waygoal-stage:has(.waygoal-turn-canvas) { flex-direction: column; }
   .waygoal-stage:has(.waygoal-turn-canvas) .waygoal-canvas-area { flex: 0 0 42%; min-height: 200px; }
@@ -432,9 +433,35 @@
 @media (max-width: 767px) { .waygoal-turn-legend { gap: 8px; padding: 5px 10px; } .waygoal-session-label button { min-height: 44px; } }
 
 /* Accepted B layout: spatial canvas, persistent floating conversation. */
-.waygoal-spatial { --wg-chat-width: clamp(360px, var(--wg-chat-preferred-width, clamp(390px, 40vw, 560px)), calc(100vw - 280px)); position: relative; }
-.waygoal-spatial .waygoal-top { position: absolute; top: 14px; left: 16px; z-index: 12; height: 56px; min-height: 56px; margin: 0; padding: 0 16px; gap: 18px; width: fit-content; max-width: calc(100% - 32px); border: 1px solid var(--wg-border); border-radius: 15px; background: var(--wg-canvas); box-shadow: 0 3px 15px rgb(29 54 90 / 4%); }
-.waygoal-spatial .waygoal-brand { font-size: 23px; }
+.waygoal-spatial { --wg-chat-width: clamp(360px, var(--wg-chat-preferred-width, clamp(420px, 44vw, 720px)), calc(100vw - 280px)); position: relative; }
+.waygoal-spatial .waygoal-top { position: absolute; top: 14px; left: 16px; z-index: 12; height: 56px; min-height: 56px; margin: 0; padding: 0 14px; width: min(560px, calc(100% - 32px)); max-width: calc(100% - 32px); border: 1px solid var(--wg-border); border-radius: 15px; background: var(--wg-canvas); box-shadow: 0 3px 15px rgb(29 54 90 / 4%); container: workspace-navigation / inline-size; }
+.waygoal-top-content { display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; }
+.waygoal-spatial .waygoal-top-content > .waygoal-workspace { flex: 1; }
+.waygoal-spatial .waygoal-workspace-menu { width: 100%; }
+.waygoal-spatial .waygoal-workspace-menu > summary { max-width: 100%; }
+.waygoal-spatial .waygoal-top-right { flex-shrink: 0; }
+.waygoal-spatial .waygoal-top-right button { white-space: nowrap; padding-inline: 8px; }
+/* Compact by available canvas space, not viewport width or flex wrapping. */
+@media(min-width:768px) {
+  .waygoal-spatial[data-panel-open]:not([data-empty-entry]) .waygoal-top { width: min(560px, calc(100% - var(--wg-chat-width) - 48px)); }
+}
+.waygoal-navigation-menu { display: none; position: relative; flex-shrink: 0; }
+.waygoal-navigation-menu > summary { display: grid; place-items: center; width: 36px; height: 44px; cursor: pointer; list-style: none; border-radius: 8px; }
+.waygoal-navigation-menu > summary::-webkit-details-marker { display: none; }
+.waygoal-navigation-menu svg { width: 20px; height: 20px; fill: currentColor; }
+.waygoal-navigation-menu > summary:hover, .waygoal-navigation-menu[open] > summary { background: var(--wg-accent-soft); }
+.waygoal-navigation-menu > summary:focus-visible { outline: 2px solid var(--wg-ink); outline-offset: 2px; }
+.waygoal-navigation-menu > nav { position: absolute; top: calc(100% + 8px); right: 0; width: 176px; display: grid; padding: 6px; border: 1px solid var(--wg-border); border-radius: 12px; background: var(--wg-surface); box-shadow: var(--wg-shadow); }
+.waygoal-navigation-menu button { text-align: left; min-height: 44px; padding: 8px 12px; border-radius: 7px; font-size: 13px; }
+.waygoal-navigation-menu button:hover, .waygoal-navigation-menu button[aria-pressed=true] { background: var(--wg-accent-soft); }
+@container workspace-navigation (max-width: 480px) {
+  .waygoal-top-content > :is(.waygoal-top-right, .waygoal-surface-switch) { display: none; }
+  .waygoal-top-content > .waygoal-navigation-menu { display: block; }
+}
+.waygoal-app .waygoal-brand { font-weight: 850; }
+.waygoal-spatial .waygoal-brand { font-size: 23px; flex-shrink: 0; padding: 0; min-height: 44px; border-radius: 6px; }
+.waygoal-app.waygoal-spatial .waygoal-top[data-collapsed] { width: 124px; }
+.waygoal-top[data-collapsed] .waygoal-top-content > :not(.waygoal-brand) { display: none; }
 .waygoal-spatial .waygoal-top-right .waygoal-button { border: 0; background: transparent; }
 .waygoal-spatial .waygoal-workspace { border: 0; padding: 0; flex: 0 1 auto; }
 .waygoal-workspace-menu { min-width: 0; }
@@ -463,7 +490,7 @@
 .waygoal-resize-handle:hover::after, .waygoal-resize-handle:focus-visible::after { background: var(--wg-accent-soft); border-color: var(--wg-muted); }
 .waygoal-app .waygoal-resize-handle:focus-visible { outline: none; }
 .waygoal-app .waygoal-resize-handle:focus-visible::after { outline: 2px solid var(--wg-ink); outline-offset: 3px; }
-.waygoal-spatial .waygoal-panel-head { min-height: 74px; padding: 12px 18px; gap: 8px; }
+.waygoal-spatial .waygoal-panel-head { min-height: 64px; padding: 10px 20px; gap: 8px; }
 .waygoal-spatial .waygoal-panel-title strong { font-size: 15px; }
 .waygoal-chat-settings { position: relative; }
 .waygoal-chat-settings > summary { list-style: none; cursor: pointer; min-width: 44px; min-height: 44px; display: grid; place-items: center; }
@@ -471,7 +498,10 @@
 .waygoal-spatial .waygoal-statusline { font-size: 10px; }
 .waygoal-spatial .waygoal-statusline .waygoal-id { display: none; }
 .waygoal-spatial .waygoal-turn-toolbar { position: absolute; bottom: 18px; left: 16px; z-index: 9; background: white; border: 1px solid var(--wg-border); border-radius: 14px; padding: 4px; gap: 2px; box-shadow: 0 3px 12px rgb(29 54 90 / 4%); flex-wrap: nowrap; }
-.waygoal-spatial .waygoal-turn-toolbar button { min-height: 44px; border: 0; background: transparent; }
+.waygoal-spatial .waygoal-turn-toolbar { max-width: calc(100% - 32px); }
+.waygoal-spatial .waygoal-turn-toolbar button { min-height: 44px; min-width: 0; border: 0; background: transparent; }
+.waygoal-spatial .waygoal-turn-toolbar > button:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.waygoal-spatial .waygoal-turn-toolbar > :not(:first-child) { flex-shrink: 0; }
 .waygoal-turn-more > summary { list-style: none; display: grid; place-items: center; width: 44px; height: 44px; cursor: pointer; }
 .waygoal-turn-more-body { position: absolute; bottom: calc(100% + 8px); left: 0; width: 260px; padding: 9px; background: var(--wg-surface); border: 1px solid var(--wg-border); border-radius: 14px; box-shadow: var(--wg-shadow); display: grid; gap: 5px; }
 .waygoal-turn-more-body button { text-align: left; }
@@ -580,9 +610,17 @@
 .waygoal-session-collapse:hover { background: var(--wg-surface); }
 .waygoal-session-collapse svg { width: 16px; height: 16px; fill: none; stroke: var(--wg-ink); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .waygoal-canvas-area:has(.waygoal-turn-canvas) > .waygoal-thumb-box { display: block; }
-.waygoal-thumb-box { right: 16px; bottom: 16px; padding: 8px; background: var(--wg-surface); border: 1px solid var(--wg-border); border-radius: 14px; box-shadow: 0 4px 16px rgb(29 54 90 / 5%); }
-.waygoal-thumb-heading { display: flex; justify-content: space-between; padding: 2px 5px 7px; color: var(--wg-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-.waygoal-thumb { border: 0; border-radius: 8px; background: var(--wg-canvas); box-shadow: none; }
+.waygoal-thumb-box { right: 16px; bottom: 124px; padding: 8px; background: var(--wg-surface); border: 1px solid var(--wg-border); border-radius: 14px; box-shadow: 0 4px 16px rgb(29 54 90 / 5%); }
+.waygoal-thumb-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 28px; padding: 2px 5px; color: var(--wg-muted); font-size: 11px; font-variant-numeric: tabular-nums; list-style: none; cursor: pointer; }
+.waygoal-thumb-heading::-webkit-details-marker { display: none; }
+.waygoal-thumb-heading::after { content: ""; width: 6px; height: 6px; border-top: 1.5px solid currentColor; border-left: 1.5px solid currentColor; transform: rotate(45deg); }
+.waygoal-thumb-box[open] .waygoal-thumb-heading { padding-bottom: 8px; }
+.waygoal-thumb-box[open] .waygoal-thumb-heading::after { transform: rotate(225deg); }
+.waygoal-thumb-heading:focus-visible { outline: 2px solid var(--wg-ink); outline-offset: 2px; border-radius: 6px; }
+.waygoal-thumb-heading:hover { color: var(--wg-ink); }
+/* Legend and minimap have separate rows even with a wide chat on a wide screen. */
+.waygoal-spatial .waygoal-turn-legend-wrap { bottom: 84px; }
+.waygoal-thumb { touch-action: none; user-select: none; cursor: grab; border: 0; border-radius: 8px; background: var(--wg-canvas); box-shadow: none; }
 .waygoal-thumb-links { position: absolute; inset: 0; fill: none; stroke: var(--wg-border); stroke-width: 1; }
 .waygoal-thumb-links .fork { stroke: var(--wg-path); }
 .waygoal-thumb-links :is(.reference, .association) { stroke: var(--wg-path); stroke-dasharray: 2 2; }
@@ -595,7 +633,6 @@
   .waygoal-canvas-area > .waygoal-toolbar { top: 4px; left: 8px; right: 8px; max-height: 75%; overflow-y: auto; }
   .waygoal-session-collapse { width: 44px; height: 44px; }
 }
-@media(min-width:768px) and (max-width:1200px) { .waygoal-thumb-box { bottom: 96px; } }
 @media(max-width:767px) { .waygoal-stage:has(.waygoal-turn-canvas) .waygoal-panel-head > .waygoal-button { display: inline-flex; } }
 
 @media(max-width:767px) { .waygoal-canvas-area[data-managing] > .waygoal-toolbar { margin: 4px 8px 0; } }
@@ -672,3 +709,20 @@
 .waygoal-material-tray { position: relative; }
 .waygoal-material-exit { position: absolute; pointer-events: none; padding: 4px 0; color: var(--wg-muted); font-size: 12px; }
 .waygoal-takeaway-status { display: inline-block; transform-origin: left center; }
+
+/* One named control group; detailed help lives inside its menu. */
+.waygoal-spatial .waygoal-turn-toolbar { gap: 0; }
+.waygoal-spatial .waygoal-turn-toolbar > button { padding-inline: 8px; font-size: 12px; }
+.waygoal-spatial .waygoal-turn-more > summary { width: auto; min-width: 44px; padding-inline: 8px; font-size: 12px; }
+.waygoal-turn-more-body .waygoal-turn-legend-wrap { display: block; position: static; padding: 8px; }
+.waygoal-turn-more-body .waygoal-turn-legend { display: grid; gap: 6px; border: 0; padding: 8px 0 0; }
+
+.waygoal-thumb:active { cursor: grabbing; }
+/* A drag surface must not inherit the one-pixel button press offset. */
+.waygoal-app .waygoal-thumb:active:not(:disabled) { translate: none; }
+
+@container workspace-navigation (max-width: 350px) {
+  .waygoal-top-content { gap: 8px; }
+  .waygoal-top-content .waygoal-workspace-menu > summary { gap: 4px; }
+  .waygoal-top-content .waygoal-workspace-menu > summary > span:nth-child(-n+2) { display: none; }
+}

@@ -307,11 +307,31 @@ try {
   await delay(600);
   const cardCount = (await snapshot()).nodes.length + (await snapshot()).tickets.maps.reduce((n, m) => n + 1 + m.tickets.length, 0)
     + await page.locator("[data-turn]").count();
+  check("the thumbnail starts folded to leave room for canvas controls", !(await page.locator("[data-thumb]").isVisible()));
+  await page.locator(".waygoal-thumb-heading").click();
   check("the thumbnail draws every card on the canvas and where the user is looking",
     (await page.locator(".waygoal-thumb-card").count()) === cardCount
     && await page.locator("[data-thumb-view]").isVisible(),
     JSON.stringify({ drawn: await page.locator(".waygoal-thumb-card").count(), cardCount }));
   await page.screenshot({ animations: "disabled", path: join(evidence, "03-thumbnail.png") });
+
+  // Dragging must move the real canvas before pointerup, not just on click.
+  const minimap = await page.locator("[data-thumb]").boundingBox();
+  await page.mouse.move(minimap.x + minimap.width / 2, minimap.y + minimap.height / 2);
+  await page.mouse.down();
+  const dragStart = await worldTransform();
+  await page.mouse.move(minimap.x + minimap.width / 2 + 24, minimap.y + minimap.height / 2 + 16, { steps: 5 });
+  await delay(80);
+  const duringDrag = await worldTransform();
+  check("minimap pans the canvas while the pointer is held", JSON.stringify(duringDrag) !== JSON.stringify(dragStart));
+  await page.mouse.move(minimap.x + minimap.width + 24, minimap.y + minimap.height + 16, { steps: 5 });
+  await delay(80);
+  const outsideDrag = await worldTransform();
+  check("minimap retains pointer capture outside its bounds", outsideDrag !== duringDrag);
+  await page.mouse.up();
+  await delay(80);
+  const releasedDrag = await worldTransform();
+  check("releasing minimap does not jump the canvas", releasedDrag === outsideDrag, JSON.stringify({ outsideDrag, releasedDrag }));
 
   // Reached from the keyboard there is no point to read, so it means 全景.
   await page.locator("[data-thumb]").focus();
@@ -340,6 +360,27 @@ try {
   check("回到上次看的地方 comes back to the card the canvas was left on",
     lastSeen === filmId && (await page.locator(`[data-node="${filmId}"].selected`).count()) === 1,
     JSON.stringify({ lastSeen, filmId }));
+
+  // The navigation remains one row even when the chat consumes most width.
+  await composer().fill("保留这个未发送草稿");
+  await page.getByRole("button", { name: "调节聊天框宽度", exact: true }).focus();
+  for (let i = 0; i < 24; i++) await page.keyboard.press("Shift+ArrowLeft");
+  const navigation = await page.locator(".waygoal-top").boundingBox();
+  const chatBox = await panel().boundingBox();
+  check("narrow canvas keeps navigation in one row outside the chat", navigation.height <= 60 && navigation.x + navigation.width <= chatBox.x);
+  await page.screenshot({ path: join(evidence, "04-compact-navigation.png") });
+  await page.getByRole("button", { name: "收起导航", exact: true }).click();
+  check("the logo folds navigation without changing the chat or draft", (await page.locator(".waygoal-top").boundingBox()).width <= 130 && await composer().inputValue() === "保留这个未发送草稿");
+  await page.getByRole("button", { name: "展开导航", exact: true }).click();
+  await page.locator(".waygoal-navigation-menu > summary").click();
+  check("compact actions remain available", await page.locator(".waygoal-navigation-menu").getByRole("button", { name: "新开聊天" }).isVisible());
+  await page.keyboard.press("Escape");
+  check("Escape closes navigation actions", (await page.locator(".waygoal-navigation-menu").getAttribute("open")) === null);
+  await page.setViewportSize({ width: 390, height: 844 });
+  check("mobile navigation stays a single row", (await page.locator(".waygoal-top").boundingBox()).height <= 56);
+  await page.screenshot({ path: join(evidence, "05-mobile-navigation.png") });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  check("resizing and folding keep the unsent draft", await composer().inputValue() === "保留这个未发送草稿");
 
   check("no page or console errors", errors.length === 0, errors.join("\n"));
   await context.close();

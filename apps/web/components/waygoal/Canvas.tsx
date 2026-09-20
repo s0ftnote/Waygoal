@@ -4,7 +4,7 @@ import "./SelectionPopover.css";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { rekeyDraft, getDraft, setDraft, clearDraft, restoreDraftSubmission } from "@/lib/draft-store";
-import { cardBounds, cardCenter, thumbnail, viewCenteredOn, worldPoint, type WaygoalCard } from "@/lib/waygoal/locate";
+import { cardBounds, cardCenter, thumbnail, viewCenteredOn, worldPoint, type WaygoalThumbnail, type WaygoalCard } from "@/lib/waygoal/locate";
 import type { SessionInfo, UserMessage } from "@/lib/types";
 import type { WaygoalBranchChoice, WaygoalBranchPoint, WaygoalSessionTreeResponse } from "@/lib/waygoal/branches";
 import { mapKind, ticketKind } from "@/lib/waygoal/labels";
@@ -112,6 +112,15 @@ function flattenChoices(branchPoints: WaygoalBranchPoint[]): { choice: WaygoalBr
 
 export function WaygoalCanvas() {
   const isMobile = useIsMobile();
+  const [navigationCollapsed, setNavigationCollapsed] = useState(false);
+  const navigationMenu = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const dismiss = (event: PointerEvent) => {
+      if (navigationMenu.current && !navigationMenu.current.contains(event.target as Node)) navigationMenu.current.open = false;
+    };
+    document.addEventListener("pointerdown", dismiss);
+    return () => document.removeEventListener("pointerdown", dismiss);
+  }, []);
   const [cwd, setCwd] = useState<string>(() => {
     if (typeof window === "undefined") return "";
     return new URLSearchParams(window.location.search).get("cwd") ?? "";
@@ -210,6 +219,8 @@ export function WaygoalCanvas() {
   }, []);
 
   const viewportRef = useRef<HTMLDivElement>(null);
+  const [thumbnailFrame, setThumbnailFrame] = useState<WaygoalThumbnail | null>(null);
+  const thumbnailDrag = useRef<{ pointerId: number; frame: WaygoalThumbnail; camera: WaygoalView; offset: WaygoalPoint } | null>(null);
   // The session ChatWindow is showing, so a fork it reports can be attributed.
   const chatSessionId = useRef<string | null>(null);
   const chatInput = useRef<ChatInputHandle | null>(null);
@@ -964,13 +975,55 @@ export function WaygoalCanvas() {
     } else openLocalTicket(card.id);
   }, [moveTo, nodes, openNode, openLocalTicket]);
 
-  const thumb = useMemo(
+  const liveThumb = useMemo(
     () => (viewportSize.width > 0 ? thumbnail([
       ...cards.map(card => card.kind === "session" && expandedSessions.includes(card.id) ? { ...card, height: 58 } : card),
       ...turnGeometry.cards.map(card => ({ id: card.key, title: card.turn.question, kind: "session" as const, position: card.position, width: TURN_WIDTH, height: TURN_HEIGHT, modified: null })),
     ], view, viewportSize, THUMB) : null),
     [cards, view, viewportSize, expandedSessions, turnGeometry.cards],
   );
+
+  // Freeze the map projection for the gesture. Only its viewport moves; fitting
+  // the thumbnail again on every pan would move the world beneath the pointer.
+  const thumb = thumbnailFrame ? { ...thumbnailFrame, view: {
+    x: (-view.x / view.scale - thumbnailFrame.origin.x) * thumbnailFrame.scale,
+    y: (-view.y / view.scale - thumbnailFrame.origin.y) * thumbnailFrame.scale,
+    width: viewportSize.width / view.scale * thumbnailFrame.scale,
+    height: viewportSize.height / view.scale * thumbnailFrame.scale,
+  } } : liveThumb;
+  const thumbnailPoint = (event: React.PointerEvent<HTMLButtonElement>, frame: WaygoalThumbnail) => {
+    const box = event.currentTarget.getBoundingClientRect();
+    return worldPoint(frame, { x: (event.clientX - box.left) * THUMB.width / box.width, y: (event.clientY - box.top) * THUMB.height / box.height });
+  };
+  const panThumbnail = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = thumbnailDrag.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const point = thumbnailPoint(event, drag.frame);
+    viewDirty.current = true;
+    setViewDirect(viewCenteredOn({ x: point.x + drag.offset.x, y: point.y + drag.offset.y }, drag.camera, viewportSize));
+  };
+  const startThumbnail = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0 || !thumb || thumbnailDrag.current) return;
+    event.preventDefault();
+    event.currentTarget.focus({ preventScroll: true });
+    const camera = motion.grab();
+    const point = thumbnailPoint(event, thumb);
+    const left = -camera.x / camera.scale, top = -camera.y / camera.scale;
+    const width = viewportSize.width / camera.scale, height = viewportSize.height / camera.scale;
+    const inside = point.x >= left && point.x <= left + width && point.y >= top && point.y <= top + height;
+    thumbnailDrag.current = { pointerId: event.pointerId, frame: thumb, camera,
+      offset: inside ? { x: left + width / 2 - point.x, y: top + height / 2 - point.y } : { x: 0, y: 0 } };
+    setThumbnailFrame(thumb);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    panThumbnail(event);
+  };
+  const endThumbnail = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (thumbnailDrag.current?.pointerId !== event.pointerId) return;
+    if (event.type === "pointerup") panThumbnail(event);
+    thumbnailDrag.current = null;
+    setThumbnailFrame(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
 
   const nudge = useCallback((id: string, from: WaygoalPoint, dx: number, dy: number) => {
     const position = { x: from.x + dx, y: from.y + dy };
@@ -1114,8 +1167,9 @@ export function WaygoalCanvas() {
     onClickCapture={event => { if (event.detail === 0) motion.input("keyboard"); }}
     data-panel-open={panelOpen || undefined} data-empty-entry={emptyEntry || undefined}
     data-files-visible={fileWorkspace.visible || undefined} data-files-expanded={fileWorkspace.expanded || undefined}>
-    <header className="waygoal-top">
-      <div className="waygoal-brand">waygoal<span>.</span></div>
+    <header className="waygoal-top" data-collapsed={navigationCollapsed || undefined}>
+      <div className="waygoal-top-content">
+      <button type="button" className="waygoal-brand" aria-label={navigationCollapsed ? "展开导航" : "收起导航"} aria-expanded={!navigationCollapsed} title={navigationCollapsed ? "展开导航" : "收起导航"} onClick={() => setNavigationCollapsed(value => !value)}>waygoal<span>.</span></button>
       <WaygoalWorkspaceBar workspace={snapshot?.workspace ?? null} onOpen={openWorkspace} onSwitchCanvas={switchCanvas} onError={setError} onImported={async () => { await refresh(true); }} onOverview={() => { setOverviewRequested(true); setManageOpen(true); }} />
       <div className="waygoal-top-right">
         <button type="button" className="waygoal-button outlined" onClick={startNewChat} disabled={!snapshot}>新开聊天</button>
@@ -1124,6 +1178,16 @@ export function WaygoalCanvas() {
         <button type="button" aria-pressed={!fileWorkspace.visible} onClick={fileWorkspace.hide}>画布</button>
         <button type="button" aria-pressed={fileWorkspace.visible} onClick={fileWorkspace.show}>文件{fileWorkspace.files.length ? ` · ${fileWorkspace.files.length}` : ""}</button>
       </nav>
+      <details className="waygoal-navigation-menu" ref={navigationMenu}
+        onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}>
+        <summary aria-label="工作区操作" title="工作区操作"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="4" cy="10" r="1.5" /><circle cx="10" cy="10" r="1.5" /><circle cx="16" cy="10" r="1.5" /></svg></summary>
+        <nav aria-label="紧凑工作区域" onClick={event => { if ((event.target as Element).closest("button") && navigationMenu.current) navigationMenu.current.open = false; }}>
+          <button type="button" onClick={startNewChat} disabled={!snapshot}>新开聊天</button>
+          <button type="button" aria-pressed={!fileWorkspace.visible} onClick={fileWorkspace.hide}>画布</button>
+          <button type="button" aria-pressed={fileWorkspace.visible} onClick={fileWorkspace.show}>文件{fileWorkspace.files.length ? ` · ${fileWorkspace.files.length}` : ""}</button>
+        </nav>
+      </details>
+      </div>
     </header>
     {error && <div role="alert" className="waygoal-alert">{error}<button type="button" aria-label="关闭错误" onClick={() => setError("")}>×</button></div>}
     {notice && <div role="status" className="waygoal-notice">{notice}<button type="button" aria-label="关闭提示" onClick={() => setNotice("")}>×</button></div>}
@@ -1385,19 +1449,15 @@ export function WaygoalCanvas() {
           onContinue={(sessionId, leafId) => void continueAt(sessionId, leafId)}
           onMaterial={(material, allowed) => { setMaterials(current => addMaterial(current, material)); setMaterialArrival({ material, allowed }); }} />}
         </div>
-        {thumb && <div className="waygoal-thumb-box">
-          <div className="waygoal-thumb-heading"><span>画布导航</span><span>{Math.round(view.scale * 100)}%</span></div>
+        {thumb && <details className="waygoal-thumb-box">
+          <summary className="waygoal-thumb-heading"><span>画布导航</span><span>{Math.round(view.scale * 100)}%</span></summary>
           {/* Where everything sits and where the user is looking. Clicking only
               moves the view: no session is opened and nothing is sent. */}
-          <button type="button" data-thumb className="waygoal-thumb" aria-label="画布缩略图：点一下把视野移过去，用键盘按下则显示整张画布"
+          <button type="button" data-thumb className="waygoal-thumb" aria-label="画布缩略图：点击或拖动来移动视野，用键盘按下则显示整张画布"
             style={{ width: THUMB.width, height: THUMB.height }}
-            onClick={e => {
-              // Activated from the keyboard there is no point to read, so it
-              // means the whole canvas — the same as 回到全景 and the 0 key.
-              if (e.detail === 0) { fitAll(); return; }
-              const box = e.currentTarget.getBoundingClientRect();
-              moveTo(worldPoint(thumb, { x: e.clientX - box.left, y: e.clientY - box.top }));
-            }}>
+            onPointerDown={startThumbnail} onPointerMove={panThumbnail}
+            onPointerUp={endThumbnail} onPointerCancel={endThumbnail} onLostPointerCapture={endThumbnail}
+            onClick={event => { if (event.detail === 0) fitAll(); }}>
             <svg className="waygoal-thumb-links" width={THUMB.width} height={THUMB.height} aria-hidden="true">
               {turnGeometry.edges.filter(edge => edge.kind !== "history" || (thumb.cards.some(card => card.id === edge.from) && thumb.cards.some(card => card.id === edge.to))).map(edge => {
                 const from = thumb.cards.find(card => card.id === edge.from) ?? thumb.cards.find(card => card.id === edge.fromSession);
@@ -1410,7 +1470,7 @@ export function WaygoalCanvas() {
             <span className="waygoal-thumb-view" data-thumb-view aria-hidden="true"
               style={{ left: thumb.view.x, top: thumb.view.y, width: thumb.view.width, height: thumb.view.height }} />
           </button>
-        </div>}
+        </details>}
         <div className="waygoal-statusline"><span>拖动卡片摆放 · 拖动空白处平移 · 滚轮缩放 · 点击卡片定位原文 · 选择路径后继续聊天</span><span className="waygoal-id">{snapshot?.workspaceId}</span></div>
         {viewing && snapshot && <div className="waygoal-canvas-preview" aria-label="画布内路径预览">
           <button type="button" className="waygoal-preview-close" onClick={stopViewing}>关闭预览</button>

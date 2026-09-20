@@ -29,8 +29,6 @@
   .waygoal-files-heading > div > button:first-child { display: none; }
 }
 @media (max-width: 767px) {
-  .waygoal-app.waygoal-spatial .waygoal-top { flex-wrap: wrap; height: auto; min-height: 52px; padding-bottom: 4px; }
-  .waygoal-app.waygoal-spatial .waygoal-surface-switch { flex: 0 0 100%; order: 4; border-left: 0; padding-left: 0; }
   .waygoal-surface-switch button { min-height: 44px; }
   .waygoal-files { inset: 8px; }
   .waygoal-files-heading button, .waygoal-file-tab > button:last-child { min-height: 44px; }
