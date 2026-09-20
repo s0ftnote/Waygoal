@@ -16,6 +16,8 @@ interface Props {
 
 function OriginRow({ origin, onViewOrigin }: { origin: WaygoalNodeOrigin; onViewOrigin: () => void }) {
   const name = origin.title ?? origin.sessionId;
+  if (origin.status === "conflict") return <p className="waygoal-path-note">旧记录的分叉来源有冲突，尚未确认具体消息位置。原记录已保留。</p>;
+  if (origin.mode === "before" && origin.entryId === null) return <p className="waygoal-path-note">分叉自「{name}」的会话起点，未继承首条消息。<button type="button" className="waygoal-button outlined small" onClick={onViewOrigin}>打开来源会话</button></p>;
   if (!origin.inWorkspace) {
     return <p className="waygoal-path-note">来源会话不在当前画布中（<code>{origin.sessionId}</code>）。同源分支仍按已核对的历史连接。</p>;
   }

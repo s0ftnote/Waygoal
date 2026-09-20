@@ -836,3 +836,17 @@ test("turn takeaways persist per canvas without modifying Pi paths or layout", (
     assert.throws(() => store.applyCanvasPatch(s.sa, { turnBoard: { ...turnBoard, takeaways: { [key]: { ...takeaways[key], status: 'approved-by-model' } } } }), /布局无效/);
   } finally { s.done(); }
 });
+
+test("ticket discussions read the durable session lineage without a canvas origin copy", async () => {
+  const s = sandbox();
+  try {
+    const { writeOrigin } = await jiti.import("./lineage.ts");
+    localMap(s.a, "screening", { "01-feeling.md": ticketBody("感受") });
+    const path = ".scratch/screening/issues/01-feeling.md";
+    writeOrigin({version:1,childSessionId:"child",parentSessionId:"source",selectedEntryId:"q",mode:"after",inheritedThroughEntryId:"q",operationId:"test-durable-ticket",createdAt:"2026-09-19"},s.agentDir);
+    store.applyCanvasPatch(s.sa,{ticketSession:{sessionId:"child",ticket:path}});
+    assert.equal(store.readCanvasRecord(s.sa).origins.child,undefined);
+    const ticket = store.buildTicketSnapshot(s.sa,[]).maps[0].tickets[0];
+    assert.equal(ticket.discussions[0].originSessionId,"source");
+  }finally{s.done();}
+});

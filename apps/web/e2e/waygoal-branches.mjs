@@ -363,15 +363,19 @@ try {
   await draggedCard.locator(".waygoal-turn-content").click({ trial: true });
   const savedBeforeDrag = (await snapshot()).turnBoard.positions[JSON.stringify([forkId, crossTurn.id])];
   const beforeDrag = await draggedCard.evaluate(element => ({ x: parseFloat(element.style.left), y: parseFloat(element.style.top) }));
+  const dragScale = await page.locator(".waygoal-world").evaluate(element => new DOMMatrixReadOnly(getComputedStyle(element).transform).a);
   const box = await draggedCard.boundingBox();
   await page.mouse.move(box.x + 90, box.y + 60); await page.mouse.down();
   await page.mouse.move(box.x + 140, box.y + 90, { steps: 6 }); await page.mouse.up();
-  const movedPosition = { x: beforeDrag.x + 50, y: beforeDrag.y + 30 };
-  await waitFor(async () => JSON.stringify((await snapshot()).turnBoard?.positions[JSON.stringify([forkId, crossTurn.id])]) === JSON.stringify({ x: savedBeforeDrag.x + 50, y: savedBeforeDrag.y + 30 }), "shared card drag persisted");
+  const movedPosition = { x: beforeDrag.x + 50 / dragScale, y: beforeDrag.y + 30 / dragScale };
+  await waitFor(async () => {
+    const point = (await snapshot()).turnBoard?.positions[JSON.stringify([forkId, crossTurn.id])];
+    return point && Math.abs(point.x - savedBeforeDrag.x - 50 / dragScale) < .01 && Math.abs(point.y - savedBeforeDrag.y - 30 / dragScale) < .01;
+  }, "shared card drag persisted at the actual zoom");
   await page.reload({ waitUntil: "domcontentloaded" }); await composer.waitFor();
   await page.getByRole("button", { name: /^手动关联：/ }).waitFor();
   check("manual associations and frozen references survive reload", (await snapshot()).turnBoard.links.length === 1 && (await turns(forkId)).turns.find(turn => turn.id === crossTurn.id).sources[0].snapshot === crossTurn.sources[0].snapshot);
-  check("shared card layout survives reload with its scoped identity", await draggedCard.evaluate((element, point) => parseFloat(element.style.left) === point.x && parseFloat(element.style.top) === point.y, movedPosition));
+  check("shared card layout survives reload with its scoped identity", await draggedCard.evaluate((element, point) => Math.abs(parseFloat(element.style.left) - point.x) < .01 && Math.abs(parseFloat(element.style.top) - point.y) < .01, movedPosition));
   await page.getByRole("button", { name: "全景", exact: true }).click();
   await page.screenshot({ path: join(evidence, "05-shared-board.png") });
   await page.route(`**/api/waygoal/session/${id}/turns`, route => route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "source temporarily unavailable" }) }));
@@ -468,7 +472,7 @@ try {
   await preview.getByRole("button", { name: "从这里分叉", exact: true }).first().click();
   await waitFor(async () => await composer.inputValue() === "共同问题", "preview fork restores original user message");
   const emptyFork = await waitFor(async () => (await snapshot()).nodes.find(node => ![id, otherSessionId, forkId, longId].includes(node.id)), "fork before first answer");
-  check("a preview user-message fork retains source identity and original draft even before the first answer", emptyFork.origin.sessionId === id && emptyFork.origin.entryId === firstTurn.id);
+  check("a preview user-message fork retains source identity and original draft even before the first answer", emptyFork.origin.sessionId === id && emptyFork.origin.selectedEntryId === firstTurn.id && emptyFork.origin.mode === "before" && emptyFork.origin.entryId === sessionEntries(id).find(entry => entry.id === firstTurn.id).parentId && !sessionEntries(emptyFork.id).some(entry => entry.type === "message"));
   await send("修改后从头探索");
   check("the fork before the first answer is a valid independent Pi session", sessionEntries(emptyFork.id).some(entry => entry.type === "message" && entry.message.role === "assistant"));
   check("no browser errors", errors.length === 0, errors.join("\n"));

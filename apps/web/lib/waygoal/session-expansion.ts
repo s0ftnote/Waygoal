@@ -1,5 +1,5 @@
 import { NODE_WIDTH, NODE_HEIGHT, type WaygoalPoint } from "./types";
-import { TURN_WIDTH, TURN_HEIGHT, type BoardCard, type BoardSession, type projectTurnBoard } from "./turn-board";
+import { TURN_WIDTH, TURN_HEIGHT, TURN_GAP, type BoardCard, type BoardSession, type projectTurnBoard } from "./turn-board";
 
 export const SESSION_HEADER = 80;
 export interface SessionSize { width: number; height: number }
@@ -13,7 +13,8 @@ export function expandedTurns(graph: ReturnType<typeof projectTurnBoard>, sessio
   for (const card of graph.cards) {
     const source = bySession.get(card.sessionId)?.origin?.sessionId;
     const peer = source && !bySession.has(source) ? card.members.find(member => open.has(member.sessionId) && bySession.get(member.sessionId)?.origin?.sessionId === source)?.sessionId : undefined;
-    const owner = open.has(card.sessionId) ? card.sessionId : peer;
+    const identityOwner = JSON.parse(card.key)[0] as string;
+    const owner = identityOwner !== card.sessionId && bySession.has(identityOwner) ? (open.has(identityOwner) ? identityOwner : undefined) : open.has(card.sessionId) ? card.sessionId : peer;
     if (!owner) continue;
     owners.set(card.key, owner);
     groups.set(owner, [...(groups.get(owner) ?? []), card]);
@@ -43,17 +44,47 @@ export function expandedTurns(graph: ReturnType<typeof projectTurnBoard>, sessio
 
 /** Opening a session reserves space beside its neighbours. These temporary
  * display offsets never overwrite the user's saved collapsed arrangement. */
-export function placeExpandedSessions<T extends { id: string; position: WaygoalPoint }>(sessions: T[], sizes: Record<string, SessionSize>, obstacles: ({ x: number; y: number } & SessionSize)[] = []): T[] {
+export function placeExpandedSessions<T extends { id: string; position: WaygoalPoint; origin?: { sessionId: string } | null }>(sessions: T[], sizes: Record<string, SessionSize>, obstacles: ({ x: number; y: number } & SessionSize)[] = []): T[] {
   if (!Object.keys(sizes).length) return sessions;
-  const placed = [...obstacles];
-  const positions = new Map<string, WaygoalPoint>();
-  const ordered = [...sessions].sort((a, b) => a.position.x - b.position.x || a.position.y - b.position.y || a.id.localeCompare(b.id));
-  for (const session of ordered) {
-    const size = sizes[session.id] ?? { width: NODE_WIDTH, height: NODE_HEIGHT };
-    const box = { ...session.position, ...size };
+  const byId = new Map(sessions.map(session => [session.id, session]));
+  const familyOf = (id: string) => {
+    const seen = new Set<string>();
+    while (!seen.has(id)) {
+      seen.add(id);
+      const parent = byId.get(id)?.origin?.sessionId;
+      if (!parent) return id;
+      id = parent;
+    }
+    return [...seen].sort()[0];
+  };
+  const families = new Map<string, T[]>();
+  for (const session of sessions) {
+    const root = familyOf(session.id);
+    families.set(root, [...(families.get(root) ?? []), session]);
+  }
+  const boxes = [...families].map(([id, members]) => {
+    const x = Math.min(...members.map(member => member.position.x));
+    const y = Math.min(...members.map(member => member.position.y));
+    const right = Math.max(...members.map(member => member.position.x + (sizes[member.id]?.width ?? NODE_WIDTH)));
+    const bottom = Math.max(...members.map(member => member.position.y + (sizes[member.id]?.height ?? NODE_HEIGHT)));
+    return { id, members, x, y, width: right - x, height: bottom - y };
+  }).sort((a, b) => a.x - b.x || a.y - b.y || a.id.localeCompare(b.id));
+  const placed = [...obstacles], offsets = new Map<string, number>();
+  for (const family of boxes) {
+    const box = { x: family.x, y: family.y, width: family.width, height: family.height };
     let hit;
     while ((hit = placed.find(other => box.x < other.x + other.width + 40 && box.x + box.width + 40 > other.x && box.y < other.y + other.height + 40 && box.y + box.height + 40 > other.y))) box.x = hit.x + hit.width + 56;
-    positions.set(session.id, { x: box.x, y: box.y }); placed.push(box);
+    for (const member of family.members) offsets.set(member.id, box.x - family.x);
+    placed.push(box);
   }
-  return sessions.map(session => ({ ...session, position: positions.get(session.id)! }));
+  return sessions.map(session => ({ ...session, position: { x: session.position.x + offsets.get(session.id)!, y: session.position.y } }));
+}
+
+/** Reserve one free branch column at creation. Existing nodes never move. */
+export function placeNewFork(source: WaygoalPoint, occupied: { position: WaygoalPoint; width: number; height: number }[]): WaygoalPoint {
+  const point = { x: source.x + TURN_WIDTH + TURN_GAP, y: source.y + TURN_HEIGHT + TURN_GAP - SESSION_HEADER };
+  // Reserve the column below the boundary for continuous growth, including
+  // already expanded internal Pi branches in the parent's conversation.
+  while (occupied.some(box => box.position.y + box.height > point.y && box.position.x < point.x + TURN_WIDTH + 20 && box.position.x + box.width + 20 > point.x)) point.x += TURN_WIDTH + TURN_GAP;
+  return { x: Math.round(point.x), y: Math.round(point.y) };
 }

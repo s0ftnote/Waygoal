@@ -23,7 +23,7 @@ test("sessions start folded, and independent expansions retain the verified shar
 });
 
 test("expansion clears neighbours without overwriting their saved collapsed positions", () => {
-  const sessions = [root, { ...child, position: { x: 0, y: 220 } }];
+  const sessions = [root, { ...child, origin: null, position: { x: 0, y: 220 } }];
   const before = JSON.stringify(sessions);
   const open = placeExpandedSessions(sessions, { root: { width: 600, height: 700 } });
   assert.equal(open[0].position.x, 0);
@@ -64,4 +64,20 @@ test("either sibling can display the shared prefix when its common source is abs
   assert.equal(onlyB.cards.length,1);
   assert.equal(onlyB.owners.get(onlyB.cards[0].key),'b');
   assert.equal(onlyB.cards[0].position.y,b.position.y+80);
+});
+
+test("connected branches keep their relative offsets instead of being pushed apart", () => {
+  const sessions = [root, { ...child, position: { x: 330, y: 200 } }];
+  const sizes = { root: { width: 900, height: 20000 }, child: { width: 278, height: 1000 } };
+  const first = placeExpandedSessions(sessions, sizes);
+  for (let i = 0; i < 20; i++) assert.deepEqual(placeExpandedSessions(sessions.map(s => ({ ...s, title: `rename ${i}` })), sizes).map(s => s.position), first.map(s => s.position));
+  assert.deepEqual(first.map(s => s.position), sessions.map(s => s.position));
+});
+
+test("a new fork reserves a free column alongside existing internal branches", async () => {
+  const { placeNewFork } = await jiti.import("./session-expansion.ts");
+  const source = { x: 0, y: 80 };
+  const occupied = [{ position: { x: 324, y: 276 }, width: 278, height: 150 }];
+  assert.deepEqual(placeNewFork(source, occupied), { x: 648, y: 196 });
+  assert.deepEqual(occupied[0].position, { x: 324, y: 276 });
 });

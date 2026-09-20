@@ -100,7 +100,7 @@ npm run dev
 ```sh
 npm run check     # lint、类型检查、单元测试
 npm run build     # 生产构建
-npm run test:e2e  # 串行运行 12 组浏览器回归
+npm run test:e2e  # 串行运行 15 组浏览器回归
 ```
 
 构建和浏览器套件应在没有运行开发服务的 checkout 中执行，避免共用 `.next`。命令、目录职责及测试证据位置见[开发指南](docs/development.md)。

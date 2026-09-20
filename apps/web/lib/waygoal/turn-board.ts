@@ -1,3 +1,4 @@
+import { turnLookup } from "./entry-index";
 import type { WaygoalNodeOrigin, WaygoalPoint, WaygoalTurnLayout } from "./types";
 import type { WaygoalTurn, WaygoalTurns } from "./turns";
 import type { MaterialSource } from "./materials";
@@ -17,6 +18,7 @@ export interface BoardEdge {
   fromSession: string;
   toSession: string;
   pair?: [string, string];
+  status?: "resolved" | "source-start" | "outside-canvas" | "loading" | "missing" | "origin-unrecorded" | "conflict";
 }
 
 /** A read-only visual projection. A copied prefix is shared only along an
@@ -44,11 +46,17 @@ export function projectTurnBoard(sessions: BoardSession[], data: Record<string, 
   const aliases = new Map<string, string>(), cards: BoardCard[] = [], byKey = new Map<string, BoardCard>();
   const anchors: Record<string, WaygoalPoint> = {};
   const newStarts = new Set<string>();
-  const findTurn = (sessionId: string, entryId: string | null) => data[sessionId]?.turns.find(turn => turn.id === entryId || turn.endId === entryId || (entryId !== null && turn.entryIds.includes(entryId)));
+  const indexes = new Map(Object.entries(data).map(([id, history]) => [id, turnLookup(history)]));
+  const findTurn = (sessionId: string, entryId: string | null) => entryId ? indexes.get(sessionId)?.get(entryId) : undefined;
+  const ancestorCache = new Map<string, Set<string>>();
   const ancestors = (sessionId: string, entryId: string | null) => {
+    const cacheKey = JSON.stringify([sessionId, entryId]);
+    const cached = ancestorCache.get(cacheKey);
+    if (cached) return cached;
     const turns = new Map((data[sessionId]?.turns ?? []).map(turn => [turn.id, turn]));
     const ids = new Set<string>();
     for (let turn = findTurn(sessionId, entryId); turn && !ids.has(turn.id); turn = turn.parentId ? turns.get(turn.parentId) : undefined) ids.add(turn.id);
+    ancestorCache.set(cacheKey, ids);
     return ids;
   };
   const keyFor = (sessionId: string, turnId: string) => aliases.get(turnKey(sessionId, turnId)) ?? turnKey(sessionId, turnId);
@@ -67,7 +75,7 @@ export function projectTurnBoard(sessions: BoardSession[], data: Record<string, 
     // A recorded common source also proves sibling lineage when that source
     // is absent. Both fork boundaries constrain sharing; matching text alone
     // never connects unrelated sessions or merges post-fork discussion.
-    const sources = origin ? (bySession.has(origin.sessionId) ? [{ id: origin.sessionId, allowed: ancestors(origin.sessionId, origin.entryId) }]
+    const sources = origin ? (data[origin.sessionId] ? [{ id: origin.sessionId, allowed: ancestors(origin.sessionId, origin.entryId) }]
       : ordered.slice(0, ordered.indexOf(session)).filter(peer => peer.origin?.sessionId === origin.sessionId && peer.origin.entryId && origin.entryId)
         .map(peer => ({ id: peer.id, allowed: new Set([...ancestors(peer.id, peer.origin!.entryId)].filter(id => inherited.has(id))) })))
       .map(source => ({ ...source, turns: new Map((data[source.id]?.turns ?? []).map(turn => [turn.id, turn])) })) : [];
@@ -77,7 +85,20 @@ export function projectTurnBoard(sessions: BoardSession[], data: Record<string, 
     anchors[session.id] = vacant(base);
     let first = true;
     for (const turn of data[session.id]?.turns ?? []) {
-      const key = turnKey(session.id, turn.id);
+      const memberKey = turnKey(session.id, turn.id);
+      let ownerId = session.id;
+      const walked = new Set<string>();
+      while (!walked.has(ownerId)) {
+        walked.add(ownerId);
+        const parent = bySession.get(ownerId)?.origin;
+        if (!parent?.verified || !ancestors(ownerId, parent.entryId).has(turn.id)) break;
+        const parentTurn = findTurn(parent.sessionId, turn.id);
+        if (parentTurn && parentTurn.fingerprint !== turn.fingerprint) break;
+        ownerId = parent.sessionId;
+      }
+      let key = turnKey(ownerId, turn.id);
+      // Conflicting copied payloads must never share a visual identity.
+      if (byKey.has(key) && byKey.get(key)!.turn.fingerprint !== turn.fingerprint) key = memberKey;
       const member: TurnMember = { sessionId: session.id, turn };
       const shared = sources.flatMap(source => {
         const original = source.turns.get(turn.id);
@@ -86,18 +107,18 @@ export function projectTurnBoard(sessions: BoardSession[], data: Record<string, 
           ? byKey.get(keyFor(source.id, turn.id)) : undefined;
         return card ? [card] : [];
       })[0];
-      if (shared) { aliases.set(key, shared.key); shared.members.push(member); continue; }
+      if (shared) { aliases.set(memberKey, shared.key); shared.members.push(member); continue; }
       const parent = turn.parentId ? byKey.get(keyFor(session.id, turn.parentId)) : undefined;
       const old = legacy[session.id]?.positions[turn.id];
       const proposed = old ? { x: base.x + old.x, y: old.y } : first ? (parent && parent.sessionId !== session.id ? { x: parent.position.x + TURN_WIDTH + TURN_GAP, y: parent.position.y + TURN_HEIGHT + TURN_GAP } : anchors[session.id])
         : parent ? { x: parent.position.x, y: parent.position.y + TURN_HEIGHT + TURN_GAP } : anchors[session.id];
-      const position = layout.positions[key] ?? previous[key] ?? vacant(proposed);
+      const position = layout.positions[key] ?? previous[key] ?? layout.positions[memberKey] ?? previous[memberKey] ?? vacant(proposed);
       // A formerly shared prefix can become this session's own visible start
       // when its source leaves the canvas. Its old origin then belongs to a
       // different set of cards and must not offset the newly revealed history.
-      if (first && !layout.positions[key] && !previous[key]) newStarts.add(session.id);
+      if (first && !layout.positions[key] && !previous[key] && !layout.positions[memberKey] && !previous[memberKey]) newStarts.add(session.id);
       const card: BoardCard = { key, ...member, members: [member], position };
-      aliases.set(key, key); byKey.set(key, card); cards.push(card);
+      aliases.set(memberKey, key); byKey.set(key, card); cards.push(card);
       if (first) anchors[session.id] = position;
       first = false;
     }
@@ -108,16 +129,19 @@ export function projectTurnBoard(sessions: BoardSession[], data: Record<string, 
     const turns = data[session.id]?.turns ?? [];
     const origin = session.origin;
     const outside = origin && !bySession.has(origin.sessionId);
-    const inherited = origin?.entryId && outside ? ancestors(session.id, origin.entryId) : new Set<string>();
+    const inherited = origin?.entryId ? ancestors(session.id, origin.entryId) : new Set<string>();
     const firstOwn = turns.find(turn => keyFor(session.id, turn.id) === turnKey(session.id, turn.id) && !inherited.has(turn.id));
-    const source = origin?.entryId ? findTurn(outside ? session.id : origin.sessionId, origin.entryId) : undefined;
+    const sourceSessionId = outside || origin && !data[origin.sessionId] ? session.id : origin?.sessionId;
+    const source = origin?.entryId && sourceSessionId ? findTurn(sourceSessionId, origin.entryId) : undefined;
     if (origin && source) {
-      const from = keyFor(outside ? session.id : origin.sessionId, source.id);
+      const from = keyFor(sourceSessionId!, source.id);
       const to = firstOwn ? keyFor(session.id, firstOwn.id) : `session:${session.id}`;
       // A newly created session has no new turn yet: its existing session
       // header is the endpoint. Do not invent a message just to draw a fork.
       if (firstOwn || byKey.get(from)?.sessionId !== session.id) add({ key: `fork:${session.id}`, kind: "fork", from, to, fromSession: origin.sessionId, toSession: session.id });
     }
+    if (origin && !edges.some(edge => edge.key === `fork:${session.id}`)) add({ key: `fork:${session.id}`, kind: "fork", from: `session:${origin.sessionId}`, to: firstOwn ? keyFor(session.id, firstOwn.id) : `session:${session.id}`, fromSession: origin.sessionId, toSession: session.id,
+      status: origin.status === "conflict" ? "conflict" : origin.mode === "before" && origin.entryId === null ? "source-start" : !origin.entryId ? "origin-unrecorded" : outside ? "outside-canvas" : !data[origin.sessionId] ? "loading" : "missing" });
     for (const turn of turns) {
       const to = keyFor(session.id, turn.id);
       if (turn.parentId && !(firstOwn === turn && source)) {
@@ -125,7 +149,7 @@ export function projectTurnBoard(sessions: BoardSession[], data: Record<string, 
         add({ key: `history:${from}:${to}`, kind: "history", from, to, fromSession: session.id, toSession: session.id });
       }
       // An inherited turn retains the original visual's reference edges.
-      if (to !== turnKey(session.id, turn.id)) continue;
+      if (byKey.get(to)?.sessionId !== session.id) continue;
       turn.sources.forEach((source, index) => add({ key: `reference:${to}:${index}`, kind: "reference", from: keyFor(source.sessionId, source.turnId), to, source, fromSession: source.sessionId, toSession: session.id }));
     }
   }

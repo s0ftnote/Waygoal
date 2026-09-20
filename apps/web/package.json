@@ -56,7 +56,8 @@
     "test:waygoal-groups": "node e2e/waygoal-groups.mjs",
     "test:waygoal-remote": "node e2e/waygoal-remote.mjs",
     "test": "node --experimental-strip-types --test \"app/**/*.test.mjs\" \"components/**/*.test.mjs\" \"hooks/**/*.test.mjs\" \"lib/**/*.test.mjs\" \"public/**/*.test.mjs\"",
-    "release": "npm version patch --no-git-tag-version && npm run build && npm publish --access public"
+    "release": "npm version patch --no-git-tag-version && npm run build && npm publish --access public",
+    "test:waygoal-rename-lineage": "node e2e/waygoal-rename-lineage.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "0.85.1",

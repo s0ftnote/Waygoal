@@ -1,17 +1,15 @@
-import { SessionManager, buildContextEntries } from "@earendil-works/pi-coding-agent";
-import { getRpcSession } from "../rpc-manager";
-import { resolveSessionPath } from "../session-reader";
+import { forkBoundaries } from "./lineage";
+import { accessSession } from "../session-access";
+import { buildContextEntries } from "@earendil-works/pi-coding-agent";
 import { splitFinalAssistantBlocks } from "../message-display";
 import type { SessionEntry } from "../types";
 import { MATERIAL_SCOPES, type MaterialScope, type MaterialSnapshot } from "./materials";
 import { messageText, projectTurns } from "./turns";
 
 async function managerFor(id: string) {
-  const rpc = getRpcSession(id);
-  if (rpc?.isAlive()) return rpc.inner.sessionManager;
-  const file = await resolveSessionPath(id);
-  if (!file) throw new Error("来源会话已找不到，请重新选择材料。");
-  return SessionManager.open(file);
+  const manager = await accessSession(id, manager => manager);
+  if (!manager) throw new Error("来源会话已找不到，请重新选择材料。");
+  return manager;
 }
 
 /** Resolve scope against real entries once. The returned immutable text is
@@ -21,7 +19,7 @@ export async function captureMaterial(sourceId: string, turnId: string, targetId
   const source = await managerFor(sourceId);
   const target = sourceId === targetId ? source : await managerFor(targetId);
   const entries = source.getEntries() as SessionEntry[];
-  const turn = projectTurns(sourceId, entries, source.getLeafId()).turns.find(turn => turn.id === turnId);
+  const turn = projectTurns(sourceId, entries, source.getLeafId(), forkBoundaries(sourceId)).turns.find(turn => turn.id === turnId);
   if (!turn) throw new Error("来源轮次已找不到，请重新选择材料。");
   const byId = new Map(entries.map(entry => [entry.id, entry]));
   let ids = scope === "path" ? source.getBranch(turn.endId).map(entry => entry.id) : turn.entryIds;
