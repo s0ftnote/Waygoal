@@ -1,6 +1,7 @@
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { samePath } from "../paths";
 import type { SessionInfo } from "../types";
 import { writePrivateFileAtomicSync } from "../atomic-file";
 import { waygoalRoot } from "./dirs";
@@ -63,7 +64,8 @@ export function migrateLegacyOrigins(sessions: Pick<SessionInfo, "id" | "path">[
         const signature = (entries: typeof expected) => JSON.stringify(entries.map(entry => ({ ...entry, parentId: null })));
         const header = child.getHeader();
         const declaredParent = header?.parentSession;
-        const parentMatches = !declaredParent || declaredParent === sourcePath;
+        const parentMatches = !declaredParent || samePath(declaredParent, sourcePath)
+          || (existsSync(declaredParent) && samePath(realpathSync(declaredParent), realpathSync(sourcePath)));
         if (parentMatches && (boundary === null || expected.length > 0) && signature(expected) === signature(copied)) {
           item.status = "verified";
           item.origin = { version: 1, childSessionId: id, parentSessionId: candidate.origin.sessionId,

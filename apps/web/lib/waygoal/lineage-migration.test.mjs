@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync } from 'node:fs';
+import { mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync,symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { SessionManager } from '@earendil-works/pi-coding-agent';
@@ -24,7 +24,8 @@ test('legacy migration verifies history, backs up once, is idempotent and never 
     const canvasFile=join(canvasDir,'canvas.json');
     const canvas=JSON.stringify({origins:{[childId]:{sessionId:'source',entryId:'name',recordedAt:timestamp}},nodes:{[childId]:{x:712,y:829}}});
     writeFileSync(canvasFile,canvas);
-    const sessions=[{id:'source',path:sourceFile},{id:childId,path:childFile}];
+    const sourceAlias=join(sessionsDir,'source-alias.jsonl');symlinkSync(sourceFile,sourceAlias);
+    const sessions=[{id:'source',path:sourceAlias},{id:childId,path:childFile}];
     assert.equal(migrateLegacyOrigins(sessions,false,dir)[0].status,'verified');
     assert.equal(readOrigin(childId,dir),null);
     assert.equal(migrateLegacyOrigins(sessions,true,dir)[0].status,'verified');
