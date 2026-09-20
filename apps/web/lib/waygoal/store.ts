@@ -1,4 +1,4 @@
-import { legacyOrigins } from "./lineage-migration";
+import { legacyOrigins, type MigrationItem } from "./lineage-migration";
 import { readOrigin } from "./lineage";
 import { randomBytes } from "node:crypto";
 import { mkdirSync, realpathSync, statSync } from "node:fs";
@@ -383,17 +383,19 @@ export function canvasSessions(scope: WaygoalScope, sessions: SessionInfo[]): Se
  *  knows the source session but never the message. Missing stays missing —
  *  a similar title is not evidence of the same history. */
 
-function nodeOrigin(session: SessionInfo, record: WaygoalCanvasRecord, titles: Map<string, string>, agentDir?: string, legacy: ReturnType<typeof legacyOrigins> = new Map()): WaygoalNodeOrigin | null {
+function nodeOrigin(session: SessionInfo, record: WaygoalCanvasRecord, titles: Map<string, string>, agentDir?: string, legacy: ReturnType<typeof legacyOrigins> = new Map(), verification: ReadonlyMap<string, MigrationItem["status"]> = new Map()): WaygoalNodeOrigin | null {
   const lineage = readOrigin(session.id, agentDir);
   const old = legacy.get(session.id);
-  const recorded = old?.conflict ? undefined : old?.origin ?? record.origins[session.id];
+  const conflict = old?.conflict || verification.get(session.id) === "conflict";
+  const unverified = conflict || verification.get(session.id) === "missing";
+  const recorded = unverified ? undefined : old?.origin ?? record.origins[session.id];
   const headerOrigin = session.relation?.kind === "fork" ? session.relation.originSessionId ?? session.parentSessionId : undefined;
   const sessionId = lineage?.parentSessionId ?? recorded?.sessionId ?? headerOrigin ?? old?.origin.sessionId;
   if (!sessionId || sessionId === session.id) return null;
   return {
     sessionId,
     entryId: lineage ? lineage.inheritedThroughEntryId : recorded?.entryId ?? null,
-    ...(!lineage && old?.conflict ? { status: "conflict" as const } : {}),
+    ...(!lineage && unverified ? { status: conflict ? "conflict" as const : "origin-unrecorded" as const } : {}),
     ...(lineage ? { mode: lineage.mode, selectedEntryId: lineage.selectedEntryId, verified: true } : {}),
     inWorkspace: titles.has(sessionId),
     title: titles.get(sessionId) ?? null,
@@ -405,11 +407,13 @@ export function buildSnapshot(
   sessions: SessionInfo[],
   runningIds: Iterable<string>,
   trees: ReadonlyMap<string, WaygoalTreeInfo> = new Map(),
+  migration: MigrationItem[] = [],
 ): WaygoalSnapshot {
   const { cwd } = scope;
   const running = new Set(runningIds);
   const record = readCanvasRecord(scope);
   const legacy = legacyOrigins(scope.agentDir);
+  const verification = new Map(migration.map(item => [item.childSessionId, item.status]));
   const owned = canvasSessions(scope, sessions).sort((a, b) => a.created.localeCompare(b.created));
   const titles = new Map(owned.map(session => [session.id, sessionTitle(session).title]));
   let changed = false;
@@ -422,11 +426,11 @@ export function buildSnapshot(
     let current: SessionInfo | undefined = session;
     while (current && !record.nodes[current.id] && !seen.has(current.id)) {
       chain.push(current); seen.add(current.id);
-      const origin = nodeOrigin(current, record, titles, scope.agentDir, legacy);
+      const origin = nodeOrigin(current, record, titles, scope.agentDir, legacy, verification);
       current = origin?.inWorkspace ? byId.get(origin.sessionId) : undefined;
     }
     for (const item of chain.reverse()) {
-      const origin = nodeOrigin(item, record, titles, scope.agentDir, legacy);
+      const origin = nodeOrigin(item, record, titles, scope.agentDir, legacy, verification);
       const source = origin?.inWorkspace ? record.nodes[origin.sessionId] : undefined;
       if (placeOnCanvas(record, item.id, NODE_HEIGHT, source)) changed = true;
     }
@@ -441,7 +445,7 @@ export function buildSnapshot(
       running: running.has(session.id),
       transient: Boolean(session.transient),
       position: record.nodes[session.id],
-      origin: nodeOrigin(session, record, titles, scope.agentDir, legacy),
+      origin: nodeOrigin(session, record, titles, scope.agentDir, legacy, verification),
       branchPointCount: trees.get(session.id)?.branchPointCount ?? 0,
       activeLeafId: trees.get(session.id)?.activeLeafId ?? null,
     };

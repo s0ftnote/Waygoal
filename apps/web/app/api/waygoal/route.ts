@@ -32,11 +32,11 @@ export async function GET(req: Request) {
       attachSessionProjectInfo(getRpcSessionInfos()),
     ]);
     const sessions = mergeSessionLists(persisted, runtime);
-    migrateLegacyOrigins(sessions, true);
+    const migration = migrateLegacyOrigins(sessions, true);
     // Branch points and the active leaf come from each real session file; the
     // canvas record never stores them.
     const trees = await readTreeInfos(canvasSessions(scope, sessions).map(session => session.id));
-    const snapshot = buildSnapshot(scope, sessions, getRunningRpcSessionIds(), trees);
+    const snapshot = buildSnapshot(scope, sessions, getRunningRpcSessionIds(), trees, migration);
     // Tickets come straight from the workspace's files on every read, so a file
     // created or edited outside Waygoal shows up on the next refresh.
     const workspace = readWorkspaceRecord(cwd);

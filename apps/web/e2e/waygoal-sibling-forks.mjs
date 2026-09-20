@@ -2,6 +2,8 @@ import { evidenceDirectory } from "./waygoal-artifacts.mjs";
 // Continuous-chat acceptance against an isolated, real Pi SDK host and a
 // controlled model. Source identities and ancestry are checked in Pi files.
 import assert from "node:assert/strict";
+import { createJiti } from "jiti";
+const { writeOrigin } = await createJiti(import.meta.url).import("../lib/waygoal/lineage.ts");
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -104,7 +106,9 @@ function sessionEntries(id) {
 try {
   server = await startServer();
   const patch = async value => { const response = await fetch(`${base}/api/waygoal`, {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({cwd:workspace,canvas:'main',...value})}); assert.ok(response.ok); };
-  for (const id of [fixtureId,siblingId]) await patch({origin:{sessionId:id,originSessionId:'absent-source',originEntryId:records.at(-1).id}});
+  // Known durable provenance remains valid when the parent is no longer available.
+  // Unverifiable legacy pointers are covered separately by the migration suite.
+  for (const id of [fixtureId,siblingId]) writeOrigin({version:1,childSessionId:id,parentSessionId:'absent-source',selectedEntryId:records.at(-1).id,mode:'after',inheritedThroughEntryId:records.at(-1).id,operationId:`fixture:${id}`,createdAt:timestamp},agentDir);
   await patch({expandedSessions:[fixtureId,siblingId],positions:{[fixtureId]:{x:0,y:0},[siblingId]:{x:350,y:260}},view:{x:50,y:90,scale:1}});
   browser = await chromium.launch().catch(() => chromium.launch({channel:'chrome'}));
   const page = await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(20000);

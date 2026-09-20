@@ -46,3 +46,38 @@ test('cyclic legacy origins are reported without partially committing a lineage'
     assert.equal(readOrigin('a',dir),null);assert.equal(readOrigin('b',dir),null);
   }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+
+test('failed legacy verification cannot publish a precise fork or merge copied cards',async()=>{
+  const {applyCanvasPatch,buildSnapshot}=await jiti.import('./store.ts');
+  const {projectTurns}=await jiti.import('./turns.ts');
+  const {projectTurnBoard}=await jiti.import('./turn-board.ts');
+  const dir=mkdtempSync(join(tmpdir(),'waygoal-invalid-origin-'));
+  try {
+    const timestamp=new Date().toISOString();
+    const scope={cwd:dir,canvasId:'main',agentDir:dir};
+    const entries=[{type:'message',id:'q',parentId:null,timestamp,message:{role:'user',content:'question'}},
+      {type:'message',id:'a',parentId:'q',timestamp,message:{role:'assistant',content:[{type:'text',text:'answer'}]}}];
+    const sessions=['parent','child'].map(id=>{
+      const path=join(dir,`${id}.jsonl`);
+      writeFileSync(path,[{type:'session',version:3,id,cwd:dir,timestamp,...(id==='child'?{parentSession:join(dir,'other-parent.jsonl')}:{})},...entries].map(e=>JSON.stringify(e)).join('\n')+'\n');
+      return {id,path,cwd:dir,created:timestamp,modified:timestamp,messageCount:2,firstMessage:id};
+    });
+    applyCanvasPatch(scope,{origin:{sessionId:'child',originSessionId:'parent',originEntryId:'a'}});
+    const migration=migrateLegacyOrigins(sessions,true,dir);
+    assert.equal(migration[0].status,'conflict');
+    const snapshot=buildSnapshot(scope,sessions,[],new Map(),migration);
+    const origin=snapshot.nodes.find(n=>n.id==='child').origin;
+    assert.equal(origin.entryId,null);assert.equal(origin.status,'conflict');
+    const data=Object.fromEntries(sessions.map(s=>[s.id,projectTurns(s.id,entries,'a')]));
+    for(const history of Object.values(data)) for(const turn of history.turns) turn.fingerprint='identical-copy';
+    const board=projectTurnBoard(snapshot.nodes,data,{positions:{},links:[]});
+    assert.equal(board.cards.length,2,'matching copied text cannot overrule a conflicting parent');
+    assert.equal(board.edges.find(e=>e.key==='fork:child').status,'conflict');
+    rmSync(sessions[0].path);
+    const missing=migrateLegacyOrigins(sessions,true,dir);
+    const unresolved=buildSnapshot(scope,sessions,[],new Map(),missing).nodes.find(n=>n.id==='child').origin;
+    assert.equal(unresolved.entryId,null);assert.equal(unresolved.status,'origin-unrecorded');
+    assert.equal(readOrigin('child',dir),null);
+  }finally{rmSync(dir,{recursive:true,force:true});}
+});
