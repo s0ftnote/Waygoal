@@ -1,4 +1,5 @@
 "use client";
+import { forkFamily } from "@/lib/waygoal/fork-family";
 import "./SelectionPopover.css";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -826,12 +827,7 @@ export function WaygoalCanvas() {
     const operationKey = `waygoal-fork:${key}`;
     const storedOperation = sessionStorage.getItem(operationKey);
     const sourceCard = turnGeometry.cards.find(card => card.members.some(member => member.sessionId === sessionId && (member.turn.endId === entryId || member.turn.entryIds.includes(entryId))));
-    const family = new Set([sessionId]);
-    let familySize = 0;
-    while (familySize !== family.size) {
-      familySize = family.size;
-      for (const node of snapshot?.nodes ?? []) if (node.origin && (family.has(node.id) || family.has(node.origin.sessionId))) { family.add(node.id); family.add(node.origin.sessionId); }
-    }
+    const family = forkFamily((snapshot?.nodes ?? []).flatMap(node => node.origin ? [[node.id, node.origin.sessionId] as const] : []), [sessionId]);
     const branchPosition = sourceCard ? placeNewFork(sourceCard.position, [
       ...turnGeometry.cards.filter(card => card.members.some(member => family.has(member.sessionId))).map(card => ({ position: card.position, width: TURN_WIDTH, height: TURN_HEIGHT })),
       ...nodes.filter(node => family.has(node.id)).map(node => ({ position: node.position, width: TURN_WIDTH, height: SESSION_HEADER })),

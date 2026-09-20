@@ -13,7 +13,7 @@ export function expandedTurns(graph: ReturnType<typeof projectTurnBoard>, sessio
   for (const card of graph.cards) {
     const source = bySession.get(card.sessionId)?.origin?.sessionId;
     const peer = source && !bySession.has(source) ? card.members.find(member => open.has(member.sessionId) && bySession.get(member.sessionId)?.origin?.sessionId === source)?.sessionId : undefined;
-    const identityOwner = JSON.parse(card.key)[0] as string;
+    const identityOwner = card.ownerSessionId;
     const owner = identityOwner !== card.sessionId && bySession.has(identityOwner) ? (open.has(identityOwner) ? identityOwner : undefined) : open.has(card.sessionId) ? card.sessionId : peer;
     if (!owner) continue;
     owners.set(card.key, owner);
