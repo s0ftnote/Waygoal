@@ -2,7 +2,7 @@
 
 ## 产品方向
 
-Waygoal 让用户与 Agent 探索并推进一片逐渐清楚的工作空间：跨越多个问题、分支和会话，仍能掌握大局、知道下一步能做什么，并沿用已有背景继续。产品通过 Pi extension 接入，提供本地无限画布 Web 界面，重心是非线性聊天的交互、视觉设计与动效。
+Waygoal 让用户与 Agent 探索并推进一片逐渐清楚的工作空间：跨越多个问题、分支和会话，仍能掌握大局、知道下一步能做什么，并沿用已有背景继续。产品通过 Pi SDK 运行会话，提供本地无限画布 Web 界面，重心是非线性聊天的交互、视觉设计与动效。
 
 右侧保持 pi-web 的连续对话，左侧随讨论生长为可分叉、引用和组合的轮次卡片；需要时可以收起讨论、关联票据，从具体消息回到整体工作。
 
@@ -22,7 +22,7 @@ Waygoal 让用户与 Agent 探索并推进一片逐渐清楚的工作空间：�
 
 ## 按任务读取
 
-- **目录职责、开发命令、测试与证据输出**：读[开发指南](docs/development.md)。Waygoal 界面和数据模块分别位于 `apps/web/components/waygoal` 与 `apps/web/lib/waygoal`，宿主能力继续复用 pi-web。
+- **目录职责、开发命令、测试与证据输出**：读[开发指南](docs/development.md)。源码按功能放在 `src/features/`，Pi 运行与持久化放在 `src/server/`。聊天、模型、认证、终端和会话生命周期改动另读 [运行能力开发说明](docs/runtime/development-notes.md)。
 - **术语、对象关系**：读 [CONTEXT.md](CONTEXT.md)。定义只在术语表维护；本文件保留产品方向和工作指引，决定及理由写入 ADR，交互细节和验收写入设计文档。
 - **画布交互、动效、提示、状态及体验验收**：读[画布导航与状态](docs/design/canvas-navigation-and-states.md)，区分已确认方向、未决方案和原型现状。
 - **主题色、字体、组件视觉与动效参数**：读 [DESIGN.md](DESIGN.md)，复用其中的语义色值；配色预览与起始参数不等于最终交互定稿。
@@ -42,3 +42,17 @@ Triage uses the five canonical Matt Pocock skill labels. See `docs/agents/triage
 ### Domain docs
 
 Domain documentation uses the single-context layout. See `docs/agents/domain.md`.
+
+## 单应用开发
+
+在仓库根目录执行安装、启动和检查命令；`@/` 指向 `src/`。单元测试跟随源码，浏览器检查在 `tests/e2e/`。已有开发服务时，构建和浏览器套件使用独立 checkout，避免争用 `.next`。
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

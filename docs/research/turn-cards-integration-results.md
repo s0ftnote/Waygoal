@@ -10,7 +10,7 @@ Tree 和消息编辑共用 Waygoal 的明确路径切换入口。切换成功后
 
 ## 真实来源与展示
 
-- `lib/waygoal/turns.ts` 投影未压缩的 Pi entries，身份使用 session ID 与原始 entry ID。编号只用于展示，不承担身份。用户消息开始轮次，工具过程归入同轮；压缩和分支摘要分别显示。回答中再次分叉时，新路径显示延续卡片，不拼接兄弟路径的回答。
+- `src/features/sessions/turns.ts` 投影未压缩的 Pi entries，身份使用 session ID 与原始 entry ID。编号只用于展示，不承担身份。用户消息开始轮次，工具过程归入同轮；压缩和分支摘要分别显示。回答中再次分叉时，新路径显示延续卡片，不拼接兄弟路径的回答。
 - 历史读取仍走宿主 context 接口，支持多页定位及压缩前原文。模型有效上下文另由 Pi 的 `buildContextEntries` 决定，两者不混用。
 - Pi `0.85.1` 在 `message_end` 通知之后同步追加记录。宿主保留原事件顺序，随后补发该消息对应的 entry ID，使运行中已经保存的用户消息也能定位。
 - 轮次位置、手动关联和独立预览位置保存在原有画布记录中。聊天仍使用 Pi 会话文件，不为卡片创建会话或票据。
@@ -26,7 +26,7 @@ Tree 和消息编辑共用 Waygoal 的明确路径切换入口。切换成功后
 ## 验证入口
 
 - `npm run check`：静态检查、类型及全部单元测试。
-- `npm --prefix apps/web run test:waygoal-branches`：连续聊天、双向定位、分支预览、Tree 草稿恢复、材料实际发送、真实分叉及窄屏检查。
+- `npm run test:waygoal-branches`：连续聊天、双向定位、分支预览、Tree 草稿恢复、材料实际发送、真实分叉及窄屏检查。
 - `npm run test:e2e`：全部 Waygoal 浏览器回归，包括原有票据、目录、多画布、分组与来源能力。
 - 本轮截图与检查结果位于 `apps/web/test-results/waygoal/turns/`；它们是隔离宿主与可控假模型的结果，不覆盖旧研究图片。
 

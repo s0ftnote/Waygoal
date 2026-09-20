@@ -64,10 +64,10 @@ Waygoal 已有选中卡片工具条、浮动连续聊天与语义缩放。应在
 
 - ThoughtDAG：[对话探索](https://github.com/chenxiachan/thoughtdag/blob/f05fc44/docs/guides/conversations.md)、[上下文控制](https://github.com/chenxiachan/thoughtdag/blob/f05fc44/docs/guides/context-control.md)、[整理与综合](https://github.com/chenxiachan/thoughtdag/blob/f05fc44/docs/guides/organize.md)、[导航与多选](https://github.com/chenxiachan/thoughtdag/blob/f05fc44/docs/guides/canvas-projects.md)、[阅读材料](https://github.com/chenxiachan/thoughtdag/blob/f05fc44/docs/guides/materials.md)、[版本与重放](https://github.com/chenxiachan/thoughtdag/blob/f05fc44/docs/guides/versions-replay.md)。
 - 关系聚焦与远景返回入口：[App.tsx](https://github.com/chenxiachan/thoughtdag/blob/f05fc44/src/App.tsx#L872-L895)、[ThoughtMapPill](https://github.com/chenxiachan/thoughtdag/blob/f05fc44/src/App.tsx#L2026-L2097)。完整外部源码核对见[本轮研究记录](thoughtdag-source-review.md)。
-- Waygoal 材料托盘：[MaterialTray.tsx](../../apps/web/components/waygoal/MaterialTray.tsx#L57-L73)、[materials.ts](../../apps/web/lib/waygoal/materials.ts#L24-L46)。目前待发送材料的路径缓存是组件内存 Map，不应描述为跨刷新持久化，见 [Canvas.tsx](../../apps/web/components/waygoal/Canvas.tsx#L172-L175)。
-- Waygoal 选文底座：[ChatWindow.tsx](../../apps/web/components/ChatWindow.tsx#L335-L378)；画布聊天接入尚未启用该能力，见 [Canvas.tsx](../../apps/web/components/waygoal/Canvas.tsx#L1316-L1333)。
-- Waygoal 查找：[Find.tsx](../../apps/web/components/waygoal/Find.tsx#L13-L29)；宿主已有 [session-search.ts](../../apps/web/lib/session-search.ts)，不应将“画布未接入”写成“整个仓库没有”。
-- Waygoal 所得：[TakeawayEditor.tsx](../../apps/web/components/waygoal/TakeawayEditor.tsx)、[takeaways.ts](../../apps/web/lib/waygoal/takeaways.ts)。
+- Waygoal 材料托盘：[MaterialTray.tsx](../../src/features/materials/MaterialTray.tsx#L57-L73)、[materials.ts](../../src/features/materials/materials.ts#L24-L46)。目前待发送材料的路径缓存是组件内存 Map，不应描述为跨刷新持久化，见 [Canvas.tsx](../../src/features/canvas/Canvas.tsx#L172-L175)。
+- Waygoal 选文底座：[ChatWindow.tsx](../../src/features/chat/ChatWindow.tsx#L335-L378)；画布聊天接入尚未启用该能力，见 [Canvas.tsx](../../src/features/canvas/Canvas.tsx#L1316-L1333)。
+- Waygoal 查找：[Find.tsx](../../src/features/canvas/Find.tsx#L13-L29)；宿主已有 [session-search.ts](../../src/features/sessions/session-search.ts)，不应将“画布未接入”写成“整个仓库没有”。
+- Waygoal 所得：[TakeawayEditor.tsx](../../src/features/materials/TakeawayEditor.tsx)、[takeaways.ts](../../src/features/materials/takeaways.ts)。
 - 历史研究：[2026-09-16 借鉴清单](thoughtdag-design-opportunities-20260916.md)。其中语义缩放／所得现已落地第一步，本轮建议按现状调整了优先级。
 
 本轮只增加研究记录，未修改产品代码、创建票据或运行真实 Pi 体验验收。

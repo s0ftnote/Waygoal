@@ -38,7 +38,7 @@ npm run setup
 npm run dev
 ```
 
-打开 [Waygoal](http://127.0.0.1:30142/waygoal)。当前版本复用 pi-web 宿主和 Pi extension；使用本机 Pi 的登录、模型、工具及已安装 skills。首次配置模型可参考[宿主说明](apps/web/README.zh-CN.md)。目前没有独立可安装的 Waygoal extension 包。
+打开 [Waygoal](http://127.0.0.1:30142/waygoal)。Waygoal 独立维护 Web 应用，通过 Pi SDK 在本机运行会话；使用本机 Pi 的登录、模型、工具及已安装 skills。模型、认证与 skills 设置可在 [完整聊天与设置界面](http://127.0.0.1:30142/chat) 中打开；旧的 `/?session=…` 会话链接仍可使用。
 
 1. 点击左上角「工作目录 / 画布」入口，选择工作目录并新建画布。
 2. 在空画布的输入框写下第一句。发送后，会话和第一张轮次卡片才出现。
@@ -103,7 +103,7 @@ npm run dev
 ```sh
 npm run check     # lint、类型检查、单元测试
 npm run build     # 生产构建
-npm run test:e2e  # 串行运行 15 组浏览器回归
+npm run test:e2e  # 串行运行 Waygoal 浏览器回归
 ```
 
 构建和浏览器套件应在没有运行开发服务的 checkout 中执行，避免共用 `.next`。命令、目录职责及测试证据位置见[开发指南](docs/development.md)。
@@ -114,4 +114,4 @@ npm run test:e2e  # 串行运行 15 组浏览器回归
 - [设计规范](DESIGN.md)：颜色、字体和组件视觉。
 - [AGENTS.md](AGENTS.md)：产品方向与开发工作指引。
 
-Waygoal 的界面位于 `apps/web/components/waygoal`，数据模块位于 `apps/web/lib/waygoal`。宿主复用 [pi-web](https://github.com/agegr/pi-web)；Pi SDK 的安装版本以 [apps/web/package.json](apps/web/package.json) 为准。
+源码按功能组织在 `src/features/`，Pi 运行与持久化位于 `src/server/`。项目基于 [pi-web](https://github.com/agegr/pi-web) 演进并独立维护；来源、许可证与兼容约定见 [第三方来源](THIRD_PARTY_NOTICES.md)。Pi SDK 版本以 [package.json](package.json) 为准。
