@@ -288,6 +288,6 @@ Chartr 仓库声明 MIT：[LICENSE](https://github.com/rengwu/chartr/blob/be8073
 | 2 | ThoughtDAG 搜索命中定位 | 记得一句话却记不得会话标题 | 作为独立候选设计，由用户输入原话查找并跳转原消息；保留来源与只读行为；不能把当前标题搜索说成已支持正文检索 |
 | 3 | Chartr 输入预览 + ThoughtDAG 显式材料选择 | 支线研究结束后知道带什么回主线 | 用户主动选一段原文，预览来源与目标，发送后继续原讨论；仅返回、拖线和整理都不交接上下文 |
 
-当前实现对照：[Paths.tsx](../../apps/web/components/waygoal/Paths.tsx) 已区分正在看与在聊的路径并提供来源返回；[Find.tsx](../../apps/web/components/waygoal/Find.tsx) 仅按标题查找；[Canvas.tsx](../../apps/web/components/waygoal/Canvas.tsx) 已恢复视野及消息位置，并在面板打开时让节点可见；[layout.ts](../../apps/web/lib/waygoal/layout.ts) 已支持新分叉靠近来源、旧节点不动和显式整理。
+当前实现对照：[Paths.tsx](../../src/features/sessions/Paths.tsx) 已区分正在看与在聊的路径并提供来源返回；[Find.tsx](../../src/features/canvas/Find.tsx) 仅按标题查找；[Canvas.tsx](../../src/features/canvas/Canvas.tsx) 已恢复视野及消息位置，并在面板打开时让节点可见；[layout.ts](../../src/features/canvas/layout.ts) 已支持新分叉靠近来源、旧节点不动和显式整理。
 
 产品边界依据：[CONTEXT](../../CONTEXT.md)、[画布导航与状态](../design/canvas-navigation-and-states.md)、[ADR 0004](../adr/0004-canvas-carrier-and-user-chosen-skills.md)。现有能力的体验质量尚需上述实际操作检验，本次仅做一手资料与源码比较，未安装或运行两项目，未改动产品代码。

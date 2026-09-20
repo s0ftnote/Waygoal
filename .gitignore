@@ -1,5 +1,5 @@
 # Local dependencies and generated output
-node_modules/
+node_modules
 .next/
 out/
 build/
@@ -12,3 +12,10 @@ test-results/
 # Credentials and machine-specific session bindings
 .env*
 *.pem
+
+# Framework and package-manager output
+next-env.d.ts
+.vercel/
+.pnp.*
+.yarn/
+.factory/
