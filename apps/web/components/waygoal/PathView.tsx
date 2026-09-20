@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { AgentMessage, SessionContext, ToolResultMessage, UserMessage } from "@/lib/types";
 import { MessageView } from "../MessageView";
 
@@ -17,10 +17,17 @@ interface Props {
   onFork: (entryId: string, message?: UserMessage) => void;
 }
 
-/** Read-only, paginated history inside the canvas; never mounts a composer. */
+/** Read-only, paginated history in the discussion panel; never mounts a composer. */
 export function WaygoalPathView({ sessionId, leafId, cwd, label, busyReason, forkingEntryId, onFork }: Props) {
   const [context, setContext] = useState<SessionContext | null>(null);
   const [error, setError] = useState("");
+  const historyBody = useRef<HTMLDivElement>(null);
+  const locateLoadedPath = useRef(false);
+  useLayoutEffect(() => {
+    if (!locateLoadedPath.current || !historyBody.current) return;
+    historyBody.current.scrollTop = historyBody.current.scrollHeight;
+    locateLoadedPath.current = false;
+  }, [context]);
   useEffect(() => {
     const controller = new AbortController();
     setContext(null); setError("");
@@ -29,6 +36,8 @@ export function WaygoalPathView({ sessionId, leafId, cwd, label, busyReason, for
       .then(async res => {
         const body = await res.json();
         if (!res.ok) throw new Error(body.error ?? `读取失败（${res.status}）`);
+        if (controller.signal.aborted) return;
+        locateLoadedPath.current = true;
         setContext(body.context as SessionContext);
       })
       .catch(e => { if (e.name !== "AbortError") setError(e instanceof Error ? e.message : String(e)); });
@@ -46,11 +55,11 @@ export function WaygoalPathView({ sessionId, leafId, cwd, label, busyReason, for
   return <div className="waygoal-readonly">
     <div className="waygoal-readonly-bar">
       <span className="waygoal-tag reading">正在看</span>
-      <span className="waygoal-readonly-label">{label}</span>
-      <span className="waygoal-readonly-hint">只读预览 · 当前聊天保持不变</span>
+      <span className="waygoal-readonly-label" title={label}>{label}</span>
+      <span className="waygoal-readonly-hint">仅查看历史 · 原聊天与草稿已保留</span>
     </div>
     {busyReason && <p className="waygoal-readonly-note">{busyReason}</p>}
-    <div className="waygoal-readonly-body">
+    <div className="waygoal-readonly-body" ref={historyBody}>
       {error && <p role="alert" className="waygoal-readonly-note error">{error}</p>}
       {!context && !error && <p className="waygoal-readonly-note">正在读取这条路径…</p>}
       {context?.hasMore && <button type="button" className="waygoal-button outlined small" onClick={async () => {

@@ -94,7 +94,7 @@ const CANCELLED = new Set(["cancelled", "canceled", "dropped", "wontfix", "out o
 
 /** Why one premise still holds. A premise Waygoal could not read this time
  *  holds too: a read that failed says nothing about whether it was met. */
-function holdingOf(premise: WaygoalTicketView): "waiting" | "cancelled" | "unreadable" | null {
+export function holdingOf(premise: WaygoalTicketView): "waiting" | "cancelled" | "unreadable" | null {
   if (premise.stale) return "unreadable";
   if (premise.status === "resolved") return null;
   return CANCELLED.has(premise.status) ? "cancelled" : "waiting";
@@ -103,7 +103,7 @@ function holdingOf(premise: WaygoalTicketView): "waiting" | "cancelled" | "unrea
 /** A ticket's own state. The source's conclusion about the ticket itself comes
  *  first: resolving or dropping it is not something the canvas overrules, and
  *  neither one is undone by a relation the file still names. */
-function ticketState(status: string, blocked: boolean): WaygoalTicketState {
+export function ticketState(status: string, blocked: boolean): WaygoalTicketState {
   if (status === "resolved") return "resolved";
   if (CANCELLED.has(status)) return "cancelled";
   return blocked ? "waiting" : "unblocked";

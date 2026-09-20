@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { allowFileRoot } from "@/lib/file-access";
+import { refreshRemoteRelations } from "@/lib/waygoal/remote-relations";
 import { retryRemoteCapture } from "@/lib/waygoal/remote-store";
 import { resolveWorkspaceCwd } from "@/lib/waygoal/store";
 import { scopeFor } from "@/lib/waygoal/workspaces";
@@ -7,7 +8,9 @@ import { scopeFor } from "@/lib/waygoal/workspaces";
 export const dynamic = "force-dynamic";
 
 // POST /api/waygoal/remote
-// body: { cwd, ticket }
+// body: { cwd, ticket, action?: "relations" }
+// Explicit relations refresh uses read-only GitHub API calls via gh. Ordinary
+// capture retry remains offline; canvas polling never calls this endpoint.
 // Reads again the raw result one delivery pointed at, for a ticket whose
 // reference could not be read when it was delivered. It talks to no platform
 // and needs no login of its own: the Agent already produced the result, and
@@ -15,11 +18,12 @@ export const dynamic = "force-dynamic";
 // to the source.
 export async function POST(req: Request) {
   try {
-    const { cwd: given, ticket } = await req.json() as { cwd?: unknown; ticket?: unknown };
+    const { cwd: given, ticket, action } = await req.json() as { cwd?: unknown; ticket?: unknown; action?: unknown };
     if (typeof given !== "string" || !given) throw new Error("cwd is required");
     if (typeof ticket !== "string" || !ticket) throw new Error("ticket is required");
     const cwd = resolveWorkspaceCwd(given);
     allowFileRoot(cwd);
+    if (action === "relations") return NextResponse.json({ ok: true, ...await refreshRemoteRelations(scopeFor(cwd, null), ticket) });
     return NextResponse.json({ ok: true, ...retryRemoteCapture(scopeFor(cwd, null), ticket) });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400 });

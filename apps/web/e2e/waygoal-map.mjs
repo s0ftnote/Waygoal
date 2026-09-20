@@ -207,10 +207,10 @@ try {
   const headings = await panel().locator("[data-section]").evaluateAll((els) => els.map((el) => el.getAttribute("data-section")));
   check("the map is shown by its own sections, in its own order",
     JSON.stringify(headings) === JSON.stringify(["Destination", "Decisions so far", "Not yet specified"]), JSON.stringify(headings));
-  const destination = await panel().locator('[data-section="Destination"] pre').innerText();
+  const destination = await panel().locator('[data-section="Destination"] .waygoal-ticket-prose').innerText();
   check("a section shows the file's own words, not a summary of them",
     destination.trim() === "定下一个能照着做的方案。", destination);
-  const lead = await panel().locator(".waygoal-map-sections > pre").first().innerText();
+  const lead = await panel().locator(".waygoal-ticket-overview > section .waygoal-ticket-prose").first().innerText();
   check("what the file says before its first heading is shown too, under no invented heading",
     lead.includes("只办一场，在客厅，不租场地。"), lead);
 
@@ -223,17 +223,19 @@ try {
     JSON.stringify(refKinds));
   check("a place that cannot be reached is marked and offers no way in, rather than being swapped for a lookalike",
     (await panel().locator('[data-reference="issues/09-food.md"] [data-reference-open]').count()) === 0
-    && (await panel().locator('[data-reference="issues/09-food.md"]').innerText()).includes("打不开"));
+    && (await panel().locator('[data-reference="issues/09-food.md"]').textContent()).includes("打不开"));
   check("an off-site address is listed as written and is not opened for you",
     (await panel().locator('[data-reference="https://example.invalid/notes"] [data-reference-open]').count()) === 0);
 
   let requests = model.requests.length;
   let tracker = trackerState();
+  await panel().getByText(/^相关资料/).click();
   await panel().locator('[data-reference-open="issues/01-room.md"]').click();
   await panel().getByText("场地定在哪", { exact: false }).first().waitFor();
   check("following the map's own link lands on that ticket",
     (await page.locator(`[data-node="${roomPath}"]`).getAttribute("aria-pressed")) === "true");
 
+  await panel().getByText(/^相关资料/).click();
   await panel().locator('[data-reference-open="../../../产物/方案.md"]').click();
   await page.getByRole("region", { name: "文件阅读区", exact: true }).waitFor();
   const shown = await waitFor(async () => {
@@ -243,7 +245,7 @@ try {
   check("a ticket's conclusion opens the artifact it points at, with the viewer the app already has",
     shown.includes("客厅，六个人，八点开始"), shown);
   await page.getByRole("button", { name: "收起文件", exact: true }).click();
-  await panel().locator(".waygoal-ticket-refs").waitFor();
+  await panel().locator(".waygoal-ticket-refs").waitFor({state:"attached"});
   check("and coming back lands on the ticket it was opened from, unchanged",
     (await panel().innerText()).includes("场地定在哪"));
   check("reading the map, its links and the artifact sent nothing and wrote nothing to the source",
@@ -264,6 +266,7 @@ try {
   check("from the ticket, the discussion actually held under it opens — the real session, not one that looks like it",
     (await page.locator(`[data-node="${talkId}"]`).getAttribute("aria-pressed")) === "true");
   await openCard(roomPath);
+  await panel().locator("[data-ticket-source] > summary").click();
   check("and the source is still one click away from the discussion",
     (await panel().innerText()).includes(roomPath));
   check("going between them left the active leaf where it was",
@@ -292,7 +295,7 @@ try {
 
   requests = model.requests.length; tracker = trackerState();
   await checkNote().locator(`[data-map-check-view="${mapPath}"]`).click();
-  await panel().locator('[data-section="Not yet specified"]').waitFor();
+  await panel().locator('[data-section="Not yet specified"] > summary').click();
   check("「查看地图」 只是打开这张地图来读：目的地和未明确方向都在，没有发消息，也没有动 tracker",
     (await panel().innerText()).includes("吃的怎么办")
     && model.requests.length === requests && trackerState() === tracker);
@@ -329,8 +332,10 @@ try {
   check("nor after the host is restarted", (await checkNote().count()) === 0);
 
   await openCard(mapPath);
+  await panel().getByText(/^相关资料/).click();
   await panel().locator('[data-reference-open="issues/01-room.md"]').click();
-  await panel().locator(".waygoal-ticket-refs").waitFor();
+  await panel().locator(".waygoal-ticket-refs").waitFor({state:"attached"});
+  await panel().getByText(/^相关资料/).click();
   await panel().locator('[data-reference-open="../../../产物/方案.md"]').click();
   const afterRestart = await waitFor(async () => {
     const text = await page.getByRole("region", { name: "文件阅读区", exact: true }).innerText();
@@ -343,6 +348,7 @@ try {
   await closePanel();
 
   await openCard(mapPath);
+  await panel().locator("[data-ticket-source] > summary").click();
   await panel().locator(`[data-map-check-reopen="${mapPath}"]`).click();
   await closePanel();
   await checkNote().waitFor();

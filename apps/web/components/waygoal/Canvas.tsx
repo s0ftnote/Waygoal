@@ -1,7 +1,7 @@
 "use client";
 import { forkFamily } from "@/lib/waygoal/fork-family";
 import "./SelectionPopover.css";
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useId, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { rekeyDraft, getDraft, setDraft, clearDraft, restoreDraftSubmission } from "@/lib/draft-store";
 import { cardBounds, cardCenter, thumbnail, viewCenteredOn, worldPoint, type WaygoalThumbnail, type WaygoalCard } from "@/lib/waygoal/locate";
@@ -10,7 +10,9 @@ import type { WaygoalBranchChoice, WaygoalBranchPoint, WaygoalSessionTreeRespons
 import { mapKind, ticketKind } from "@/lib/waygoal/labels";
 import { placeNewFork, placeExpandedSessions, SESSION_HEADER, type SessionSize } from "@/lib/waygoal/session-expansion";
 import { TURN_WIDTH, TURN_HEIGHT, type BoardCard, type BoardEdge } from "@/lib/waygoal/turn-board";
+import { arrangeTickets, placeTicketMaps, ticketCards, ticketClusters, ticketRelations } from "@/lib/waygoal/ticket-layout";
 import { arrangeCards } from "@/lib/waygoal/layout";
+import { relationPath } from "@/lib/waygoal/relation-path";
 import { NODE_HEIGHT, NODE_WIDTH, canOpen, needsCheck, ticketCardHeight, ticketChipTop, type WaygoalCanvasPatch, type WaygoalNode, type WaygoalReference, type WaygoalPoint, type WaygoalSnapshotResponse, type WaygoalTicketCard, type WaygoalView } from "@/lib/waygoal/types";
 import { getUserMessageText, getUserMessageDraftImages, type ChatInputHandle } from "../ChatInput";
 import { ChatWindow } from "../ChatWindow";
@@ -51,7 +53,15 @@ function without<T>(record: Record<string, T>, key: string): Record<string, T> {
   return next;
 }
 
-type Drag = { id?: string; start: WaygoalPoint; origin: WaygoalPoint; moved: boolean; pointerId: number };
+/** Include the ownership label and quiet discussion boundary in Map bounds. */
+function mapContentBounds(cards: WaygoalCard[], discussions: Set<string>) {
+  return cardBounds(cards.map(card => discussions.has(card.id) ? {...card,
+    position: {x: card.position.x - 14, y: card.position.y - 52},
+    width: (card.width ?? NODE_W) + 28, height: card.height + 66,
+  } : card));
+}
+
+type Drag = { id?: string; start: WaygoalPoint; origin: WaygoalPoint; moved: boolean; pointerId: number; members?: Record<string, WaygoalPoint>; scale?: number };
 /** A read-only reading position. `entryId` is the entry being displayed and is
  *  null when the position is only known as a session — a fork whose origin
  *  message was never recorded. `leafId` is the separate id continuing here would
@@ -111,6 +121,7 @@ function flattenChoices(branchPoints: WaygoalBranchPoint[]): { choice: WaygoalBr
 }
 
 export function WaygoalCanvas() {
+  const ticketArrowId = useId();
   const isMobile = useIsMobile();
   const [navigationCollapsed, setNavigationCollapsed] = useState(false);
   const navigationMenu = useRef<HTMLDetailsElement>(null);
@@ -163,6 +174,7 @@ export function WaygoalCanvas() {
   const [panelKey, setPanelKey] = useState(0);
   const [manageOpen, setManageOpen] = useState(false);
   const [expandedSessions, setExpandedSessions] = useState<string[]>([]);
+  const [clusterHeaderHeights, setClusterHeaderHeights] = useState<Record<string, number>>({});
   const [worldHost, setWorldHost] = useState<HTMLDivElement | null>(null);
   const motion = useCanvasMotion(worldHost, view, updateView);
   const boardFeedback = useBoardFeedback(worldHost, `${snapshot?.workspaceId}:${snapshot?.workspace.canvasId}`);
@@ -192,7 +204,6 @@ export function WaygoalCanvas() {
   const materialsRef = useRef(materials); materialsRef.current = materials;
   const [navigating, setNavigating] = useState(false);
   const clearSearchTarget = useCallback(() => setSearchTarget(null), []);
-  const locateTurn = useCallback((entryId: string) => { setManageOpen(false); setLocateEntry({ entryId, serial: Date.now() }); }, []);
   const [trust, setTrust] = useState<{ requiresTrust: boolean; trusted: boolean } | null>(null);
   const [tree, setTree] = useState<WaygoalSessionTreeResponse | null>(null);
   const [viewing, setViewing] = useState<Viewing | null>(null);
@@ -261,15 +272,16 @@ export function WaygoalCanvas() {
   const expandSession = useCallback((id: string) => setSessionExpanded(id, true), [setSessionExpanded]);
 
   /** Ask the host to read that remote ticket's raw result again. Nothing is
-   *  sent to the source and nothing is written to it: this only retries the
-   *  read of a result the Agent already produced. */
-  const retryRemote = useCallback(async (ticket: WaygoalTicketCard) => {
+   *  written to the source: ordinary capture retries are offline, while an
+   *  explicit relationship refresh reads GitHub through the host gh login. */
+  const retryRemote = useCallback(async (ticket: WaygoalTicketCard, action?: "relations") => {
     if (!snapshot?.cwd) return;
     try {
-      const res = await fetch("/api/waygoal/remote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cwd: snapshot.cwd, ticket: ticket.id }) });
+      const res = await fetch("/api/waygoal/remote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cwd: snapshot.cwd, ticket: ticket.id, action }) });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error);
-      if (!body.captured) setNotice(body.note ?? "还是没读到这次交付的原始结果。");
+      if (action) setNotice(body.refreshed ? "已刷新父子与依赖关系。" : body.note);
+      else if (!body.captured) setNotice(body.note ?? "还是没读到这次交付的原始结果。");
     } catch (e) { setError(`没能重新取得：${e instanceof Error ? e.message : String(e)}`); }
   }, [snapshot?.cwd]);
 
@@ -460,21 +472,57 @@ export function WaygoalCanvas() {
     const hidden = new Set((snapshot?.groups ?? []).filter(group => group.collapsed).flatMap(group => group.members));
     const sizes = Object.fromEntries(Object.entries(turnGeometry.sizes).filter(([id]) => expandedSessions.includes(id) && !hidden.has(id)));
     const visible = placeExpandedSessions(source.filter(node => !hidden.has(node.id)), sizes);
-    return source.map(node => visible.find(item => item.id === node.id) ?? node);
+    return source.map(node => dragging[node.id] ? node : visible.find(item => item.id === node.id) ?? node);
   }, [snapshot, dragging, turnGeometry.sizes, expandedSessions]);
   // Map and ticket cards, laid out from the same record as the session cards
   // and dragged by the same handlers.
-  const ticketMaps = useMemo(() => (snapshot?.tickets.maps ?? []).map(map => ({
-    ...map,
-    position: dragging[map.path] ?? map.position,
+  const placedTickets = useMemo(() => placeTicketMaps(snapshot?.tickets.maps ?? [], nodes.map(node => ({
+    ...node.position, sessionId: node.id, width: expandedSessions.includes(node.id) ? turnGeometry.sizes[node.id]?.width ?? NODE_W : NODE_W,
+    height: expandedSessions.includes(node.id) ? turnGeometry.sizes[node.id]?.height ?? NODE_H : NODE_H,
+  })), clusterHeaderHeights), [snapshot, nodes, expandedSessions, turnGeometry.sizes, clusterHeaderHeights]);
+  const ticketMaps = useMemo(() => placedTickets.map(map => ({
+    ...map, position: dragging[map.path] ?? map.position,
     tickets: map.tickets.map(ticket => ({ ...ticket, position: dragging[ticket.id] ?? ticket.position })),
-  })), [snapshot, dragging]);
+  })), [placedTickets, dragging]);
+  const clusters = useMemo(() => ticketClusters(ticketMaps).map(cluster => ({...cluster,
+    ticketCount: cluster.members.length - 1,
+    completedCount: ticketMaps.flatMap(map => map.tickets).filter(ticket => ticket.id !== cluster.id && cluster.members.includes(ticket.id) && ticket.state === "resolved").length,
+    rootTicket: ticketMaps.flatMap(map => map.tickets).find(ticket => ticket.id === cluster.id),
+    members: [...cluster.members, ...cluster.sessionIds.filter(id => nodes.some(node => node.id === id))],
+    collapsed: snapshot?.collapsedTicketClusters?.includes(cluster.id) ?? false,
+  })), [ticketMaps, nodes, snapshot?.collapsedTicketClusters]);
+  const mapDiscussionIds = useMemo(() => new Set(clusters.flatMap(cluster =>
+    (cluster.rootTicket?.discussions ?? []).filter(talk => !talk.missing).map(talk => talk.sessionId))), [clusters]);
+  const clusterHeaderKey = clusters.map(cluster => `${cluster.id}:${cluster.collapsed}`).join("|");
+  useLayoutEffect(() => {
+    if (!worldHost) return;
+    const observer = new ResizeObserver(entries => {
+      setClusterHeaderHeights(previous => {
+        const next = {...previous};
+        let changed = false;
+        for (const entry of entries) {
+          const el = entry.target as HTMLElement, id = el.dataset.clusterHead!;
+          const height = Math.ceil(el.offsetHeight);
+          if (height && previous[id] !== height) { next[id] = height; changed = true; }
+        }
+        return changed ? next : previous;
+      });
+    });
+    worldHost.querySelectorAll('[data-cluster-head][data-collapsed="false"]').forEach(el => observer.observe(el));
+    return () => observer.disconnect();
+  }, [worldHost, clusterHeaderKey]);
   const ticketCount = ticketMaps.reduce((total, map) => total + map.tickets.length, 0);
   const groups = useMemo(() => (snapshot?.groups ?? []).map(group => ({ ...group, position: dragging[group.id] ?? group.position })), [snapshot, dragging]);
   // A collapsed group stands in for its members: they are not drawn, and
   // neither is any line that would end on one. Nothing about them changes.
-  const tucked = useMemo(() => new Set(groups.filter(group => group.collapsed).flatMap(group => group.members)), [groups]);
-  const visibleSessions = useMemo(() => nodes.filter(node => !tucked.has(node.id)), [nodes, tucked]);
+  const tucked = useMemo(() => new Set([...groups.filter(group => group.collapsed).flatMap(group => group.members), ...clusters.filter(c => c.collapsed).flatMap(c => c.members.filter(id => id !== c.id))]), [groups, clusters]);
+  // Keep cluster-owned sessions in the tree graph for message navigation;
+  // only their visual expansion is folded. The active Pi path stays intact.
+  const turnSessions = useMemo(() => {
+    const hidden = new Set(groups.filter(group => group.collapsed).flatMap(group => group.members));
+    return nodes.filter(node => !hidden.has(node.id));
+  }, [nodes, groups]);
+  const visibleExpandedSessions = useMemo(() => expandedSessions.filter(id => !tucked.has(id)), [expandedSessions, tucked]);
   // Directories under .scratch/ that were not read as maps. Saying so on the
   // canvas is the point: a silently skipped directory looks like an empty one.
   const skipped = [...(snapshot?.tickets.unsupported ?? []), ...(snapshot?.tickets.unreadable ?? [])];
@@ -489,25 +537,39 @@ export function WaygoalCanvas() {
     // 回到全景 and the thumbnail all point at the group card standing there
     // instead. It is still findable under its own title: it is still here.
     const standIn = new Map(groups.filter(group => group.collapsed).flatMap(group => group.members.map(member => [member, group] as const)));
+    for (const cluster of clusters.filter(c => c.collapsed)) for (const member of cluster.members) if (member !== cluster.id && !standIn.has(member)) standIn.set(member, { ...cluster, name: cluster.title });
     const placed = (card: WaygoalCard): WaygoalCard => {
       const group = standIn.get(card.id);
-      return group ? { ...card, position: group.position, height: NODE_H } : card;
+      return group ? { ...card, position: group.position, height: NODE_H, width: NODE_W } : card;
     };
-    return [
+    const result: WaygoalCard[] = [
       ...nodes.map(node => placed({ id: node.id, title: node.title, kind: "session" as const, position: node.position, height: expandedSessions.includes(node.id) ? turnGeometry.sizes[node.id]?.height ?? NODE_H : NODE_H, width: expandedSessions.includes(node.id) ? turnGeometry.sizes[node.id]?.width ?? NODE_W : NODE_W, modified: node.modified })),
       ...ticketMaps.flatMap(map => [
-        placed({ id: map.path, title: map.title, kind: "map" as const, position: map.position, height: NODE_H, modified: null }),
+        ...(!map.remote ? [placed({ id: map.path, title: map.title, kind: "map" as const, position: map.position, height: NODE_H, modified: null })] : []),
         ...map.tickets.map(ticket => placed({
           id: ticket.id, title: ticket.title, kind: "ticket" as const, position: ticket.position,
-          height: ticket.expanded ? ticketCardHeight(ticket.discussions.length) : NODE_H, modified: null,
+          height: ticket.expanded ? ticketCardHeight(ticket.discussions.length) : 152, modified: null,
         })),
       ]),
       ...groups.filter(group => group.collapsed).map(group => ({
         id: group.id, title: group.name, kind: "group" as const, position: group.position, height: NODE_H, modified: null,
       })),
     ];
-  }, [nodes, ticketMaps, groups, expandedSessions, turnGeometry.sizes]);
+    // An expanded Map is its frame header, not a duplicate card inside it.
+    // Keep its identity in navigation and external links at the visible header.
+    for (const cluster of clusters.filter(item => !item.collapsed && !standIn.has(item.id))) {
+      const root = result.find(card => card.id === cluster.id);
+      const box = mapContentBounds(result.filter(card => card.id !== cluster.id && cluster.members.includes(card.id)), mapDiscussionIds);
+      if (root && box) Object.assign(root, {position: {x: box.x - 20, y: box.y - (clusterHeaderHeights[cluster.id] ?? 132) - 16}, width: Math.max(720, box.width + 40), height: clusterHeaderHeights[cluster.id] ?? 132});
+    }
+    for (const cluster of clusters.filter(item => item.collapsed)) {
+      const root = result.find(card => card.id === cluster.id);
+      if (root) Object.assign(root, {width: 320, height: 200});
+    }
+    return result;
+  }, [nodes, ticketMaps, groups, clusters, expandedSessions, turnGeometry.sizes, clusterHeaderHeights, mapDiscussionIds]);
   const sceneCards = useMemo(() => [...cards, ...turnGeometry.cards.map(card => ({ id: card.key, title: card.turn.question, kind: "session" as const, position: card.position, width: TURN_WIDTH, height: TURN_HEIGHT, modified: null }))], [cards, turnGeometry.cards]);
+  const workRelations = useMemo(() => ticketRelations(ticketMaps), [ticketMaps]);
   const cardById = useMemo(() => new Map(cards.map(card => [card.id, card])), [cards]);
   // The card the record was left on, while it is still here.
   const continueCard = useMemo(() => (snapshot?.lastViewed && !snapshot.lastViewedMissing
@@ -545,7 +607,7 @@ export function WaygoalCanvas() {
   const nodeById = useMemo(() => new Map(nodes.map(node => [node.id, node])), [nodes]);
   const selectedNode = nodes.find(n => n.id === selectedId) ?? null;
   const panelSession: SessionInfo | null = selectedNode ? nodeToSession(selectedNode, snapshot!.cwd) : createdSession;
-  const panelOpen = Boolean(panelSession || draftKey || openTicketMap);
+  const panelOpen = Boolean(panelSession || draftKey || openTicketMap || viewing);
   const emptyCanvas = Boolean(snapshot && nodes.length === 0 && !panelSession && !openTicketMap && !pendingTicket && !overviewRequested);
   const emptyEntry = emptyCanvas || entranceSession === panelSession?.id;
   useLayoutEffect(() => {
@@ -589,8 +651,8 @@ export function WaygoalCanvas() {
       // Collapsed means this ticket is not spread out on the canvas: its lines
       // go quiet with its chips. The discussions are still held under it.
       const hidden = tucked.has(talk.sessionId) || tucked.has(ticket.id);
-      return node && ticket.expanded && !hidden ? [{ id: `${ticket.id}->${talk.sessionId}`, fromId: ticket.id, toId: node.id, from: ticket.position, to: node.position }] : [];
-    }))), [ticketMaps, nodeById, tucked]);
+      return node && ticket.expanded && !hidden && !clusters.some(cluster => cluster.id === ticket.id) ? [{ id: `${ticket.id}->${talk.sessionId}`, fromId: ticket.id, toId: node.id, from: cardById.get(ticket.id)?.position ?? ticket.position, to: node.position }] : [];
+    }))), [ticketMaps, nodeById, tucked, cardById, clusters]);
 
   // Relations the user drew by hand. They are read from the record as written,
   // never derived: no fork history and no `Blocked by:` line produces one, and
@@ -615,6 +677,26 @@ export function WaygoalCanvas() {
     return box ? [{ ...group, left: box.x - 18, top: box.y - 46, width: box.width + 36, height: box.height + 64 }] : [];
   }), [groups, cardById]);
 
+  const clusterFrames = useMemo(() => clusters.filter(cluster => !groups.some(g => g.collapsed && g.members.includes(cluster.id))).flatMap(cluster => {
+    const root = cardById.get(cluster.id);
+    if (!root) return [];
+    if (cluster.collapsed) return [{...cluster, left: root.position.x, top: root.position.y, width: 320, height: 200}];
+    const box = mapContentBounds(cluster.members.filter(id => id !== cluster.id && !tucked.has(id)).flatMap(id => {
+      const card = cardById.get(id); return card ? [card] : [];
+    }), mapDiscussionIds);
+    return box ? [{...cluster, left: box.x - 20, top: box.y - (clusterHeaderHeights[cluster.id] ?? 132) - 16, width: Math.max(720, box.width + 40), height: box.height + (clusterHeaderHeights[cluster.id] ?? 132) + 36}] : [];
+  }), [clusters, groups, tucked, cardById, clusterHeaderHeights, mapDiscussionIds]);
+  const [clusterSaving, setClusterSaving] = useState(false);
+  const [movingCluster, setMovingCluster] = useState(false);
+  const toggleCluster = async (id: string, collapsed: boolean) => {
+    if (clusterSaving) return;
+    setClusterSaving(true);
+    const current = snapshot?.collapsedTicketClusters ?? [];
+    try {
+      if (await patch({collapsedTicketClusters: collapsed ? [...new Set([...current, id])] : current.filter(key => key !== id)})) await refresh(true);
+    } finally { setClusterSaving(false); }
+  };
+
   // The thumbnail and 定位 both need the viewport in screen pixels, and it
   // changes whenever the panel opens or the window is resized.
   useEffect(() => {
@@ -631,27 +713,43 @@ export function WaygoalCanvas() {
     ? "这段会话正在运行。分叉和在别的路径里接着说都要等它结束，Waygoal 不打断正在进行的任务；看历史不受影响。"
     : null;
 
-  const openNode = useCallback((node: WaygoalNode) => {
-    expandSession(node.id);
-    if (node.id === chatSessionId.current) return;
-    leavePanel(); setOpenTicket(null);
+  const revealSession = useCallback((id: string) => {
+    const cluster = clusters.find(item => item.collapsed && item.members.includes(id));
+    if (cluster) void patch({collapsedTicketClusters: (snapshot?.collapsedTicketClusters ?? []).filter(key => key !== cluster.id)}).then(saved => { if (saved) void refresh(true); });
+    expandSession(id);
+  }, [clusters, snapshot?.collapsedTicketClusters, patch, refresh, expandSession]);
+  const locateTurn = useCallback((entryId: string) => {
+    if (chatSessionId.current) revealSession(chatSessionId.current);
+    setManageOpen(false); setLocateEntry({ entryId, serial: Date.now() });
+  }, [revealSession]);
+  const openNode = useCallback((node: WaygoalNode, reading: Viewing | null = null) => {
+    setSearchTarget(null);
+    revealSession(node.id);
+    if (node.id === chatSessionId.current) {
+      setViewing(reading);
+      void patch({ preview: reading ? { sessionId: reading.sessionId, entryId: reading.entryId } : null });
+      return;
+    }
+    leavePanel(); setOpenTicket(null); setViewing(reading);
     setManageOpen(false); setMaterials(materialDrafts.current.get(`session:${node.id}`) ?? []);
     setSelectedId(node.id);
     setPanelKey(k => k + 1);
     setNotice("");
     setPendingTicket(null);
     const ticket = ticketOfSession.get(node.id);
-    void patch({ lastViewed: node.id, lastViewedEntry: null, preview: null, ...(ticket ? { ticketLast: { ticket, sessionId: node.id, entryId: null } } : {}) });
-  }, [leavePanel, patch, ticketOfSession, expandSession]);
+    void patch({ lastViewed: node.id, lastViewedEntry: null, preview: reading ? { sessionId: reading.sessionId, entryId: reading.entryId } : null, ...(ticket ? { ticketLast: { ticket, sessionId: node.id, entryId: null } } : {}) });
+  }, [leavePanel, patch, ticketOfSession, revealSession]);
 
   /** Open one local map or ticket: a file this workspace already has. Reading
    *  it starts nothing — it is not a Pi session and has none of its own. */
   const openLocalTicket = useCallback((path: string) => {
+    const cluster = clusters.find(item => item.collapsed && item.id !== path && item.members.includes(path));
+    if (cluster) void patch({collapsedTicketClusters: (snapshot?.collapsedTicketClusters ?? []).filter(id => id !== cluster.id)}).then(saved => { if (saved) void refresh(true); });
     leavePanel(); setPendingTicket(null);
     setSelectedId(null);
     setOpenTicket(path);
     setNotice("");
-  }, [leavePanel]);
+  }, [leavePanel, clusters, snapshot?.collapsedTicketClusters, patch, refresh]);
 
   /** Open a read-only reading position. Display only — no navigation.
    *  `leafId` is where a message sent from here would land, null when this
@@ -1025,11 +1123,15 @@ export function WaygoalCanvas() {
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
 
+  const ticketPositionsForMove = useCallback((id: string, position: WaygoalPoint) => {
+    const map = placedTickets.find(m => m.path === id || m.tickets.some(t => t.id === id));
+    return { ...(map ? Object.fromEntries(ticketCards([map]).map(c => [c.id, c.position])) : {}), [id]: position };
+  }, [placedTickets]);
   const nudge = useCallback((id: string, from: WaygoalPoint, dx: number, dy: number) => {
     const position = { x: from.x + dx, y: from.y + dy };
     setDragging(d => ({ ...d, [id]: position }));
-    void patch({ positions: { [id]: position } }).then(() => refresh()).then(() => setDragging(d => without(d, id)));
-  }, [patch, refresh]);
+    void patch({ positions: ticketPositionsForMove(id, position) }).then(() => refresh()).then(() => setDragging(d => without(d, id)));
+  }, [patch, refresh, ticketPositionsForMove]);
   /** Arrow keys move a card the way dragging does, for every kind of card. */
   const onCardKeyDown = (id: string, position: WaygoalPoint) => (e: React.KeyboardEvent) => {
     const step = e.shiftKey ? 50 : 10;
@@ -1050,12 +1152,14 @@ export function WaygoalCanvas() {
       .map(group => ({ x: group.left, y: group.top, width: group.width, height: group.height })));
     // Hidden members still reserve their saved space for when their group opens.
     obstacles.push(...(snapshot?.nodes ?? []).filter(node => tucked.has(node.id)).map(node => ({ ...node.position, width: NODE_W, height: NODE_H })));
+    const parents = new Map(ticketCards(ticketMaps).map(card => [card.id, card.originId]));
     const after = arrangeCards(selected.map(card => {
       const node = nodes.find(item => item.id === card.id);
-      return { ...card, originId: node?.origin?.sessionId, created: node?.created,
+      return { ...card, originId: node?.origin?.sessionId ?? parents.get(card.id), created: node?.created,
         groupId: groups.find(group => group.members.includes(card.id))?.id };
     }), obstacles);
-    const before = Object.fromEntries(selected.map(card => [card.id, card.position]));
+    const saved = new Map([...(snapshot?.nodes ?? []), ...ticketCards(snapshot?.tickets.maps ?? [])].map(card => [card.id, card.position]));
+    const before = Object.fromEntries(selected.map(card => [card.id, saved.get(card.id) ?? card.position]));
     if (selected.every(card => before[card.id].x === after[card.id].x && before[card.id].y === after[card.id].y)) {
       setNotice("所选卡片已经排好了。"); return;
     }
@@ -1067,7 +1171,19 @@ export function WaygoalCanvas() {
         await refresh(true);
       }
     } finally { setLayoutBusy(false); }
-  }, [cards, picked, tucked, layoutBusy, snapshot?.nodes, nodes, groups, groupFrames, patch, refresh]);
+  }, [cards, picked, tucked, layoutBusy, snapshot, nodes, groups, groupFrames, ticketMaps, patch, refresh]);
+  const arrangeAllTickets = async () => {
+    if (!snapshot || layoutBusy) return;
+    const visibleMaps = ticketMaps.map(map => ({ ...map, tickets: map.tickets.filter(t => !tucked.has(t.id)) }));
+    const ids = new Set(ticketCards(visibleMaps).map(c => c.id));
+    const obstacles = cards.filter(c => !ids.has(c.id)).map(c => ({ ...c.position, width: c.width ?? NODE_W, height: c.height }));
+    const after = arrangeTickets(visibleMaps, obstacles);
+    const before = Object.fromEntries(ticketCards(snapshot.tickets.maps).filter(c => c.id in after).map(c => [c.id, c.position]));
+    setLayoutBusy(true);
+    try {
+      if (await patch({ layout: { before, after } })) { await refresh(true); setNotice("已按票据归属整理，可撤销上次整理。"); }
+    } finally { setLayoutBusy(false); }
+  };
   const undoLayout = useCallback(async () => {
     if (layoutBusy) return;
     setLayoutBusy(true);
@@ -1122,23 +1238,57 @@ export function WaygoalCanvas() {
     e.currentTarget.setPointerCapture(e.pointerId);
     drag.current = { id, start: { x: e.clientX, y: e.clientY }, origin, moved: false, pointerId: e.pointerId };
   };
+  const clusterPositions = (id: string) => {
+    const members = new Set(clusters.find(cluster => cluster.id === id)?.members ?? []);
+    return Object.fromEntries([...ticketCards(ticketMaps), ...nodes].filter(card => members.has(card.id)).map(card => [card.id, card.position]));
+  };
+  const shiftedPositions = (members: Record<string, WaygoalPoint>, dx: number, dy: number) =>
+    Object.fromEntries(Object.entries(members).map(([id, point]) => [id, {x: point.x + dx, y: point.y + dy}]));
+  const clearClusterDrag = (members: Record<string, WaygoalPoint>) => setDragging(current =>
+    Object.fromEntries(Object.entries(current).filter(([id]) => !(id in members))));
+  const saveClusterMove = async (positions: Record<string, WaygoalPoint>) => {
+    setMovingCluster(true);
+    setDragging(current => ({...current, ...positions}));
+    try { if (await patch({positions})) await refresh(true); }
+    finally { clearClusterDrag(positions); setMovingCluster(false); }
+  };
+  const onClusterPointerDown = (id: string) => (event: React.PointerEvent<HTMLElement>) => {
+    event.stopPropagation();
+    if (drag.current || movingCluster || event.button !== 0) return;
+    const camera = motion.grab();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    drag.current = {start: {x: event.clientX, y: event.clientY}, origin: {x: 0, y: 0}, moved: false,
+      pointerId: event.pointerId, members: clusterPositions(id), scale: camera.scale};
+  };
+  const onClusterKeyDown = (id: string) => (event: React.KeyboardEvent) => {
+    const step = event.shiftKey ? 50 : 10;
+    const moves: Record<string, WaygoalPoint> = {ArrowLeft: {x: -step, y: 0}, ArrowRight: {x: step, y: 0}, ArrowUp: {x: 0, y: -step}, ArrowDown: {x: 0, y: step}};
+    const delta = moves[event.key];
+    if (!delta || movingCluster) return;
+    event.preventDefault(); event.stopPropagation();
+    void saveClusterMove(shiftedPositions(clusterPositions(id), delta.x, delta.y));
+  };
   const onPointerMove = (e: React.PointerEvent<HTMLElement>) => {
     const d = drag.current;
     if (!d || d.pointerId !== e.pointerId) return;
     e.stopPropagation();
     const dx = e.clientX - d.start.x, dy = e.clientY - d.start.y;
     if (Math.abs(dx) + Math.abs(dy) > 4) d.moved = true;
-    if (d.id) setDragging(p => ({ ...p, [d.id!]: { x: d.origin.x + dx / view.scale, y: d.origin.y + dy / view.scale } }));
+    if (d.members) { if (d.moved) setDragging(p => ({...p, ...shiftedPositions(d.members!, dx / d.scale!, dy / d.scale!)})); }
+    else if (d.id) setDragging(p => ({ ...p, [d.id!]: { x: d.origin.x + dx / view.scale, y: d.origin.y + dy / view.scale } }));
     else { viewDirty.current = true; setViewDirect(v => ({ ...v, x: d.origin.x + dx, y: d.origin.y + dy })); }
   };
   const onPointerUp = (e: React.PointerEvent<HTMLElement>) => {
     const d = drag.current;
     if (!d || d.pointerId !== e.pointerId) return;
     e.stopPropagation();
-    if (d.id && d.moved) {
+    if (d.members) {
+      if (d.moved && e.type !== "pointercancel") void saveClusterMove(shiftedPositions(d.members, (e.clientX - d.start.x) / d.scale!, (e.clientY - d.start.y) / d.scale!));
+      else clearClusterDrag(d.members);
+    } else if (d.id && d.moved) {
       const id = d.id;
       const position = dragging[id];
-      if (position) void patch({ positions: { [id]: { x: Math.round(position.x), y: Math.round(position.y) } } }).then(() => refresh()).then(() => setDragging(p => without(p, id)));
+      if (position) void patch({ positions: ticketPositionsForMove(id, { x: Math.round(position.x), y: Math.round(position.y) }) }).then(() => refresh()).then(() => setDragging(p => without(p, id)));
     } else if (d.id) {
       setDragging(p => without(p, d.id!));
     }
@@ -1198,7 +1348,7 @@ export function WaygoalCanvas() {
         <div className="waygoal-toolbar">
           <button type="button" className="waygoal-icon" aria-label="收起整理工具" onClick={() => setManageOpen(false)}>×</button>
           <h1>{cwdName || "会话画布"}</h1>
-          <span className="waygoal-count">{snapshot ? `${nodes.length} 段会话${ticketCount ? ` · ${ticketCount} 张本地票据` : ""}${branchNodeCount ? ` · ${branchNodeCount} 段有会话内分叉` : ""}${runningCount ? ` · ${runningCount} 段正在运行` : ""}` : "正在读取…"}</span>
+          <span className="waygoal-count">{snapshot ? `${nodes.length} 段会话${ticketCount ? ` · ${ticketCount} 张票据` : ""}${branchNodeCount ? ` · ${branchNodeCount} 段有会话内分叉` : ""}${runningCount ? ` · ${runningCount} 段正在运行` : ""}` : "正在读取…"}</span>
           {skipped.length > 0 && <span className="waygoal-count waygoal-skipped" title={skipped.map(s => `${s.path}：${s.reason}`).join("\n")}>
             {skipped.length} 个目录没有读成地图：{skipped.map(s => s.path).join("、")}
           </span>}
@@ -1206,6 +1356,7 @@ export function WaygoalCanvas() {
           {nodes.filter(node => !tucked.has(node.id)).length >= 2 && <button type="button" data-layout-pick-all className="waygoal-button outlined small"
             disabled={layoutBusy} title="选中可见的全部会话，再整理位置或建分组"
             onClick={() => setPicked(nodes.filter(node => !tucked.has(node.id)).map(node => node.id))}>全选会话</button>}
+          {ticketCount > 1 && <button type="button" data-arrange-tickets className="waygoal-button outlined small" disabled={layoutBusy} onClick={() => void arrangeAllTickets()}>整理票据</button>}
           {snapshot?.canUndoLayout && <button type="button" data-layout-undo className="waygoal-button outlined small"
             disabled={layoutBusy} onClick={() => void undoLayout()}>撤销整理</button>}
           {picked.length === 0 && cards.length >= 2 && <span className="waygoal-count">⌘/Ctrl 点选卡片，可整理、分组或关联</span>}
@@ -1225,8 +1376,12 @@ export function WaygoalCanvas() {
         <div ref={viewportRef} className="waygoal-viewport" tabIndex={0} aria-label="会话画布：方向键平移，+ − 缩放，0 回到全景" role="region"
           onWheel={e => { motion.grab(); zoomBy(e.deltaY > 0 ? 0.92 : 1.08, { x: e.clientX - e.currentTarget.getBoundingClientRect().left, y: e.clientY - e.currentTarget.getBoundingClientRect().top }, true); }}
           onPointerDown={onViewportPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onKeyDown={onViewportKeyDown}>
-          <div ref={setWorldHost} className="waygoal-world" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}>
+          <div ref={setWorldHost} className="waygoal-world" data-ticket-zoom={view.scale < .72 ? "map" : "detail"} style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`, "--wg-map-text-scale": 1 / Math.max(.5, Math.min(1, view.scale)) } as React.CSSProperties}>
             <svg className="waygoal-links" width="1" height="1" aria-hidden="true">
+              <defs><marker id={ticketArrowId} viewBox="0 0 12 12" refX="10" refY="6" markerUnits="userSpaceOnUse"
+                markerWidth={12 / Math.max(.35, view.scale)} markerHeight={12 / Math.max(.35, view.scale)} orient="auto">
+                <path className="waygoal-direction-arrow" d="M 2 2 L 10 6 L 2 10 Z" />
+              </marker></defs>
               {originEdges.map(edge => {
                 const start = borderAnchor(edge.from, edge.to);
                 const end = borderAnchor(edge.to, edge.from);
@@ -1241,6 +1396,22 @@ export function WaygoalCanvas() {
                   <circle cx={end.x} cy={end.y} r={4.5} />
                   {gap >= label.length * LINK_LABEL_CHAR_W + 16
                     && <text x={mx} y={my - 9} textAnchor="middle">{label}</text>}
+                </g>;
+              })}
+              {workRelations.map(edge => {
+                if (edge.kind === "membership" && clusters.some(cluster => cluster.id === edge.from && cluster.members.includes(edge.to))) return null;
+                const from = cardById.get(edge.from), to = cardById.get(edge.to);
+                if (!from || !to || tucked.has(edge.from) || tucked.has(edge.to)) return null;
+                const sourceTicket = ticketMaps.flatMap(map => map.tickets).find(ticket => ticket.id === edge.from);
+                const sourceHeight = sourceTicket?.expanded
+                  ? ticketChipTop(sourceTicket.discussions.length ? sourceTicket.discussions.length + 1 : 0) + 26
+                  : sourceTicket ? 152 : from.height;
+                const path = relationPath({ ...from.position, width: from.width ?? NODE_W, height: sourceHeight }, { ...to.position, width: to.width ?? NODE_W, height: to.kind === "ticket" ? 152 : to.height });
+                return <g key={`${edge.kind}:${edge.from}:${edge.to}`} className={`waygoal-link ${edge.kind}`} data-ticket-relation={edge.kind}
+                  data-spatial-from={`node:${edge.from}`} data-spatial-to={`node:${edge.to}`}>
+                  <title>{edge.kind === "membership" ? `${from.title} 包含 ${to.title}` : `${to.title} 依赖 ${from.title}；箭头从前置票据指向后续票据`}</title>
+                  <path d={path.d} markerEnd={`url(#${ticketArrowId})`} vectorEffect="non-scaling-stroke" />
+                  {edge.kind === "membership" && <text x={path.mid.x} y={path.mid.y - 10} textAnchor="middle">包含</text>}
                 </g>;
               })}
               {ticketEdges.map(edge => {
@@ -1270,6 +1441,55 @@ export function WaygoalCanvas() {
             </div>)}
             {/* A frame around the cards the user said belong together. It draws
                 nothing of its own: the members are the same cards as before. */}
+            {clusterFrames.map(frame => <div key={frame.id} data-ticket-cluster={frame.id} data-node={frame.id}
+              className={`waygoal-ticket-cluster${frame.collapsed ? " collapsed" : ""}${openTicket === frame.id ? " selected" : ""}`}
+              style={{left: frame.left, top: frame.top, width: frame.width, height: frame.height}}>
+              <div className="waygoal-ticket-cluster-head" data-cluster-head={frame.id} data-collapsed={frame.collapsed}>
+                <div className="waygoal-ticket-cluster-title-row">
+                <button type="button" className="waygoal-ticket-cluster-drag" data-cluster-drag={frame.id} data-cluster-open={frame.id} disabled={movingCluster}
+                  aria-label={`移动票据集群：${frame.title}`} title={`${frame.title} · 点击查看详情，拖动整组移动，方向键微调`}
+                  onPointerDown={onClusterPointerDown(frame.id)} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
+                  onKeyDown={onClusterKeyDown(frame.id)}
+                  onClick={event => { if (drag.current?.moved) return; if (event.metaKey || event.ctrlKey) togglePick(frame.id); else openLocalTicket(frame.id); }}>
+                  <strong>{frame.rootTicket ? `#${frame.rootTicket.number} · ` : ""}{frame.title}</strong>
+
+                </button>
+                {!frame.collapsed && frame.rootTicket && <button type="button" className="waygoal-ticket-cluster-discuss" data-talk-start={frame.id}
+                  onPointerDown={event => event.stopPropagation()} onClick={() => startTicketChat(frame.id)}>讨论 Map</button>}
+                <button type="button" className="waygoal-ticket-cluster-toggle" data-cluster-toggle={frame.id}
+                  disabled={clusterSaving || movingCluster} aria-expanded={!frame.collapsed} aria-label={`${frame.collapsed ? "展开" : "收起"}票据集群：${frame.title}`}
+                  onPointerDown={event => event.stopPropagation()} onClick={() => void toggleCluster(frame.id, !frame.collapsed)}>
+                  <svg viewBox="0 0 16 16" aria-hidden="true"><path d={frame.collapsed ? "m6 3 5 5-5 5" : "m3 6 5 5 5-5"} /></svg>
+                </button>
+                </div>
+                {!frame.collapsed && <>
+                  {frame.rootTicket?.question && <p className="waygoal-map-purpose">目标：{frame.rootTicket.question}</p>}
+                  <div className="waygoal-map-meta"><span>{frame.ticketCount} 张票据 · {frame.completedCount} 已完成</span><span>虚线箭头：前置 → 后续</span></div>
+                  {Boolean(frame.rootTicket?.discussions.length) && <div className="waygoal-map-discussions" onPointerDown={event => event.stopPropagation()}>
+                    <span>Map 讨论</span>
+                    {frame.rootTicket!.discussions.map(talk => <div key={talk.sessionId} className="waygoal-map-discussion">
+                      <button type="button" data-map-discussion={talk.sessionId} disabled={talk.missing}
+                        onClick={() => { const node = nodeById.get(talk.sessionId); if (node) openNode(node); }}>{talk.title}</button>
+                      {!talk.missing && <button type="button" data-map-discussion-expand={talk.sessionId} aria-expanded={expandedSessions.includes(talk.sessionId)}
+                        onClick={() => setSessionExpanded(talk.sessionId, !expandedSessions.includes(talk.sessionId))}>{expandedSessions.includes(talk.sessionId) ? "收起轮次" : "展开轮次"}</button>}
+                    </div>)}
+                  </div>}
+                </>}
+              </div>
+              {frame.collapsed && <button type="button" className="waygoal-ticket-cluster-summary" onPointerDown={event => event.stopPropagation()} onClick={() => openLocalTicket(frame.id)}>
+                <span>{frame.ticketCount} 张票据 · {frame.completedCount} 已完成</span>
+                <span>{frame.sessionIds.length} 段讨论 <span aria-hidden="true">查看详情 →</span></span>
+              </button>}
+            </div>)}
+            {clusters.filter(cluster => !cluster.collapsed).flatMap(cluster => (cluster.rootTicket?.discussions ?? []).flatMap(talk => {
+              const card = cardById.get(talk.sessionId);
+              if (!card || talk.missing || tucked.has(talk.sessionId)) return [];
+              return <section key={`map-discussion:${talk.sessionId}`} data-map-session-region={talk.sessionId}
+                className="waygoal-map-session-region" aria-label={`Map ${cluster.rootTicket!.number} 的讨论：${talk.title}`}
+                style={{left: card.position.x - 14, top: card.position.y - 52, width: (card.width ?? NODE_W) + 28, height: card.height + 66}}>
+                <span className="waygoal-map-session-owner">Map #{cluster.rootTicket!.number} 的讨论</span>
+              </section>;
+            }))}
             {groupFrames.map(frame => <div key={frame.id} data-group={frame.id} className="waygoal-group"
               style={{ left: frame.left, top: frame.top, width: frame.width, height: frame.height }}>
               <div className="waygoal-group-head" onPointerDown={e => e.stopPropagation()}>
@@ -1323,11 +1543,11 @@ export function WaygoalCanvas() {
             {/* Local maps and their tickets, read from this workspace's own
                 files. Opening one only reads it: no Pi session is started. */}
             {ticketMaps.map(map => <div key={map.path} className="waygoal-ticket-group">
-              {[{ id: map.path, title: map.title, position: map.position, stale: map.stale, kind: mapKind(map.remote),
-                  extra: " map", label: mapKind(map.remote), state: "", ticketState: null, lit: false, marks: null, foot: `${map.tickets.length} 张票据` },
+              {[...(!map.remote ? [{ id: map.path, title: map.title, position: map.position, stale: map.stale, kind: mapKind(map.remote),
+                  extra: " map", label: mapKind(map.remote), state: "", ticketState: null, lit: false, marks: null, foot: `${map.tickets.length} 张票据` }] : []),
                 ...map.tickets.map(ticket => ({
                   id: ticket.id, title: ticket.title, position: ticket.position, stale: ticket.stale, kind: ticketKind(Boolean(ticket.remote)),
-                  extra: "", label: `票据 ${ticket.number}`, state: ticket.type,
+                  extra: ticket.type === "map" ? " map-ticket" : "", label: `${ticket.type === "map" ? "地图" : "票据"} ${ticket.number}`, state: ticket.type === "map" ? "" : ticket.type,
                   ticketState: ticket.state,
                   // Only the snapshot that first sees it stop waiting says so;
                   // what the card reads then is what it goes on reading.
@@ -1343,9 +1563,9 @@ export function WaygoalCanvas() {
                         rather than showing anything as the source's own. */}
                     {ticket.remote && !ticket.remote.capturedAt && <span className="waygoal-tag unknown" data-unsynced>未同步</span>}
                   </>,
-                  foot: ticket.question.slice(0, 28) || "还没写下要解决的问题",
+                  foot: ticket.question.slice(0, 80) || (ticket.remote ? "查看票据原文" : "还没写下要解决的问题"),
                 }))]
-                .filter(card => !tucked.has(card.id))
+                .filter(card => !tucked.has(card.id) && !clusters.some(cluster => cluster.id === card.id))
                 .map(card => <button key={card.id} type="button" data-node={card.id}
                   data-state={card.ticketState ?? undefined} data-unblocked={card.lit ? "true" : undefined}
                   className={`waygoal-ticket-card${card.extra}${openTicket === card.id ? " selected" : ""}${card.stale ? " stale" : ""}${card.lit ? " unblocked" : ""}${picked.includes(card.id) ? " picked" : ""}`}
@@ -1354,6 +1574,7 @@ export function WaygoalCanvas() {
                   aria-label={`${card.kind}：${card.title}${card.stale ? "，读不到来源文件" : ""}`}
                   onPointerDown={onCardPointerDown(card.id, card.position)}
                   onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
+                  onKeyDown={onCardKeyDown(card.id, card.position)}
                   onClick={e => {
                     if (drag.current?.moved) return;
                     if (e.metaKey || e.ctrlKey) { togglePick(card.id); return; }
@@ -1361,7 +1582,7 @@ export function WaygoalCanvas() {
                   }}>
                   <span className="waygoal-node-meta">
                     <span>{card.label}</span>
-                    <span className="waygoal-node-state">{card.stale ? "读不到来源" : card.state}</span>
+                    <span className="waygoal-node-state">{card.ticketState === "resolved" && <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3 3 7-7" /></svg>}{card.stale ? "读不到来源" : card.ticketState === "resolved" ? "已完成" : card.ticketState === "cancelled" ? "已取消" : card.ticketState === "waiting" ? "等待前置" : card.ticketState ? "进行中" : card.state}</span>
                   </span>
                   <strong>{card.title}</strong>
                   {card.marks && <span className="waygoal-node-marks">{card.marks}</span>}
@@ -1388,7 +1609,7 @@ export function WaygoalCanvas() {
               </div>}
               {/* The discussions held under each ticket, right below it: the
                   tickets stay laid out flat, no container wraps them. */}
-              {map.tickets.filter(ticket => !tucked.has(ticket.id)).map(ticket => <Fragment key={`talks-${ticket.id}`}>
+              {map.tickets.filter(ticket => !tucked.has(ticket.id) && !clusters.some(cluster => cluster.id === ticket.id)).map(ticket => <Fragment key={`talks-${ticket.id}`}>
                 {ticket.discussions.length > 0 && <button type="button" data-talk-toggle={ticket.id}
                   className="waygoal-chip toggle" style={{ left: ticket.position.x, top: ticket.position.y + ticketChipTop(0), width: NODE_W }}
                   onPointerDown={e => e.stopPropagation()}
@@ -1430,21 +1651,22 @@ export function WaygoalCanvas() {
             const saved = await patch({ turnBoard: layout });
             if (saved) setError(current => current.startsWith("画布记录没有保存") ? "" : current);
             return saved;
-          }} sessions={visibleSessions}
-          expanded={expandedSessions} worldHost={worldHost} camera={view} setCamera={setView} onGrabCamera={motion.grab} setCameraDirect={next => { viewDirty.current = true; setViewDirect(next); }}
-          onExpand={expandSession} onGeometry={receiveGeometry} onFit={fitAll}
+          }} sessions={turnSessions}
+          expanded={visibleExpandedSessions} worldHost={worldHost} camera={view} setCamera={setView} onGrabCamera={motion.grab} setCameraDirect={next => { viewDirty.current = true; setViewDirect(next); }}
+          onExpand={revealSession} onGeometry={receiveGeometry} onFit={fitAll}
           materials={materials} inspectEntry={inspectEntry} onDismissPreview={stopViewing}
           locateMaterial={locateMaterial ?? undefined} onMaterials={receiveMaterials}
-          onOpenSession={id => { const node = nodes.find(node => node.id === id); if (node && id !== panelSession?.id) openNode(node); }}
+          onOpenSession={id => { const node = nodes.find(node => node.id === id); if (node) openNode(node); }}
           onFork={(sessionId, entryId) => void forkFrom(sessionId, entryId, true)}
           onReady={id => { if (entranceSession === id) setEntranceSession(null); }}
           locateEntry={locateEntry} busy={Boolean(busyReason) || navigating || Boolean(forkingEntryId)}
           onOverview={() => setManageOpen(true)}
           onLocate={(sessionId, turn) => {
-            if (!panelSession) { const node = nodes.find(node => node.id === sessionId); if (node) openNode(node); }
-            if (sessionId === panelSession?.id && turn.active) {
-              setSearchTarget({ sessionId, entryId: turn.id }); stopViewing();
-            } else viewPath(sessionId, turn.endId, turn.question, turn.endId);
+            const node = nodeById.get(sessionId);
+            if (!node) return;
+            // Opening another chat must never rewind its Pi leaf to the card.
+            openNode(node, turn.active ? null : { sessionId, entryId: turn.endId, leafId: turn.endId, label: turn.question });
+            setSearchTarget(turn.active ? { sessionId, entryId: turn.id } : null);
           }}
           onContinue={(sessionId, leafId) => void continueAt(sessionId, leafId)}
           onMaterial={(material, allowed) => { setMaterials(current => addMaterial(current, material)); setMaterialArrival({ material, allowed }); }} />}
@@ -1472,29 +1694,23 @@ export function WaygoalCanvas() {
           </button>
         </details>}
         <div className="waygoal-statusline"><span>拖动卡片摆放 · 拖动空白处平移 · 滚轮缩放 · 点击卡片定位原文 · 选择路径后继续聊天</span><span className="waygoal-id">{snapshot?.workspaceId}</span></div>
-        {viewing && snapshot && <div className="waygoal-canvas-preview" aria-label="画布内路径预览">
-          <button type="button" className="waygoal-preview-close" onClick={stopViewing}>关闭预览</button>
-          <WaygoalPathView key={`${viewing.sessionId}:${viewing.entryId}`} sessionId={viewing.sessionId}
-            leafId={viewing.leafId ?? viewing.entryId} cwd={snapshot.cwd} label={viewing.label}
-            busyReason={busyReason} forkingEntryId={forkingEntryId}
-            onFork={(entryId, message) => void forkFrom(viewing.sessionId, entryId, false, message)} />
-        </div>}
+
       </section>
       <FileWorkspace workspace={fileWorkspace} scope={cwd || snapshot?.cwd || ""} />
-      {panelOpen && snapshot && <aside className="waygoal-panel" aria-label="讨论面板" data-session-id={panelSession?.id} aria-busy={Boolean(forkingEntryId)} ref={chatPanel}>
+      {panelOpen && snapshot && <aside className="waygoal-panel" aria-label="讨论面板" data-session-id={panelSession?.id} aria-busy={Boolean(forkingEntryId) || navigating} ref={chatPanel}>
         {!emptyEntry && !openTicketMap && <WaygoalPanelResize />}
         <div className="waygoal-panel-head">
           {isMobile && <button type="button" className="waygoal-button outlined small" onClick={closePanel}>← 回到画布</button>}
           <div className="waygoal-panel-title">
-            <span className="waygoal-eyebrow">{openTicketMap ? (openTicketCard ? ticketKind(Boolean(openTicketCard.remote)) : mapKind(openTicketMap.remote)) : panelSession ? (selectedNode?.running ? "正在回复" : "正在继续") : pendingTicket ? "这张票下的新讨论" : "新的会话"}</span>
-            <strong>{openTicketMap ? (openTicketCard?.title ?? openTicketMap.title)
+            {!openTicketMap && <span className="waygoal-eyebrow">{navigating ? "正在切换…" : viewing ? "查看历史" : panelSession ? (selectedNode?.running ? "正在回复" : "正在继续") : pendingTicket ? "这张票下的新讨论" : "新的会话"}</span>}
+            <strong>{viewing ? (nodeById.get(viewing.sessionId)?.title ?? "会话历史") : openTicketMap ? (openTicketCard?.title ?? openTicketMap.title)
               : panelSession ? (selectedNode?.title ?? createdSession?.firstMessage ?? "会话")
               : pendingTicket ? `${pendingTicketTitle ?? pendingTicket}：写下第一句，发送后这段讨论就挂在这张票下`
               : "先写下第一句，发送后这段会话才会出现在画布上"}</strong>
           </div>
           {/* A ticket keeps the name its source file gives it, and a path
               inside a session is not named at all: only a session gets these. */}
-          {selectedNode && <details className="waygoal-chat-settings"><summary aria-label="讨论设置">•••</summary><div><WaygoalRename key={selectedNode.id}
+          {selectedNode && !viewing && <details className="waygoal-chat-settings"><summary aria-label="讨论设置">•••</summary><div><WaygoalRename key={selectedNode.id}
             sessionId={selectedNode.id} title={selectedNode.title} titleSource={selectedNode.titleSource}
             onRenamed={async () => { await refresh(true); }} onError={setError} onNotice={setNotice} /></div></details>}
           {!isMobile && <button type="button" className="waygoal-icon" aria-label="关闭面板" onClick={closePanel}>×</button>}
@@ -1504,11 +1720,12 @@ export function WaygoalCanvas() {
           onOpenDiscussion={id => { const node = nodes.find(n => n.id === id); if (node) openNode(node); }}
           onOpenReference={openReference}
           onReopenCheck={() => void arrange({ mapCheck: { map: openTicketMap.path, dismissed: false } })}
+          onRefreshRelations={async ticket => { await retryRemote(ticket, "relations"); await refresh(true); }}
           onRetryRemote={ticket => void retryRemote(ticket).then(() => refresh(true))} />}
-        {panelSession && <WaygoalPaths
+        {panelSession && !viewing && <WaygoalPaths
           origin={panelOrigin}
           branchPoints={tree?.sessionId === panelSession.id ? tree.branchPoints : []}
-          viewingEntryId={viewing?.sessionId === panelSession.id ? viewing.entryId : null}
+          viewingEntryId={null}
           busyReason={busyReason}
           loading={!tree || tree.sessionId !== panelSession.id}
           onViewOrigin={() => {
@@ -1520,7 +1737,20 @@ export function WaygoalCanvas() {
           }}
           onView={choice => panelSession && viewPath(panelSession.id, choice.entryId, "这条路径", choice.leafId)}
         />}
-        {!openTicketMap && <div className="waygoal-panel-body waygoal-chat-body" inert={Boolean(forkingEntryId)}>
+        {viewing && <div className="waygoal-canvas-preview waygoal-history-panel" aria-label="会话历史">
+          <div className="waygoal-history-actions">
+            <button type="button" className="waygoal-button outlined small" aria-label="关闭预览" onClick={stopViewing}>返回当前聊天</button>
+            {viewing.leafId && <button type="button" className="waygoal-button outlined small"
+              disabled={navigating || Boolean(forkingEntryId) || Boolean(nodeById.get(viewing.sessionId)?.running)}
+              onClick={() => void continueAt(viewing.sessionId, viewing.leafId!)}>切换到这条分支</button>}
+          </div>
+          <WaygoalPathView key={`${viewing.sessionId}:${viewing.entryId}`} sessionId={viewing.sessionId}
+            leafId={viewing.leafId ?? viewing.entryId} cwd={snapshot.cwd} label={viewing.label}
+            busyReason={nodeById.get(viewing.sessionId)?.running ? "这段会话正在回复，可以查看历史，回复结束后再切换或分叉。" : null}
+            forkingEntryId={forkingEntryId}
+            onFork={(entryId, message) => void forkFrom(viewing.sessionId, entryId, false, message)} />
+        </div>}
+        {!openTicketMap && <div className={`waygoal-panel-body waygoal-chat-body${viewing ? " history-hidden" : ""}`} inert={Boolean(forkingEntryId) || navigating || Boolean(viewing)} aria-hidden={Boolean(viewing)}>
           <div className="waygoal-chat-host">
           {<ChatWindow hideWelcome key={panelKey} chatInputRef={chatInput} session={panelSession} sessionRunning={selectedNode?.running ?? false}
                 onOpenFile={path => fileWorkspace.open({ path, cwd: panelSession?.cwd ?? snapshot.cwd, sessionId: panelSession?.id })}

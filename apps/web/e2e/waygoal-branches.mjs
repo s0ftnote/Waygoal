@@ -106,9 +106,13 @@ try {
   const errors = []; page.on("pageerror", error => errors.push(error.message));
   const panel = page.locator(".waygoal-panel");
   const composer = panel.locator("textarea").first();
+  const fillComposer = async text => {
+    await waitFor(async () => await panel.getAttribute("aria-busy") === "false", "chat navigation settled");
+    await composer.fill(text);
+  };
   const send = async (text) => {
     const before = model.requests.length;
-    await composer.fill(text); await composer.press("Enter");
+    await fillComposer(text); await composer.press("Enter");
     await waitFor(() => model.requests.length > before, `request ${text}`);
     await waitFor(async () => !(await snapshot()).nodes.some(node => node.running), "run settled");
     await panel.getByText(`回复: ${text}`, { exact: true }).waitFor();
@@ -126,7 +130,7 @@ try {
   await page.evaluate(() => { window.entryInput = document.querySelector('.waygoal-panel textarea'); });
   await page.screenshot({ path: join(evidence, "00-empty-entry.png") });
   await page.route('**/api/agent/new', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: '首次发送暂不可用' }) }));
-  await composer.fill('发送失败保留草稿'); await composer.press('Enter');
+  await fillComposer('发送失败保留草稿'); await composer.press('Enter');
   await page.getByText('HTTP 503', { exact: false }).first().waitFor();
   check("failed first send stays at the empty entry and retains the draft", (await snapshot()).nodes.length === 0 && await page.locator('[data-empty-entry="true"]').count() === 1 && (await composer.inputValue()) === '发送失败保留草稿');
   await page.unroute('**/api/agent/new');
@@ -146,13 +150,14 @@ try {
   await waitFor(async () => await page.locator("[data-turn]").count() === 4, "four original turn identities");
   check("three continuous sends preserve the input, original message and card DOM", await page.evaluate(() => window.keptInput === document.querySelector(".waygoal-panel textarea") && window.keptMessage === document.querySelector(".waygoal-panel [data-entry-id]") && window.keptCard === document.querySelector("[data-turn]")));
   check("input focus remains in the composer", await composer.evaluate(element => element === document.activeElement));
-  await composer.fill("草稿保持原样");
+  await fillComposer("草稿保持原样");
   const before = model.requests.length, entriesBefore = sessionEntries(id).length;
-  await page.getByRole("button", { name: "全景", exact: true }).click();
+  await page.getByRole("button", { name: "全景", exact: true }).focus(); await page.keyboard.press("Enter");
   await page.locator(`[data-turn="${firstTurn.id}"] .waygoal-turn-content`).click();
   check("locating a historical card preserves draft and input DOM", await composer.inputValue() === "草稿保持原样" && await page.evaluate(() => window.keptInput === document.querySelector(".waygoal-panel textarea")));
   check("locating sends nothing and adds no Pi entries", before === model.requests.length && entriesBefore === sessionEntries(id).length);
   const firstOriginal = panel.locator(`[data-entry-id="${firstTurn.id}"]`);
+  await firstOriginal.hover();
   await firstOriginal.getByRole("button", { name: "定位卡片" }).click();
   await page.locator(`[data-turn="${firstTurn.id}"] .waygoal-turn-content`).click();
   const actions = page.getByRole('group', { name: '所选卡片操作' });
@@ -177,13 +182,20 @@ try {
   await composer.waitFor();
   const branched = await turns(id), sibling = branched.turns.find(turn => turn.question === "另一条路径的材料");
   await waitFor(async () => await page.locator("[data-turn]").count() === 5, "sibling cards");
-  await composer.fill("B 路径草稿");
+  await fillComposer("B 路径草稿");
   await page.evaluate(() => { window.keptInput = document.querySelector(".waygoal-panel textarea"); });
   const inactive = branched.turns.find(turn => turn.question === "继续第一轮");
-  await page.getByRole("button", { name: "全景", exact: true }).click();
+  await page.getByRole("button", { name: "全景", exact: true }).focus(); await page.keyboard.press("Enter");
   await page.locator(`[data-turn="${inactive.id}"] .waygoal-turn-content`).click();
-  await page.getByRole("region", { name: "会话画布区域" }).locator(".waygoal-canvas-preview").waitFor();
-  check("sibling preview stays on the canvas and preserves the active composer", await composer.inputValue() === "B 路径草稿" && await page.evaluate(() => window.keptInput === document.querySelector(".waygoal-panel textarea")));
+  await panel.getByLabel("会话历史", { exact: true }).waitFor();
+  check("branch history uses the right panel and preserves the parked composer", await composer.inputValue() === "B 路径草稿" && await page.evaluate(() => window.keptInput === document.querySelector(".waygoal-panel textarea")));
+  check("history has an explicit branch switch and prevents typing into the wrong path", !await composer.isVisible() && await panel.getByRole("button", { name: "切换到这条分支", exact: true }).isVisible());
+  await panel.locator(".waygoal-readonly-body").getByText("回复: 继续第一轮", { exact: true }).waitFor();
+  await page.screenshot({ path: join(evidence, "navigation-history-desktop.png") });
+  await page.setViewportSize({ width: 390, height: 844 });
+  check("branch history fits mobile without horizontal overflow", await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.screenshot({ path: join(evidence, "navigation-history-mobile.png") });
+  await page.setViewportSize({ width: 1440, height: 1000 });
   check("preview does not change Pi's active leaf", (await turns(id)).activeLeafId === branched.activeLeafId);
   await page.locator('[data-turn="'+firstTurn.id+'"] .waygoal-turn-content').click();
   await waitFor(async () => !(await snapshot()).preview, "card location clears saved preview");
@@ -191,7 +203,7 @@ try {
   await tool("选择继续路径");
   await page.getByRole("navigation", { name: "Tree 路径选择" }).getByRole("button", { name: /继续第三轮/ }).click();
   await waitFor(async () => (await turns(id)).activeLeafId === lastA, "explicit Tree selects A");
-  await composer.fill("A 路径草稿");
+  await fillComposer("A 路径草稿");
   await tool("选择继续路径");
   await page.getByRole("navigation", { name: "Tree 路径选择" }).getByRole("button", { name: /另一条路径的材料/ }).click();
   await waitFor(async () => await composer.inputValue() === "B 路径草稿", "restore B draft");
@@ -203,7 +215,7 @@ try {
   await tool("引用连线");
   await page.locator(`[data-turn="${sibling.id}"] .waygoal-turn-port`).click();
   // Next turn can lie outside the viewport; locate current, then zoom out.
-  await page.getByRole("button", { name: "当前轮次", exact: true }).click();
+  await page.getByRole("button", { name: "当前轮次", exact: true }).focus(); await page.keyboard.press("Enter");
   let releaseMaterial, capturedMaterial;
   const materialHeld = new Promise(resolve => { capturedMaterial = resolve; });
   const materialGate = new Promise(resolve => { releaseMaterial = resolve; });
@@ -221,7 +233,7 @@ try {
   await tool("选择继续路径");
   await page.getByRole("navigation", { name: "Tree 路径选择" }).getByRole("button", { name: /继续第三轮/ }).click();
   await waitFor(async () => await composer.inputValue() === "A 路径草稿", "return after canceled capture");
-  await page.getByRole("button", { name: "当前轮次", exact: true }).click();
+  await page.getByRole("button", { name: "当前轮次", exact: true }).focus(); await page.keyboard.press("Enter");
   await page.locator("[data-next-turn]").click();
   const tray = page.getByLabel("下一轮引用材料"); await tray.waitFor();
   check("successful pointer capture reveals only the arrived material", (await feedbackEvents(page)).some(event => event.material && event.duration === 160), JSON.stringify(await feedbackEvents(page)));
@@ -255,7 +267,7 @@ try {
   await waitFor(async () => await composer.inputValue() === "A 路径草稿", "edit departure draft returns");
   await tray.waitFor();
   check("returning after an edit restores the original material snapshot", true);
-  await composer.fill("带着引用继续"); await composer.press("Enter");
+  await fillComposer("带着引用继续"); await composer.press("Enter");
   await waitFor(() => model.requests.some(request => JSON.stringify(request.body.messages).includes("带着引用继续")), "reference reaches model");
   const actual = model.requests.at(-1).body.messages.at(-1);
   const actualText = typeof actual.content === "string" ? actual.content : actual.content.map(block => block.text ?? "").join("");
@@ -272,6 +284,7 @@ try {
   // Fork inclusively after a real assistant message using the message action.
   await panel.locator(`[data-entry-id="${firstTurn.id}"]`).waitFor();
   const assistant = panel.locator(`[data-entry-id="${firstTurn.endId}"]`).first();
+  await assistant.hover();
   await assistant.getByRole("button", { name: "从这里分叉", exact: true }).click();
   const forkId = await waitFor(async () => (await snapshot()).nodes.find(node => ![id, otherSessionId].includes(node.id))?.id, "independent fork");
   await page.locator(`.waygoal-panel[data-session-id="${forkId}"][aria-busy="false"] textarea`).waitFor();
@@ -282,8 +295,24 @@ try {
   const forkOwn = (await turns(forkId)).turns.find(turn => turn.question === "分叉里连续聊二");
   await waitFor(async () => await page.locator(`[data-turn="${forkOwn.id}"]`).count() === 1, "fork grows on the shared canvas");
   check("shared board retains original and fork with one verified inherited prefix", await page.locator(`[data-turn="${firstTurn.id}"]`).count() === 1 && await page.locator(`[data-turn="${sibling.id}"]`).count() === 1);
-  await composer.fill("分叉草稿保留");
+  await fillComposer("分叉草稿保留");
   const forkLeaf = (await turns(forkId)).activeLeafId;
+  const originalLeaf = (await turns(id)).activeLeafId;
+  const originalActiveTurn = (await turns(id)).turns.findLast(turn => turn.active);
+  const originalCard = page.locator(`[data-turn="${originalActiveTurn.id}"] .waygoal-turn-content`);
+  await originalCard.focus(); await originalCard.press("Enter");
+  await page.locator(`.waygoal-panel[data-session-id="${id}"] textarea`).waitFor();
+  check("clicking another session's active turn opens that chat directly", await page.locator(".waygoal-canvas-preview").count() === 0);
+  await fillComposer("原会话切换草稿");
+  const forkCard = page.locator(`[data-turn="${forkOwn.id}"] .waygoal-turn-content`);
+  await forkCard.focus(); await forkCard.press("Enter");
+  await waitFor(async () => await composer.inputValue() === "分叉草稿保留", "fork draft restored after direct switch");
+  await originalCard.focus(); await originalCard.press("Enter");
+  await waitFor(async () => await composer.inputValue() === "原会话切换草稿", "original draft restored after direct switch");
+  await forkCard.focus(); await forkCard.press("Enter");
+  await waitFor(async () => await composer.inputValue() === "分叉草稿保留", "return to fork");
+  check("direct chat switching preserves both Pi leaves and both drafts", (await turns(id)).activeLeafId === originalLeaf && (await turns(forkId)).activeLeafId === forkLeaf);
+
   await page.evaluate(() => { window.keptInput = document.querySelector(".waygoal-panel textarea"); });
   const foldingUrl = page.url();
   await page.evaluate(() => { window.keptWorld = document.querySelector(".waygoal-world"); });
@@ -306,7 +335,7 @@ try {
   check("an expanded fork is drawn once at its real turn endpoint", await page.locator(`[data-session-origin="${forkId}"]`).count() === 0 && await page.locator('.waygoal-turn-lines path.fork').count() > 0);
   // Keyboard activation works even when a wire lies outside the current camera.
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.getByRole("button", { name: "全景", exact: true }).click();
+  await page.getByRole("button", { name: "全景", exact: true }).focus(); await page.keyboard.press("Enter");
   await clearFeedback(page);
   await collapseOriginal.click();
   await waitFor(async () => await page.locator(`[data-node="${id}"]`).getAttribute("aria-expanded") === "false", "pointer collapse");
@@ -325,7 +354,7 @@ try {
   check("inspecting a fork edge preserves the active history and draft", (await turns(forkId)).activeLeafId === forkLeaf && await composer.inputValue() === "分叉草稿保留" && await page.evaluate(() => window.keptInput === document.querySelector(".waygoal-panel textarea")));
   await page.getByRole("button", { name: "关闭关系预览" }).click();
   await tool("引用连线");
-  await page.getByRole("button", { name: "全景", exact: true }).click();
+  await page.getByRole("button", { name: "全景", exact: true }).focus(); await page.keyboard.press("Enter");
   await page.locator(`[data-turn="${sibling.id}"] .waygoal-turn-port`).click();
   check("reference destination remains visible at overview zoom", await page.locator("[data-next-turn]").isVisible());
   await page.locator("[data-next-turn]").click();
@@ -338,25 +367,26 @@ try {
   const withoutMaterial = (await turns(forkId)).turns.find(turn => turn.question === "移除后发送不带材料");
   check("sending after removal excludes the fading material from Pi", withoutMaterial && !withoutMaterial.sources.length && !JSON.stringify(model.requests.at(-1).body.messages.at(-1)).includes("waygoal-materials"));
   await waitFor(async () => await page.locator(`[data-turn="${withoutMaterial.id}"]`).count() === 1, "uncited turn appears");
-  await page.getByRole("button", { name: "全景", exact: true }).click();
+  await page.getByRole("button", { name: "全景", exact: true }).focus(); await page.keyboard.press("Enter");
   await page.locator(`[data-turn="${sibling.id}"] .waygoal-turn-port`).click();
   await page.locator("[data-next-turn]").click();
   await tray.waitFor();
-  await composer.fill("跨会话带回材料"); await composer.press("Enter");
+  await fillComposer("跨会话带回材料"); await composer.press("Enter");
   const crossTurn = await waitFor(async () => (await turns(forkId)).turns.find(turn => turn.question === "跨会话带回材料" && turn.answer), "cross-session material answered");
   check("cross-session reference retains the exact source identity and frozen submitted text", crossTurn.sources[0].sessionId === id && crossTurn.sources[0].turnId === sibling.id && crossReviewed.every(text => crossTurn.sources[0].snapshot.includes(text)));
   check("cross-session material leaves the target's Pi ancestry intact", ancestorsOf(forkId, crossTurn.id).includes(forkLeaf) && !ancestorsOf(forkId, crossTurn.id).includes(sibling.id));
   const referenceMessage = panel.locator(`[data-entry-id="${crossTurn.id}"]`);
+  await referenceMessage.hover();
   await referenceMessage.getByRole("button", { name: "引用来源", exact: true }).click();
   await page.getByLabel("关系来源").waitFor();
   check("the right-hand original opens its exact sent reference", await page.getByLabel("关系来源").locator("pre").textContent() === crossTurn.sources[0].snapshot);
   await page.getByRole("button", { name: "关闭关系预览" }).click();
   await tool("仅作关联");
-  await page.getByRole("button", { name: "全景", exact: true }).click();
+  await page.getByRole("button", { name: "全景", exact: true }).focus(); await page.keyboard.press("Enter");
   await page.locator(`[data-turn="${sibling.id}"] .waygoal-turn-port`).click();
   await page.locator(`[data-turn="${forkOwn.id}"] .waygoal-turn-port`).click();
   await waitFor(async () => (await snapshot()).turnBoard?.links.length === 1, "cross-session association persisted");
-  await page.getByRole("button", { name: "当前轮次", exact: true }).click();
+  await page.getByRole("button", { name: "当前轮次", exact: true }).focus(); await page.keyboard.press("Enter");
   const draggedCard = page.locator(`[data-turn="${crossTurn.id}"]`);
   // Camera navigation animates. Wait for the real pointer target to settle
   // before deriving mouse coordinates; boundingBox alone does not wait.
@@ -376,18 +406,19 @@ try {
   await page.getByRole("button", { name: /^手动关联：/ }).waitFor();
   check("manual associations and frozen references survive reload", (await snapshot()).turnBoard.links.length === 1 && (await turns(forkId)).turns.find(turn => turn.id === crossTurn.id).sources[0].snapshot === crossTurn.sources[0].snapshot);
   check("shared card layout survives reload with its scoped identity", await draggedCard.evaluate((element, point) => Math.abs(parseFloat(element.style.left) - point.x) < .01 && Math.abs(parseFloat(element.style.top) - point.y) < .01, movedPosition));
-  await page.getByRole("button", { name: "全景", exact: true }).click();
+  await page.getByRole("button", { name: "全景", exact: true }).focus(); await page.keyboard.press("Enter");
   await page.screenshot({ path: join(evidence, "05-shared-board.png") });
   await page.route(`**/api/waygoal/session/${id}/turns`, route => route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "source temporarily unavailable" }) }));
   await page.reload({ waitUntil: "domcontentloaded" }); await composer.waitFor();
   await page.locator(".waygoal-turn-error").waitFor();
+  await panel.locator(`[data-entry-id="${crossTurn.id}"]`).hover();
   await panel.locator(`[data-entry-id="${crossTurn.id}"]`).getByRole("button", { name: "引用来源", exact: true }).click();
   await page.getByLabel("关系来源").waitFor();
   check("a missing source still exposes the immutable sent snapshot", await page.getByLabel("关系来源").locator("pre").textContent() === crossTurn.sources[0].snapshot && await page.getByLabel("关系来源").getByRole("button", { name: "查看来源", exact: true }).isDisabled());
   await page.unrouteAll({ behavior: "wait" });
   await page.reload({ waitUntil: "domcontentloaded" }); await composer.waitFor();
   model.slowMs = 5000;
-  await composer.fill("运行中定位"); await composer.press("Enter");
+  await fillComposer("运行中定位"); await composer.press("Enter");
   const liveTurn = await waitFor(async () => (await turns(forkId)).turns.find(turn => turn.question === "运行中定位" && !turn.answer), "saved live user turn");
   await panel.locator(`[data-entry-id="${liveTurn.id}"]`).waitFor();
   await waitFor(async () => await page.locator(`[data-turn="${liveTurn.id}"]`).count() === 1, "live card");
@@ -423,15 +454,15 @@ try {
   await tool("整理会话与票据");
   await waitFor(async () => (await snapshot()).nodes.some(node => node.id === longId), "long fixture discovery");
   await page.locator(`[data-node="${longId}"]`).waitFor();
-  await page.getByRole("button", { name: "全景", exact: true }).click();
+  await page.getByRole("button", { name: "全景", exact: true }).focus(); await page.keyboard.press("Enter");
   await page.locator(`[data-node="${longId}"]`).click();
   await page.locator('[data-turn="00000001"]').waitFor();
-  await page.getByRole("button", { name: "全景", exact: true }).click();
+  await page.getByRole("button", { name: "全景", exact: true }).focus(); await page.keyboard.press("Enter");
   await page.locator('[data-turn="00000001"] .waygoal-turn-content').click();
   await panel.locator('[data-entry-id="00000001"]').waitFor();
   check("card location resolves original identity across multiple history pages", await panel.getByText("长历史-0", { exact: true }).isVisible());
   await page.evaluate(() => { window.longOriginal = document.querySelector('.waygoal-panel [data-entry-id="00000001"]'); });
-  await page.getByRole("button", { name: "全景", exact: true }).click();
+  await page.getByRole("button", { name: "全景", exact: true }).focus(); await page.keyboard.press("Enter");
   const canvasScale = () => waitFor(() => page.locator(".waygoal-world").evaluate(element => {
     if (element.getAnimations().some(animation => animation.playState === "running" || animation.pending)) return null;
     const actual = new DOMMatrix(getComputedStyle(element).transform), target = new DOMMatrix(element.style.transform);
@@ -454,7 +485,7 @@ try {
   await waitFor(() => page.locator(".waygoal-world").evaluate((element, before) => new DOMMatrix(element.style.transform).a > before * 1.01, fittedScale), "wheel updates camera");
   const zoomedScale = await canvasScale();
   check("zooming from overview changes scale smoothly without jumping to the old minimum", zoomedScale > fittedScale && zoomedScale < fittedScale * 1.2, JSON.stringify({ fittedScale, zoomedScale }));
-  await page.getByRole("button", { name: "当前轮次", exact: true }).click();
+  await page.getByRole("button", { name: "当前轮次", exact: true }).focus(); await page.keyboard.press("Enter");
   await canvasScale();
   check("returning to the current turn restores readable size after overview", await page.locator('[data-turn="00000257"]').evaluate(element => element.getBoundingClientRect().width >= 278));
   await send("长历史之后继续");
@@ -465,9 +496,11 @@ try {
   await page.locator(`[data-collapse-session="${longId}"]`).press("Enter");
   await browseSession(id);
   await page.locator(`[data-turn="${firstTurn.id}"]`).waitFor();
-  await page.getByRole("button", { name: "全景", exact: true }).click();
-  await page.locator(`[data-turn="${firstTurn.id}"] .waygoal-turn-content`).click();
-  const preview = page.locator(".waygoal-canvas-preview");
+  await page.getByRole("button", { name: "全景", exact: true }).focus(); await page.keyboard.press("Enter");
+  await page.locator(`[data-turn="${sibling.id}"] .waygoal-turn-content`).click();
+  // A non-current branch opens read-only history in the right panel; its
+  // user-message action still forks before that message and restores the text.
+  const preview = panel.locator(".waygoal-canvas-preview");
   await preview.locator(".waygoal-readonly-body").getByText("共同问题", { exact: true }).hover();
   await preview.getByRole("button", { name: "从这里分叉", exact: true }).first().click();
   await waitFor(async () => await composer.inputValue() === "共同问题", "preview fork restores original user message");

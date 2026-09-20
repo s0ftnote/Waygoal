@@ -230,7 +230,7 @@ try {
   const lastBefore = twice.lastDiscussion?.sessionId;
   const sentBeforeReview = model.requests.length;
   await panel().getByRole("button", { name: "回到来源这条消息" }).click();
-  await page.locator(".waygoal-canvas-preview").getByText("只读预览 · 当前聊天保持不变").waitFor();
+  await page.locator(".waygoal-canvas-preview").getByText("仅查看历史 · 原聊天与草稿已保留").waitFor();
   await delay(1500);
   const reviewed = await ticketOf("开场怎么说");
   check("reading a branch's source history sends nothing and stays read-only",
@@ -304,14 +304,10 @@ try {
   }, "a discussion under the resolved ticket");
   check("a resolved ticket can still be discussed, and talking leaves it resolved", resolved.status === "resolved", resolved.status);
 
-  // 7. The short how-to can be closed and opened again.
+  // 7. Quick view keeps the conversation list above optional source detail.
   await fitCanvas();
   await card("开场怎么说").click();
-  await panel().getByText(/在这张票下开始的讨论会一直挂在它下面/).waitFor();
-  await panel().getByRole("button", { name: "关闭提示" }).click();
-  await panel().getByRole("button", { name: "怎么用" }).click();
-  await panel().getByText(/在这张票下开始的讨论会一直挂在它下面/).waitFor();
-  check("the short how-to can be closed and opened again", true);
+  check("quick view shows discussions without a persistent tutorial", await panel().locator('.waygoal-ticket-talks [data-talk]').count()>0 && await panel().locator('.waygoal-hint').count()===0);
 
   // 8. A host restart keeps what is held where, and what was collapsed.
   const sentBeforeRestart = model.requests.length;

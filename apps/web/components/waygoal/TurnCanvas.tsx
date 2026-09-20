@@ -429,7 +429,7 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
         </span>
         {!actionOnCurrentPath && <>
           <button type="button" disabled={busy || capturing || !sessionId} onClick={() => void reference(actionCard.key, "answer")}>引用回答</button>
-          <button type="button" disabled={busy} onClick={() => { setActionKey(null); onContinue(actionMember.sessionId, actionMember.turn.endId); }}>在此继续</button>
+          {!actionMember.turn.active && <button type="button" disabled={busy} onClick={() => { setActionKey(null); onContinue(actionMember.sessionId, actionMember.turn.endId); }}>切换到这条分支</button>}
         </>}
         <button type="button" onClick={() => { onDismissPreview(); setEditingTakeaway(actionCard); setActionKey(null); }}>所得</button>
         <button type="button" aria-label="关联其他卡片" onClick={() => { setMode("link"); setFrom(actionCard.key); setActionKey(null); }}>关联</button>

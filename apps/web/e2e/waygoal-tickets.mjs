@@ -137,6 +137,7 @@ try {
 
   // 2. The full view is the source file, with where it came from and when.
   await card("这部短片适合怎样的开场").click();
+  await panel().locator("[data-ticket-source] > summary").click();
   await panel().getByText(".scratch/screening/issues/02-film.md").waitFor();
   const shown = await panel().locator(".waygoal-ticket-body").textContent();
   check("the full view shows the file itself, structure and all",
@@ -216,7 +217,7 @@ try {
   rmSync(join(mapDir("screening"), "issues", "01-feeling.md"));
   await waitFor(async () => (await snapshot()).tickets.maps[0].tickets.some((t) => t.title === "希望朋友带走什么感受" && t.stale), "the ticket to be marked stale");
   await card("希望朋友带走什么感受").click();
-  await panel().getByText(/再读时还是读不到/).waitFor();
+  await panel().getByText(/来源暂时读不到/).waitFor();
   const stale = await panel().locator(".waygoal-ticket-body").textContent();
   check("a file that cannot be read shows what was last read, and says it is not current",
     stale.includes("希望朋友带走什么感受的正文。"), stale);

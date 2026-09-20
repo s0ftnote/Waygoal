@@ -283,12 +283,12 @@
 
 .waygoal-readonly { display: flex; flex-direction: column; min-height: 0; }
 .waygoal-readonly-bar { flex-shrink: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 20px 10px 24px; background: var(--wg-accent-soft); border-bottom: 1px solid var(--wg-border); font-size: 12px; }
-.waygoal-readonly-label { font-weight: 650; }
+.waygoal-readonly-label { font-weight: 650; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .waygoal-readonly-hint { color: var(--wg-muted); }
 .waygoal-readonly-bar .waygoal-button { margin-left: auto; }
 .waygoal-readonly-note { margin: 0; padding: 12px 24px; font-size: 12px; color: var(--wg-muted); }
 .waygoal-readonly-note.error { color: var(--wg-danger); }
-.waygoal-readonly-body { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 24px; }
+.waygoal-readonly-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 24px; }
 .waygoal-readonly-composer { flex-shrink: 0; display: flex; align-items: flex-end; gap: 10px; padding: 12px 20px 14px 24px; border-top: 1px solid var(--wg-border); background: var(--wg-surface); }
 .waygoal-readonly-composer textarea { flex: 1; resize: none; border: 1px solid var(--wg-border); border-radius: 12px; padding: 9px 12px; font: inherit; font-size: 13px; line-height: 1.5; color: var(--wg-ink); background: var(--wg-canvas); }
 .waygoal-readonly-composer textarea:focus-visible { outline: 2px solid var(--wg-accent); outline-offset: 1px; }
@@ -726,3 +726,151 @@
   .waygoal-top-content .waygoal-workspace-menu > summary { gap: 4px; }
   .waygoal-top-content .waygoal-workspace-menu > summary > span:nth-child(-n+2) { display: none; }
 }
+
+/* Real map tickets organize work; tracker provenance stays in the details. */
+.waygoal-ticket-card { height: 152px; min-height: 152px; overflow: hidden; }
+.waygoal-ticket-card.map { height: 140px; min-height: 140px; }
+.waygoal-ticket-card.map-ticket { border-color: var(--wg-ink); border-top-width: 3px; background: var(--wg-accent-soft); }
+.waygoal-world[data-ticket-zoom="map"] .waygoal-ticket-card strong { font-size: 23px; line-height: 1.4; -webkit-line-clamp: 3; }
+.waygoal-world[data-ticket-zoom="map"] .waygoal-ticket-card .waygoal-node-foot,
+.waygoal-world[data-ticket-zoom="map"] .waygoal-ticket-card .waygoal-node-marks { display: none; }
+.waygoal-link.membership path { stroke: var(--wg-path); stroke-width: 1.5; stroke-dasharray: none; opacity: 1; }
+.waygoal-link.dependency path { stroke: var(--wg-ink); stroke-width: 1.5; stroke-dasharray: 5 5; }
+.waygoal-ticket-relations-refresh { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
+.waygoal-ticket-relations-refresh button { border: 1px solid var(--wg-border); border-radius: 8px; min-height: 36px; padding: 6px 10px; }
+.waygoal-ticket-relations-refresh small { color: var(--wg-muted); }
+
+.waygoal-ticket-children { display: flex; flex-direction: column; gap: 8px; }
+.waygoal-ticket-children button { text-align: left; padding: 8px 10px; border-radius: 8px; background: var(--wg-accent-soft); font-size: 13px; }
+
+/* Ticket overviews keep decisions and relationships above provenance. */
+.waygoal-ticket-overview { padding: 8px 28px 0; }
+.waygoal-ticket-overview > section { margin: 16px 0 24px; }
+.waygoal-ticket-overview h3, .waygoal-ticket-children h3 { font-size: 14px; font-weight: 650; margin: 0 0 10px; color: var(--wg-ink); }
+.waygoal-ticket-prose { font-size: 15px; line-height: 1.75; overflow-wrap: anywhere; max-width: 74ch; }
+.waygoal-ticket-prose p { margin: 0 0 10px; }
+.waygoal-ticket-prose ul, .waygoal-ticket-prose ol { padding-left: 22px; margin: 8px 0; }
+.waygoal-ticket-prose a { text-decoration: underline; text-underline-offset: 3px; }
+.waygoal-ticket-prose pre { overflow: auto; white-space: pre-wrap; }
+.waygoal-ticket-prose h1, .waygoal-ticket-prose h2, .waygoal-ticket-prose h3 { font-size: 16px; margin: 16px 0 8px; }
+.waygoal-ticket-parent { font-size: 12px; color: var(--wg-muted); }
+.waygoal-ticket-parent button { color: var(--wg-ink); text-decoration: underline; text-underline-offset: 3px; text-align: left; }
+.waygoal-ticket-panel > .waygoal-ticket-children { padding: 8px 28px 24px; gap: 0; }
+.waygoal-ticket-children h3 span { margin-left: 6px; color: var(--wg-muted); font-weight: 400; }
+.waygoal-ticket-children button { display: flex; align-items: center; gap: 12px; border-radius: 0; background: transparent; border-bottom: 1px solid var(--wg-border); padding: 14px 0; }
+.waygoal-ticket-children button:hover { background: var(--wg-accent-soft); }
+.waygoal-ticket-child-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.waygoal-ticket-child-copy strong { font-size: 14px; font-weight: 600; line-height: 1.5; }
+.waygoal-ticket-child-copy small { font-size: 12px; color: var(--wg-muted); }
+.waygoal-ticket-status-dot { width: 8px; height: 8px; border: 1.5px solid var(--wg-accent); border-radius: 50%; flex-shrink: 0; }
+.waygoal-ticket-status-dot.done { background: var(--wg-accent); }
+.waygoal-ticket-panel > .waygoal-ticket-blockers { padding: 0 28px 16px; }
+.waygoal-ticket-disclosure { border-top: 1px solid var(--wg-border); }
+.waygoal-ticket-disclosure > summary { cursor: pointer; padding: 14px 0; font-size: 13px; color: var(--wg-muted); }
+.waygoal-ticket-disclosure > summary:hover { color: var(--wg-ink); }
+.waygoal-ticket-disclosure > summary span { margin-left: 6px; }
+.waygoal-ticket-support { margin: 0 28px; }
+.waygoal-ticket-support .waygoal-ticket-body, .waygoal-ticket-support .waygoal-ticket-refs { padding: 12px 0; }
+.waygoal-ticket-support .waygoal-ticket-remote { margin: 0 0 14px; }
+.waygoal-ticket-support .waygoal-ticket-source { flex-wrap: wrap; overflow-wrap: anywhere; font-size: 12px; }
+.waygoal-ticket-panel > .waygoal-ticket-talks { padding: 18px 28px 24px; }
+.waygoal-ticket-cluster { position: absolute; border: 1px solid var(--wg-accent); border-radius: 16px; background: rgb(169 219 220 / 8%); pointer-events: none; }
+.waygoal-ticket-cluster-head { pointer-events: auto; height: 38px; display: flex; align-items: center; gap: 10px; width: 100%; padding: 0 14px; text-align: left; border-radius: 15px 15px 0 0; color: var(--wg-ink); background: var(--wg-accent-soft); }
+.waygoal-ticket-cluster-head:hover { background: var(--wg-border); }
+.waygoal-ticket-cluster-head strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.waygoal-ticket-cluster-head span { font-size: 11px; flex-shrink: 0; }
+.waygoal-ticket-cluster-head svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; flex-shrink: 0; }
+.waygoal-ticket-cluster.collapsed .waygoal-ticket-cluster-head strong { display: none; }
+.waygoal-ticket-cluster.collapsed .waygoal-ticket-cluster-head span { margin-left: auto; }
+@media (max-width: 600px) {
+  .waygoal-ticket-overview, .waygoal-ticket-panel > .waygoal-ticket-children, .waygoal-ticket-panel > .waygoal-ticket-talks, .waygoal-ticket-panel > .waygoal-ticket-blockers { padding-left: 16px; padding-right: 16px; }
+  .waygoal-ticket-support { margin-left: 16px; margin-right: 16px; }
+}
+.waygoal-ticket-panel > * { flex-shrink: 0; }
+.waygoal-inline-reference { text-decoration: underline; text-underline-offset: 3px; text-align: left; }
+.waygoal-ticket-support .waygoal-ticket-refs li { flex-wrap: wrap; }
+.waygoal-ticket-support .waygoal-ticket-refs code { overflow-wrap: anywhere; }
+.waygoal-ticket-support .waygoal-ref-note { white-space: normal; }
+.waygoal-ticket-cluster-head:focus-visible, .waygoal-ticket-disclosure > summary:focus-visible { outline: 2px solid var(--wg-ink); outline-offset: 3px; }
+.waygoal-ticket-cluster-head:disabled { cursor: progress; }
+.waygoal-ticket-talks h3 { margin: 0 0 4px; font-size: 14px; font-weight: 650; }
+.waygoal-ticket-status-dot { border-color: var(--wg-path); }
+.waygoal-world[data-ticket-zoom="map"] .waygoal-ticket-cluster-head strong { font-size: 18px; }
+.waygoal-world[data-ticket-zoom="map"] .waygoal-ticket-cluster-head span { font-size: 15px; }
+
+/* History occupies the same reading surface; the live composer stays mounted
+   but cannot receive input while a different path is being read. */
+.waygoal-panel > .waygoal-history-panel {
+  position: relative; inset: auto; width: 100%; height: auto; flex: 1;
+  min-height: 0; border: 0; border-radius: 0; box-shadow: none; z-index: auto;
+}
+.waygoal-history-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--wg-border); }
+.waygoal-chat-body.history-hidden { display: none; }
+
+.waygoal-direction-arrow { fill: var(--wg-ink); stroke: none; }
+.waygoal-link.dependency > path { stroke-dasharray: 5 5; }
+.waygoal-link.dependency text { fill: var(--wg-ink); pointer-events: auto; cursor: help; }
+.waygoal-ticket-cluster-head { padding: 0 6px 0 14px; gap: 4px; }
+.waygoal-ticket-cluster-drag { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; height: 100%; text-align: left; cursor: grab; touch-action: none; }
+.waygoal-ticket-cluster-drag:active { cursor: grabbing; }
+.waygoal-ticket-cluster-toggle { display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; border-radius: 8px; }
+.waygoal-ticket-cluster-toggle:hover { background: var(--wg-surface); }
+.waygoal-ticket-cluster-drag:focus-visible, .waygoal-ticket-cluster-toggle:focus-visible { outline: 2px solid var(--wg-ink); outline-offset: 2px; }
+
+/* The Map is the container. Its title opens details; its handle moves members. */
+.waygoal-ticket-cluster-head { height: 48px; }
+.waygoal-ticket-cluster-drag { gap: 18px; }
+.waygoal-ticket-cluster-discuss { flex-shrink: 0; padding: 6px 10px; font-size: 12px; border-radius: 8px; }
+.waygoal-ticket-cluster-discuss:hover { background: var(--wg-surface); }
+.waygoal-ticket-cluster.collapsed { display: flex; flex-direction: column; background: var(--wg-surface); pointer-events: auto; }
+.waygoal-ticket-cluster.collapsed .waygoal-ticket-cluster-head { height: auto; min-height: 78px; align-items: flex-start; padding: 14px 8px 10px 16px; }
+.waygoal-ticket-cluster.collapsed .waygoal-ticket-cluster-drag { align-self: stretch; }
+.waygoal-ticket-cluster.collapsed .waygoal-ticket-cluster-head strong { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; white-space: normal; font-size: 16px; line-height: 1.5; }
+.waygoal-ticket-cluster-summary { display: flex; flex: 1; min-height: 0; flex-direction: column; justify-content: space-between; gap: 8px; width: 100%; padding: 16px; font-size: 12px; color: var(--wg-muted); text-align: left; pointer-events: auto; }
+.waygoal-ticket-cluster-summary > span:last-child { display: flex; justify-content: space-between; gap: 12px; }
+.waygoal-ticket-cluster-summary:hover { color: var(--wg-ink); }
+.waygoal-ticket-cluster-summary:focus-visible, .waygoal-ticket-cluster-discuss:focus-visible { outline: 2px solid var(--wg-ink); outline-offset: -3px; }
+
+.waygoal-ticket-cluster-drag { flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; }
+.waygoal-ticket-cluster-head strong { flex: initial; width: 100%; }
+.waygoal-ticket-cluster.selected { border-color: var(--wg-ink); }
+.waygoal-ticket-cluster.collapsed .waygoal-ticket-cluster-head { height: 108px; flex-shrink: 0; }
+.waygoal-ticket-cluster.collapsed .waygoal-ticket-cluster-drag { justify-content: flex-start; }
+
+/* Map context stays readable; its measured header reserves its own space. */
+.waygoal-ticket-cluster-head { display: block; height: auto; padding: 14px 16px; }
+.waygoal-ticket-cluster-head:hover { background: var(--wg-accent-soft); }
+.waygoal-ticket-cluster-title-row { display: flex; align-items: flex-start; gap: 10px; }
+.waygoal-ticket-cluster-drag { height: auto; align-self: stretch; justify-content: flex-start; }
+.waygoal-ticket-cluster-head strong,
+.waygoal-world[data-ticket-zoom="map"] .waygoal-ticket-cluster-head strong { display: block; white-space: normal; overflow-wrap: anywhere; font-size: 17px; line-height: 1.5; -webkit-line-clamp: unset; }
+.waygoal-map-purpose { margin: 8px 0 0; font-size: 13px; line-height: 1.6; color: var(--wg-muted); overflow-wrap: anywhere; }
+.waygoal-map-meta { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; color: var(--wg-muted); }
+.waygoal-world[data-ticket-zoom="map"] .waygoal-map-meta span { font-size: 12px; }
+.waygoal-map-discussions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--wg-border); }
+.waygoal-map-discussions > span { color: var(--wg-muted); font-size: 12px; }
+.waygoal-map-discussion { display: flex; min-width: 0; max-width: 100%; gap: 4px; background: var(--wg-surface); border-radius: 8px; }
+.waygoal-map-discussion button { text-align: left; padding: 7px 10px; font-size: 12px; overflow-wrap: anywhere; }
+.waygoal-map-discussion button:last-child { flex-shrink: 0; color: var(--wg-muted); }
+.waygoal-map-discussion button:hover { color: var(--wg-ink); text-decoration: underline; text-underline-offset: 3px; }
+.waygoal-map-discussion button:focus-visible { outline: 2px solid var(--wg-ink); outline-offset: -2px; border-radius: 8px; }
+.waygoal-ticket-cluster.collapsed .waygoal-ticket-cluster-head { padding: 14px 12px 10px 16px; }
+.waygoal-ticket-cluster.collapsed .waygoal-ticket-cluster-head strong { font-size: 16px; }
+.waygoal-ticket-card[data-state="resolved"] { background: var(--wg-accent); border-color: var(--wg-path); }
+.waygoal-ticket-card[data-state="resolved"] .waygoal-node-state { display: flex; align-items: center; gap: 4px; color: var(--wg-ink); font-weight: 650; }
+.waygoal-ticket-card .waygoal-node-state svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; }
+.waygoal-ticket-card[data-state="cancelled"] { border-style: dashed; background: var(--wg-canvas); }
+
+.waygoal-ticket-card[data-state="resolved"] :is(.waygoal-node-meta, .waygoal-node-foot) { color: var(--wg-ink); }
+
+/* Map type is a reading layer: keep it legible through common canvas zooms. */
+.waygoal-ticket-cluster:not(.collapsed) .waygoal-ticket-cluster-head { padding: 20px 22px; }
+.waygoal-ticket-cluster:not(.collapsed) .waygoal-ticket-cluster-head strong { max-width: 42ch; font-size: calc(22px * var(--wg-map-text-scale, 1)); font-weight: 650; line-height: 1.4; }
+.waygoal-map-purpose { max-width: 68ch; font-size: calc(16px * var(--wg-map-text-scale, 1)); line-height: 1.65; margin-top: 12px; color: var(--wg-ink); }
+.waygoal-ticket-cluster:not(.collapsed) :is(.waygoal-map-meta span, .waygoal-map-discussions > span, .waygoal-map-discussion button, .waygoal-ticket-cluster-discuss) { font-size: calc(14px * var(--wg-map-text-scale, 1)); line-height: 1.5; }
+.waygoal-map-meta { margin-top: 14px; }
+.waygoal-map-discussions { margin-top: 16px; padding-top: 16px; }
+.waygoal-map-discussion { flex-wrap: wrap; }
+.waygoal-ticket-cluster-discuss { white-space: nowrap; }
+.waygoal-map-session-region { position: absolute; pointer-events: none; border: 1px dashed var(--wg-path); border-radius: 12px; background: rgb(169 219 220 / 10%); }
+.waygoal-map-session-owner { display: block; padding: 6px 14px; color: var(--wg-ink); font-size: calc(14px * var(--wg-map-text-scale, 1)); line-height: 1.4; font-weight: 600; }

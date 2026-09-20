@@ -163,6 +163,7 @@ export function readCanvasRecord(scope: WaygoalScope): WaygoalCanvasRecord {
         .map(([t, place]) => [t, { sessionId: place.sessionId, entryId: typeof place.entryId === "string" && place.entryId ? place.entryId : null }])),
       groups: validGroups(parsed.groups),
       links: validLinks(parsed.links),
+      collapsedTicketClusters: Array.isArray(parsed.collapsedTicketClusters) ? parsed.collapsedTicketClusters.filter(isNonEmptyString) : [],
       expandedSessions: Array.isArray(parsed.expandedSessions) ? parsed.expandedSessions.filter(isNonEmptyString) : [],
       ...(validTurnBoard(parsed.turnBoard) ? { turnBoard: parsed.turnBoard } : {}),
       ...(parsed.turnLayouts ? { turnLayouts: Object.fromEntries(Object.entries(parsed.turnLayouts).flatMap(([id, layout]) => validTurnLayout(layout) ? [[id, layout]] : [])) } : {}),
@@ -188,6 +189,11 @@ export function applyCanvasPatch(scope: WaygoalScope, patch: WaygoalCanvasPatch)
   if ("preview" in patch) {
     if (patch.preview !== null && (!patch.preview || !isNonEmptyString(patch.preview.sessionId) || (patch.preview.entryId !== null && !isNonEmptyString(patch.preview.entryId)))) throw new Error("预览位置无效。");
     record.preview = patch.preview;
+    changed = true;
+  }
+  if (patch.collapsedTicketClusters !== undefined) {
+    if (!Array.isArray(patch.collapsedTicketClusters) || !patch.collapsedTicketClusters.every(isNonEmptyString)) throw new Error("票据集群收起记录无效。");
+    record.collapsedTicketClusters = [...new Set(patch.collapsedTicketClusters)];
     changed = true;
   }
   if (patch.expandedSessions !== undefined) {
@@ -476,6 +482,7 @@ export function buildSnapshot(
     links: record.links,
     canUndoLayout: Boolean(record.layoutUndo),
     expandedSessions: record.expandedSessions ?? [],
+    collapsedTicketClusters: record.collapsedTicketClusters ?? [],
     ...(record.turnBoard ? { turnBoard: record.turnBoard } : {}),
     ...(record.turnLayouts ? { turnLayouts: record.turnLayouts } : {}),
   };
@@ -508,8 +515,8 @@ export function buildTicketSnapshot(scope: WaygoalScope, nodes: WaygoalNode[] = 
   const record = readCanvasRecord(scope);
   const merged = mergeTicketScan(scan, record.tickets);
   let changed = JSON.stringify(record.tickets) !== JSON.stringify(merged.saved);
-  const place = (id: string, height: number): WaygoalPoint => {
-    if (placeOnCanvas(record, id, height)) changed = true;
+  const place = (id: string, height: number, source?: WaygoalPoint): WaygoalPoint => {
+    if (placeOnCanvas(record, id, height, source)) changed = true;
     return record.nodes[id];
   };
   const byId = new Map(nodes.map(node => [node.id, node]));
@@ -547,12 +554,12 @@ export function buildTicketSnapshot(scope: WaygoalScope, nodes: WaygoalNode[] = 
   // differs, and each card says so itself.
   const maps = [...merged.maps, ...remoteMapViews(scope)].map(map => ({
     ...map,
-    position: place(map.path, NODE_HEIGHT),
+    position: map.remote ? { x: 0, y: 0 } : place(map.path, NODE_HEIGHT),
     // A source mirror has no Destination of its own to go back and check.
     check: map.remote ? null : mapCheck(map, record.mapCheckDismissed[map.path] ?? false),
     tickets: map.tickets.map(ticket => ({
       ...ticket,
-      position: place(ticket.id, TICKET_CARD_HEIGHT),
+      position: place(ticket.id, TICKET_CARD_HEIGHT, record.nodes[ticket.parentTicketId ?? (map.remote ? "" : map.path)]),
       justUnblocked: recordWaiting(ticket),
       discussions: discussionsOf(ticket.id),
       expanded: record.ticketExpanded[ticket.id] ?? true,

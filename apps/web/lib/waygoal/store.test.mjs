@@ -850,3 +850,20 @@ test("ticket discussions read the durable session lineage without a canvas origi
     assert.equal(ticket.discussions[0].originSessionId,"source");
   }finally{s.done();}
 });
+
+test('ticket cluster collapse persists per canvas without changing positions or conversation state',()=>{
+ const s=sandbox();
+ try {
+  store.applyCanvasPatch(s.sa,{positions:{'map':{x:10,y:20}},expandedSessions:['chat'],lastViewed:'chat',collapsedTicketClusters:['map','map']});
+  const record=store.readCanvasRecord(s.sa);
+  assert.deepEqual(record.collapsedTicketClusters,['map']);
+  assert.deepEqual(record.nodes.map,{x:10,y:20});
+  assert.deepEqual(record.expandedSessions,['chat']);
+  assert.equal(record.lastViewed,'chat');
+  assert.deepEqual(store.buildSnapshot(s.sa,[],[]).collapsedTicketClusters,['map']);
+  assert.deepEqual(store.readCanvasRecord(s.sb).collapsedTicketClusters??[],[]);
+  store.applyCanvasPatch(s.sa,{collapsedTicketClusters:[]});
+  assert.deepEqual(store.readCanvasRecord(s.sa).collapsedTicketClusters,[]);
+  assert.throws(()=>store.applyCanvasPatch(s.sa,{collapsedTicketClusters:[null]}),/无效/);
+ }finally{s.done();}
+});

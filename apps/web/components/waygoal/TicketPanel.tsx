@@ -1,5 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import { mapSections, mapLead } from "@/lib/waygoal/map";
 import { remoteSourceLabel } from "@/lib/waygoal/labels";
 import { canOpen, needsCheck, type WaygoalReference, type WaygoalRemoteInfo, type WaygoalTicketBlocker, type WaygoalTicketCard, type WaygoalTicketMapCard, type WaygoalTicketState } from "@/lib/waygoal/types";
 
@@ -20,6 +22,7 @@ interface Props {
   /** Try again to read the raw result this remote ticket was delivered with,
    *  after the source's result has been put back. */
   onRetryRemote: (ticket: WaygoalTicketCard) => void;
+  onRefreshRelations: (ticket: WaygoalTicketCard) => Promise<void>;
 }
 
 /** Where a ticket stands, coloured the same way everywhere it is shown. */
@@ -144,50 +147,46 @@ function RemoteComments({ comments }: { comments: WaygoalRemoteInfo["comments"] 
   </div>;
 }
 
-/** The map's own text, in its own order and its own headings. The file is
- *  shown, not retold: no summary of what it decided is produced here. */
-function MapBody({ map }: { map: WaygoalTicketMapCard }) {
-  // A source mirror has no file of its own; what it has to say is its lead.
-  if (map.sections.length === 0) return <pre className="waygoal-ticket-body">{map.body || map.lead}</pre>;
-  return <div className="waygoal-map-sections">
-    {map.lead && <pre className="waygoal-ticket-body">{map.lead}</pre>}
-    {/* A file may write the same heading twice; each block stays its own. */}
-    {map.sections.map((section, index) => <section key={`${index}-${section.heading}`} data-section={section.heading}>
-      <h3>{section.heading}</h3>
-      <pre className="waygoal-ticket-body">{section.body}</pre>
-    </section>)}
-  </div>;
+const SECTION_LABELS: Record<string, string> = {
+  destination: "目标", question: "要解决的问题", answer: "已有结论",
+  "decisions so far": "已有判断", "not yet specified": "待明确", notes: "补充说明",
+  "out of scope": "暂不涉及", "acceptance criteria": "验收条件",
+};
+
+/** Format the source, without inventing a summary or loading remote images. */
+function OverviewText({ body, references, onOpen }: { body: string; references: WaygoalReference[]; onOpen: Props["onOpenReference"] }) {
+  return <div className="waygoal-ticket-prose"><ReactMarkdown components={{
+    img: ({ alt }) => <span>{alt || "图片见原文"}</span>,
+    a: ({ href, children }) => {
+      const reference = references.find(item => item.target === href);
+      if (reference && canOpen(reference)) return <button type="button" className="waygoal-inline-reference" onClick={() => onOpen(reference)}>{children}</button>;
+      return href && /^https?:\/\//i.test(href) ? <a href={href} target="_blank" rel="noreferrer">{children}</a> : <span>{children}</span>;
+    },
+  }}>{body}</ReactMarkdown></div>;
 }
 
-const HINT_KEY = "waygoal-ticket-hint";
-const HINT = "在这张票下开始的讨论会一直挂在它下面；从讨论里分叉出去的那段也还属于这张票。收起只是不在画布上摊开，票里照样接着聊。";
-/** Where the sentence comes from, said in it: it is Waygoal's own description
- *  of this entry, not anything read out of the user's chats. */
-const HINT_SOURCE = "—— Waygoal 对这个入口的说明，不是从你的对话里总结的";
-
-/** The short how-to for discussions under a ticket. It is written here, not
- *  produced from anything the user said: no chat is read and no model is
- *  called. Closing it is remembered, and it can be opened again. */
-function Guidance() {
-  const [open, setOpen] = useState(true);
-  useEffect(() => {
-    try { setOpen(localStorage.getItem(HINT_KEY) !== "closed"); } catch { /* private mode: just show it */ }
-  }, []);
-  const remember = (next: boolean) => {
-    setOpen(next);
-    try { localStorage.setItem(HINT_KEY, next ? "open" : "closed"); } catch { /* nothing to remember it in */ }
-  };
-  if (!open) return <button type="button" className="waygoal-hint-open" onClick={() => remember(true)}>怎么用</button>;
-  return <p className="waygoal-hint">
-    <span>{HINT}<span className="waygoal-hint-source">{HINT_SOURCE}</span></span>
-    <button type="button" aria-label="关闭提示" onClick={() => remember(false)}>×</button>
-  </p>;
+function Overview({ body, references, onOpen }: { body: string; references: WaygoalReference[]; onOpen: Props["onOpenReference"] }) {
+  const sections = mapSections(body);
+  const lead = mapLead(body).replace(/^#\s+[^\n]+\n?/, "").replace(/^(?:\*\*)?(?:Type|Status|Blocked by):(?:\*\*)?[^\n]*(?:\n|$)/gmi, "").trim();
+  return <div className="waygoal-ticket-overview">
+    {lead && <section><OverviewText body={lead} references={references} onOpen={onOpen} /></section>}
+    {sections.map((section, index) => {
+      const name = section.heading.toLowerCase();
+      const label = SECTION_LABELS[name] ?? section.heading;
+      const primary = ["destination", "question", "answer", "decisions so far", "acceptance criteria"].includes(name);
+      return primary ? <section key={index} data-overview-section={name} data-section={section.heading}>
+        <h3>{label}</h3><OverviewText body={section.body} references={references} onOpen={onOpen} />
+      </section> : <details key={index} className="waygoal-ticket-disclosure" data-section={section.heading}>
+        <summary>{label}</summary><OverviewText body={section.body} references={references} onOpen={onOpen} />
+      </details>;
+    })}
+  </div>;
 }
 
 function Discussions({ ticket, onStart, onOpenDiscussion }: { ticket: WaygoalTicketCard } & Pick<Props, "onStart" | "onOpenDiscussion">) {
   return <div className="waygoal-ticket-talks">
-    <p className="waygoal-ticket-label">这张票下的讨论</p>
-    {ticket.discussions.length === 0 && <p className="waygoal-ticket-empty">还没有。开始聊，这段讨论就挂在这张票下。</p>}
+    <h3>讨论</h3>
+    {ticket.discussions.length === 0 && <p className="waygoal-ticket-empty">还没有讨论。</p>}
     <ul>
       {ticket.discussions.map(talk => <li key={talk.sessionId} data-talk={talk.sessionId}>
         <button type="button" className="waygoal-button outlined small" disabled={talk.missing}
@@ -204,48 +203,61 @@ function Discussions({ ticket, onStart, onOpenDiscussion }: { ticket: WaygoalTic
     <button type="button" className="waygoal-button action small" onClick={() => onStart(ticket)}>
       {ticket.discussions.length === 0 ? "在这张票下开始聊" : "另开一段讨论"}
     </button>
-    <Guidance />
   </div>;
 }
 
 /** The full view of one local ticket or map: what the source file says, where
  *  it came from and when it was read. It shows the file's own text rather than
  *  a retelling, and opening it starts no Pi session. */
-export function WaygoalTicketPanel({ map, ticket, readAt, onStart, onOpenDiscussion, onOpenReference, onReopenCheck, onRetryRemote }: Props) {
+export function WaygoalTicketPanel({ map, ticket, readAt, onStart, onOpenDiscussion, onOpenReference, onReopenCheck, onRetryRemote, onRefreshRelations }: Props) {
+  const [refreshing, setRefreshing] = useState(false);
   const stale = ticket ? ticket.stale : map.stale;
   const path = ticket ? ticket.path : map.path;
-  return <div className="waygoal-ticket-panel">
+  const parent = map.tickets.find(t => t.id === ticket?.parentTicketId);
+  const children = ticket ? map.tickets.filter(t => t.parentTicketId === ticket.id) : map.tickets;
+  const body = ticket?.body ?? map.body;
+  const openReference = (item: WaygoalTicketCard) => onOpenReference({ label: item.title, target: item.id, path: item.id, kind: "ticket", external: false });
+  return <div className="waygoal-ticket-panel" key={path}>
     <div className="waygoal-ticket-head">
-      {/* The panel header already names it; this is what the file says about it. */}
       <p className="waygoal-ticket-meta">
-        {/* A source that has no type field for its tickets gets no empty tag. */}
-        {ticket?.type && <span className="waygoal-tag">{ticket.type}</span>}
-        {ticket && <span className={`waygoal-tag ${stateClass(ticket.state)}`}>{ticket.status}</span>}
-        {ticket && <span className="waygoal-ticket-map">来自「{map.title}」</span>}
+        {ticket && <span className={`waygoal-tag ${stateClass(ticket.state)}`}>{ticket.status === "open" ? "进行中" : ticket.status === "closed" ? "已关闭" : ticket.status}</span>}
+        {ticket && <span>#{ticket.number}</span>}
+        {ticket?.type && <span>{ticket.type === "map" ? "探索地图" : ticket.type}</span>}
       </p>
-      {ticket?.remote && <Remote remote={ticket.remote} onRetry={() => onRetryRemote(ticket)} />}
-      {ticket && <Blockers ticket={ticket} />}
-      <p className="waygoal-ticket-source">
-        <span className="waygoal-ticket-label">来源</span><code>{path}</code>
-        <span className="waygoal-ticket-label">读取于</span>{readTime(stale ? stale.lastReadAt : readAt)}
-      </p>
-      {stale && <p role="status" className="waygoal-ticket-stale">{stale.reason}最后一次读到是 {readTime(stale.lastReadAt)}，{readTime(stale.checkedAt)} 再读时还是读不到，所以下面的内容不能当作现在的状态。</p>}
-      {!ticket && map.unreadable.length > 0 && <p role="status" className="waygoal-ticket-stale">
-        这张地图下有读不出来的文件：{map.unreadable.map(u => u.path).join("、")}。
-      </p>}
-      {!ticket && map.warnings.map(warning => <p key={warning} role="status" className="waygoal-ticket-stale">{warning}</p>)}
-      {/* Put away on the canvas, it can be asked for again here — nothing is
-          re-sent and nothing about the map changes by asking. */}
-      {!ticket && map.check?.dismissed && <p className="waygoal-ticket-check">
-        <button type="button" className="waygoal-button outlined small" data-map-check-reopen={map.path}
-          onClick={onReopenCheck}>重新显示检查提示</button>
-      </p>}
+      {ticket?.parentTicketId && <p className="waygoal-ticket-parent">属于 {parent ? <button type="button" onClick={() => openReference(parent)}>#{parent.number} {parent.title}</button> : <span>#{ticket.parentTicketId.split("/").at(-1)} · 未导入画布</span>}</p>}
+      {stale && <p role="status" className="waygoal-ticket-stale">来源暂时读不到，当前显示 {readTime(stale.lastReadAt)} 的内容。</p>}
+      {ticket?.remote && !ticket.remote.capturedAt && <p role="status" className="waygoal-ticket-stale">票据内容尚未同步，请在「来源与同步」中重新取得。</p>}
+      {ticket?.remote?.relationsNote && <p role="status" className="waygoal-ticket-stale">关系读取未完成，详情见「来源与同步」。</p>}
     </div>
-    {/* Blocked or resolved, a ticket can still be talked about: talking is how
-        a question gets answered, and it changes no status by itself. */}
+    <Overview body={body} references={ticket?.references ?? map.references} onOpen={onOpenReference} />
+    {children.length > 0 && <section className="waygoal-ticket-children">
+      <h3>子票据 <span>{children.length}</span></h3>
+      {children.map(child => <button type="button" key={child.id} onClick={() => openReference(child)}>
+        <span className={`waygoal-ticket-status-dot ${stateClass(child.state)}`} aria-hidden="true" />
+        <span className="waygoal-ticket-child-copy"><strong>{child.title}</strong><small>#{child.number} · {child.status === "open" ? "进行中" : child.status === "closed" ? "已关闭" : child.status}{child.blocked ? ` · 等待 ${child.blockers.filter(b => b.holding).map(b => `#${b.number}`).join("、")}` : ""}</small></span>
+        <span aria-hidden="true">→</span>
+      </button>)}
+    </section>}
+    {ticket && <Blockers ticket={ticket} />}
     {ticket && <Discussions ticket={ticket} onStart={onStart} onOpenDiscussion={onOpenDiscussion} />}
-    <References references={ticket ? ticket.references : map.references} onOpen={onOpenReference} />
-    {/* The file itself, unchanged: structure, answers and scope as written. */}
-    {ticket ? <pre className="waygoal-ticket-body">{ticket.body}</pre> : <MapBody map={map} />}
+    {(ticket?.references ?? map.references).length > 0 && <details className="waygoal-ticket-disclosure waygoal-ticket-support">
+      <summary>相关资料 <span>{(ticket?.references ?? map.references).length}</span></summary>
+      <References references={ticket ? ticket.references : map.references} onOpen={onOpenReference} />
+    </details>}
+    <details className="waygoal-ticket-disclosure waygoal-ticket-support" data-ticket-source>
+      <summary>来源与同步</summary>
+      {ticket?.remote && <Remote remote={ticket.remote} onRetry={() => onRetryRemote(ticket)} />}
+      {ticket?.remote?.source === "github" && <div className="waygoal-ticket-relations-refresh">
+        <button type="button" disabled={refreshing} onClick={async () => { setRefreshing(true); try { await onRefreshRelations(ticket); } finally { setRefreshing(false); } }}>{refreshing ? "正在读取关系…" : "刷新父子与依赖关系"}</button>
+        <small>{ticket.remote.relationsNote || (ticket.remote.relationsReadAt ? `关系读取于 ${readTime(ticket.remote.relationsReadAt)}` : "关系尚未读取")}</small>
+      </div>}
+      <p className="waygoal-ticket-source"><code>{path}</code><span>读取于 {readTime(stale ? stale.lastReadAt : readAt)}</span></p>
+      {!ticket && map.unreadable.length > 0 && <p role="status" className="waygoal-ticket-stale">读不到：{map.unreadable.map(u => u.path).join("、")}</p>}
+      {!ticket && map.warnings.map(warning => <p key={warning} role="status" className="waygoal-ticket-stale">{warning}</p>)}
+      {!ticket && map.check?.dismissed && <button type="button" className="waygoal-button outlined small" data-map-check-reopen={map.path} onClick={onReopenCheck}>重新显示检查提示</button>}
+    </details>
+    <details className="waygoal-ticket-disclosure waygoal-ticket-support" data-ticket-original>
+      <summary>查看原文</summary><pre className="waygoal-ticket-body">{body}</pre>
+    </details>
   </div>;
 }

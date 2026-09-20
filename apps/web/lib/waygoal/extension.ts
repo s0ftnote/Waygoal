@@ -3,6 +3,7 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { StringEnum } from "@earendil-works/pi-ai";
 import { GITHUB_COMMAND } from "./remote";
+import { refreshRemoteRelations } from "./remote-relations";
 import { deliverRemoteTicket } from "./remote-store";
 import { loadSkillsWithInstallInfo } from "../skills-service";
 
@@ -42,7 +43,7 @@ const defaultSkillNames: SkillNameLoader = async (cwd) => (await loadSkillsWithI
 //    loaded, instead of letting the literal text go to the model.
 // 2. Take delivery of a remote ticket the Agent has just read, as a registered
 //    tool: the source identity and where the raw result is, nothing else.
-export function createWaygoalExtension(cwd: string, skillNames: SkillNameLoader = defaultSkillNames, agentDir = getAgentDir()): ExtensionFactory {
+export function createWaygoalExtension(cwd: string, skillNames: SkillNameLoader = defaultSkillNames, agentDir = getAgentDir(), refreshRelations = refreshRemoteRelations): ExtensionFactory {
   return (pi) => {
     // A registered tool is the one trigger that fires reliably: Pi calls it
     // with checked arguments. Nothing here reads the Agent's prose, and the
@@ -50,7 +51,7 @@ export function createWaygoalExtension(cwd: string, skillNames: SkillNameLoader 
     pi.registerTool({
       name: "waygoal_remote_ticket",
       label: "Waygoal 来源票据",
-      description: `把刚读到的远程票据交给 Waygoal 画布。只给来源身份和原始结果所在的文件，正文由 Waygoal 自己读；不要复述或改写票据正文。原始结果必须先写在工作目录里，例如 ${GITHUB_COMMAND} > .scratch/remote/<编号>.json。`,
+      description: `把刚读到的远程票据交给 Waygoal 画布。只给来源身份和原始结果所在的文件，正文由 Waygoal 自己读；不要复述或改写票据正文。GitHub 交付后会用本机 gh 只读获取父子和依赖关系，不修改 issue。原始结果必须先写在工作目录里，例如 ${GITHUB_COMMAND} > .scratch/remote/<编号>.json。`,
       promptSnippet: "读到远程票据后，用 waygoal_remote_ticket 把来源和结果文件交给画布",
       parameters: Type.Object({
         source: StringEnum(["github", "custom"] as const),
@@ -66,6 +67,10 @@ export function createWaygoalExtension(cwd: string, skillNames: SkillNameLoader 
           const delivered = deliverRemoteTicket({ cwd, agentDir }, {
             source: params.source, origin: params.origin, number: params.number, ref: params.result_path,
           });
+          if (delivered.captured && params.source === "github") {
+            const relations = await refreshRelations({ cwd, agentDir }, delivered.ticket);
+            if (relations.note) delivered.note = [delivered.note, relations.note].filter(Boolean).join("；");
+          }
           const text = delivered.captured
             ? `已同步到画布：${delivered.ticket}${delivered.note ? `（${delivered.note}）` : ""}`
             : `画布上这张票据未同步：${delivered.note ?? "没有读到原始结果"}。把结果重新写到工作目录后可以再交付一次。`;

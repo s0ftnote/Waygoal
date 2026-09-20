@@ -44,7 +44,7 @@ export function expandedTurns(graph: ReturnType<typeof projectTurnBoard>, sessio
 
 /** Opening a session reserves space beside its neighbours. These temporary
  * display offsets never overwrite the user's saved collapsed arrangement. */
-export function placeExpandedSessions<T extends { id: string; position: WaygoalPoint; origin?: { sessionId: string } | null }>(sessions: T[], sizes: Record<string, SessionSize>, obstacles: ({ x: number; y: number } & SessionSize)[] = []): T[] {
+export function placeExpandedSessions<T extends { id: string; position: WaygoalPoint; origin?: { sessionId: string } | null }>(sessions: T[], sizes: Record<string, SessionSize>, obstacles: ({ x: number; y: number; ownerId?: string } & SessionSize)[] = []): T[] {
   if (!Object.keys(sizes).length) return sessions;
   const byId = new Map(sessions.map(session => [session.id, session]));
   const familyOf = (id: string) => {
@@ -67,15 +67,25 @@ export function placeExpandedSessions<T extends { id: string; position: WaygoalP
     const y = Math.min(...members.map(member => member.position.y));
     const right = Math.max(...members.map(member => member.position.x + (sizes[member.id]?.width ?? NODE_WIDTH)));
     const bottom = Math.max(...members.map(member => member.position.y + (sizes[member.id]?.height ?? NODE_HEIGHT)));
-    return { id, members, x, y, width: right - x, height: bottom - y };
-  }).sort((a, b) => a.x - b.x || a.y - b.y || a.id.localeCompare(b.id));
+    const owned = obstacles.filter(box => box.ownerId && members.some(member => member.id === box.ownerId));
+    return { id, members, owned, x, y, width: right - x, height: bottom - y };
+  }).sort((a, b) => Number(b.owned.length > 0) - Number(a.owned.length > 0) || a.x - b.x || a.y - b.y || a.id.localeCompare(b.id));
+  // A discussion can belong to a ticket family: that family must not repel
+  // its own content. Other families still avoid the discussion bounds.
   const placed = [...obstacles], offsets = new Map<string, number>();
   for (const family of boxes) {
     const box = { x: family.x, y: family.y, width: family.width, height: family.height };
     let hit;
-    while ((hit = placed.find(other => box.x < other.x + other.width + 40 && box.x + box.width + 40 > other.x && box.y < other.y + other.height + 40 && box.y + box.height + 40 > other.y))) box.x = hit.x + hit.width + 56;
+    while ((hit = placed.find(other => !(other.ownerId && family.members.some(member => member.id === other.ownerId)) && box.x < other.x + other.width + 40 && box.x + box.width + 40 > other.x && box.y < other.y + other.height + 40 && box.y + box.height + 40 > other.y))) box.x = hit.x + hit.width + 56;
     for (const member of family.members) offsets.set(member.id, box.x - family.x);
-    placed.push(box);
+    // Reserve the full frame for this family before placing loose tickets.
+    // Moving its own discussion must not move a loose ticket first and then
+    // indirectly push the owning family away again.
+    const left = Math.min(box.x, ...family.owned.map(item => item.x));
+    const top = Math.min(box.y, ...family.owned.map(item => item.y));
+    const right = Math.max(box.x + box.width, ...family.owned.map(item => item.x + item.width));
+    const bottom = Math.max(box.y + box.height, ...family.owned.map(item => item.y + item.height));
+    placed.push({x: left, y: top, width: right - left, height: bottom - top});
   }
   return sessions.map(session => ({ ...session, position: { x: session.position.x + offsets.get(session.id)!, y: session.position.y } }));
 }

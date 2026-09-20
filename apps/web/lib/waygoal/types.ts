@@ -20,6 +20,7 @@ export interface WaygoalCanvasRecord {
   turnBoard?: WaygoalTurnLayout;
   /** Display-only session folding; absent means all sessions start collapsed. */
   expandedSessions?: string[];
+  collapsedTicketClusters?: string[];
   version: 1;
   cwd: string;
   nodes: Record<string, WaygoalPoint>;
@@ -145,6 +146,7 @@ export interface WaygoalSnapshot {
   turnBoard?: WaygoalTurnLayout;
   /** Display-only session folding; absent means all sessions start collapsed. */
   expandedSessions?: string[];
+  collapsedTicketClusters?: string[];
   canUndoLayout?: boolean;
   cwd: string;
   workspaceId: string;
@@ -164,6 +166,7 @@ export interface WaygoalCanvasPatch {
   turnBoard?: WaygoalTurnLayout;
   /** Display-only session folding; absent means all sessions start collapsed. */
   expandedSessions?: string[];
+  collapsedTicketClusters?: string[];
   layout?: WaygoalLayoutChange;
   undoLayout?: boolean;
   positions?: Record<string, WaygoalPoint>;
@@ -305,6 +308,8 @@ export interface WaygoalStale {
 }
 
 export interface WaygoalTicketView extends WaygoalTicketNode {
+  /** Explicit tracker parent; never inferred from title or source repository. */
+  parentTicketId?: string | null;
   stale: WaygoalStale | null;
   /** Each `Blocked by:` reference, settled against this map's own tickets. */
   blockers: WaygoalTicketBlocker[];
@@ -387,7 +392,16 @@ export interface WaygoalRemoteRead {
  *  what Waygoal managed to capture from it before that reference expired.
  *  The source operation succeeding and the canvas syncing are two facts and
  *  are kept as two: `deliveredAt` is the first, `capturedAt` the second. */
+export interface WaygoalRemoteRelations {
+  parent: WaygoalRemoteId | null;
+  children: WaygoalRemoteId[];
+  blockedBy: WaygoalRemoteId[];
+  readAt: string;
+}
+
 export interface WaygoalRemoteDelivery extends WaygoalRemoteId {
+  relations?: WaygoalRemoteRelations;
+  relationsNote?: string | null;
   /** Where the raw result was when it was delivered. Kept so a capture that
    *  failed can be retried against the same place. */
   ref: string;
@@ -406,6 +420,8 @@ export interface WaygoalRemoteDelivery extends WaygoalRemoteId {
 /** What a remote ticket card says about where it came from. Local tickets
  *  have none of this; a card with it is a read-only mirror of a source. */
 export interface WaygoalRemoteInfo extends WaygoalRemoteId {
+  relationsReadAt?: string | null;
+  relationsNote?: string | null;
   url: string | null;
   format: WaygoalRemoteFormat;
   deliveredAt: string;

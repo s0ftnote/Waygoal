@@ -186,7 +186,7 @@ const { createWaygoalExtension } = await jiti.import("./extension.ts");
  *  source identity and where it left the raw result, and nothing else. */
 function remoteTool(ref) {
   let tool;
-  createWaygoalExtension(ref.cwd, async () => [], ref.agentDir)({
+  createWaygoalExtension(ref.cwd, async () => [], ref.agentDir, async () => ({refreshed: true, note: null}))({
     on: () => {}, appendEntry: () => {},
     registerTool: (definition) => { if (definition.name === "waygoal_remote_ticket") tool = definition; },
   });
@@ -209,4 +209,16 @@ test("注册的工具就是交付入口：它只收来源和引用，两件事�
   const missing = await tool.execute("call-2", { source: "github", origin: "s0ftnote/Waygoal", number: "11", result_path: join(ref.cwd, "nope.json") });
   assert.equal(missing.details.synced, false);
   assert.match(missing.content[0].text, /未同步/);
+});
+
+test("remote decision cards preview Question and map cards preview Destination", t => {
+  const { ref, cleanup } = workspace(); t.after(cleanup);
+  for (const [number, type, body] of [[1, "map", "## Destination\n\n决定是否值得实验"], [2, "grilling", "## Question\n\n首个场景是什么？"]]) {
+    const raw = join(ref.cwd, `${number}.json`);
+    writeFileSync(raw, github({ number, labels: [{name: `wayfinder:${type}`}], body }));
+    deliverRemoteTicket(ref, {source:"github",origin:"s0ftnote/Waygoal",number:String(number),ref:raw});
+  }
+  const tickets = ticketsOf(remoteMapViews(ref));
+  assert.equal(tickets[0].question, "决定是否值得实验");
+  assert.equal(tickets[1].question, "首个场景是什么？");
 });

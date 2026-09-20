@@ -2,11 +2,11 @@ import { mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { writePrivateFileAtomicSync } from "../atomic-file";
 import { readRemoteResult, remoteSourcePath, remoteTicketPath, supersedes } from "./remote";
-import { sourceLinks } from "./map";
+import { mapSections, sourceLinks } from "./map";
 import { readRecord, workspaceDir } from "./dirs";
-import { resolveBlockers, safePath, unsettledView } from "./tickets";
+import { holdingOf, ticketState, resolveBlockers, safePath, unsettledView } from "./tickets";
 import { remoteSourceLabel } from "./labels";
-import { type WaygoalReference, type WaygoalRemoteDelivery, type WaygoalRemoteId, type WaygoalTicketMapView, type WaygoalTicketView, type WaygoalWorkspaceRef } from "./types";
+import { type WaygoalReference, type WaygoalRemoteDelivery, type WaygoalRemoteRelations, type WaygoalRemoteId, type WaygoalTicketMapView, type WaygoalTicketView, type WaygoalWorkspaceRef } from "./types";
 
 /** What one delivery says, and all it says: who the source is, which ticket
  *  there, and where the raw result it produced can be read. No body — the
@@ -91,7 +91,7 @@ export function deliverRemoteTicket(
   const deliveredAt = now().toISOString();
   const { raw, reason } = capture(realCwd(ref.cwd), input.ref);
   const kept = stored ?? { raw: null, updatedAt: null, capturedAt: null };
-  const identity = { source: input.source, origin: input.origin, number: input.number, ref: input.ref, deliveredAt };
+  const identity = { relations: stored?.relations, relationsNote: stored?.relationsNote, source: input.source, origin: input.origin, number: input.number, ref: input.ref, deliveredAt };
   const read = raw === null ? null : readRemoteResult(input.source, raw);
   // A result is taken when there was nothing confirmed to protect, or when the
   // source's own time places it at or after what is already shown. Otherwise
@@ -136,7 +136,8 @@ const sourceLead = (origin: string) =>
  *  tickets that never resolve to each other. */
 export function remoteMapViews(ref: WaygoalWorkspaceRef): WaygoalTicketMapView[] {
   const bySource = new Map<string, { source: string; origin: string; tickets: WaygoalTicketView[] }>();
-  for (const [id, delivery] of Object.entries(readRemoteDeliveries(ref))) {
+  const deliveries = readRemoteDeliveries(ref);
+  for (const [id, delivery] of Object.entries(deliveries)) {
     const read = delivery.raw === null ? null : readRemoteResult(delivery.source, delivery.raw);
     const mapPath = remoteSourcePath(delivery);
     const body = read?.format === "unknown" ? "" : read?.body ?? "";
@@ -147,10 +148,13 @@ export function remoteMapViews(ref: WaygoalWorkspaceRef): WaygoalTicketMapView[]
         id, path: id, mapPath,
         number: delivery.number,
         title: read?.title || `#${delivery.number}`,
-        type: read?.type ?? "", status: read?.status ?? "open", question: "", answer: "",
+        type: read?.type ?? "", status: read?.status ?? "open",
+        question: mapSections(body).find(s => s.heading.toLowerCase() === (read?.type === "map" ? "destination" : "question"))?.body ?? "",
+        answer: mapSections(body).find(s => s.heading.toLowerCase() === "answer")?.body ?? "",
         body,
         rawBlockers: read?.blockers ?? [],
       }),
+      parentTicketId: delivery.relations?.parent ? remoteTicketPath(delivery.relations.parent) : null,
       references: remoteReferences(body),
       remote: {
         source: delivery.source, origin: delivery.origin, number: delivery.number,
@@ -158,12 +162,30 @@ export function remoteMapViews(ref: WaygoalWorkspaceRef): WaygoalTicketMapView[]
         deliveredAt: delivery.deliveredAt, capturedAt: delivery.capturedAt,
         comments: read?.comments ?? null,
         note: delivery.note ?? read?.reason ?? null,
+        relationsReadAt: delivery.relations?.readAt ?? null, relationsNote: delivery.relationsNote ?? null,
       },
     });
+  }
+  const all = new Map([...bySource.values()].flatMap(s => s.tickets).map(t => [t.id, t]));
+  // A captured parent's child list is useful even before the child is refreshed.
+  for (const [id, delivery] of Object.entries(deliveries)) {
+    for (const child of delivery.relations?.children ?? []) {
+      const target = all.get(remoteTicketPath(child));
+      if (target && !deliveries[target.id]?.relations) target.parentTicketId = id;
+    }
   }
   return [...bySource.entries()].map(([path, { source, origin, tickets }]) => {
     tickets.sort((a, b) => Number(a.number) - Number(b.number));
     resolveBlockers(tickets);
+    for (const ticket of tickets) {
+      for (const identity of deliveries[ticket.id]?.relations?.blockedBy ?? []) {
+        const id = remoteTicketPath(identity), premise = all.get(id);
+        if (!ticket.blockers.some(b => b.path === id)) ticket.blockers.push({ number: identity.number,
+          path: premise?.path ?? null, status: premise?.status ?? null, holding: premise ? holdingOf(premise) : "missing" });
+      }
+      ticket.blocked = ticket.blockers.some(b => b.holding !== null);
+      ticket.state = ticketState(ticket.status, ticket.blocked);
+    }
     return {
       path,
       title: `${remoteSourceLabel(source)} · ${origin}`,
@@ -171,4 +193,15 @@ export function remoteMapViews(ref: WaygoalWorkspaceRef): WaygoalTicketMapView[]
       tickets, unreadable: [], warnings: [], stale: null, remote: true,
     };
   }).sort((a, b) => a.path.localeCompare(b.path));
+}
+
+/** Commit only to the delivery that was actually read. A late refresh must not
+ * overwrite a newer delivery or another ticket's concurrent refresh. */
+export function saveRemoteRelations(ref: WaygoalWorkspaceRef, id: string, deliveredAt: string,
+  relations: WaygoalRemoteRelations | null, note: string | null): boolean {
+  const tickets = readRemoteDeliveries(ref), ticket = tickets[id];
+  if (!ticket || ticket.deliveredAt !== deliveredAt) return false;
+  tickets[id] = { ...ticket, ...(relations ? { relations } : {}), relationsNote: note };
+  writeRemoteDeliveries(ref, tickets);
+  return true;
 }

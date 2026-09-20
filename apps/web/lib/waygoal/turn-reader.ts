@@ -1,3 +1,4 @@
+import { questionPreview } from "./card-preview";
 import { createHash } from "node:crypto";
 import { statSync } from "node:fs";
 import { accessSession } from "../session-access";
@@ -42,7 +43,7 @@ export async function readTurnPayload(sessionId: string): Promise<CachedTurns | 
     const result = projectTurns(sessionId, entries, manager.getLeafId(), boundaries);
     for (const turn of result.turns) {
       turn.fingerprint = createHash("sha256").update(JSON.stringify(turn.entryIds.map(id => byId.get(id)))).digest("hex");
-      turn.question = preview(turn.question, 320);
+      turn.question = preview(questionPreview(turn.question), 320);
       turn.answer = preview(turn.answer, 600);
     }
     return result;

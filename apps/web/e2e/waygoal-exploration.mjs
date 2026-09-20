@@ -177,6 +177,8 @@ try {
   await rows.first().getByRole("button", { name: "查看来源", exact: true }).click();
   await page.locator(".waygoal-canvas-preview").waitFor();
   check("view source is read-only and preserves composer DOM/path/draft", commands.length === beforeLocate && await panel.getAttribute("data-session-id") === target.id && await composer.inputValue() === "目标原草稿不覆盖" && JSON.stringify(entries(target.id)) === targetBefore && (await turns(target.id)).activeLeafId === pathB.endId && await page.evaluate(() => window.keptComposer === document.querySelector(".waygoal-panel textarea")));
+  await panel.getByRole("button", { name: "关闭预览", exact: true }).click();
+  await composer.waitFor();
   await tray.getByRole("button", { name: "移除材料 2", exact: true }).click();
   await waitFor(async () => await rows.count() === 1, "remove material 2");
   await tray.getByRole("button", { name: "移除材料 1", exact: true }).click();
