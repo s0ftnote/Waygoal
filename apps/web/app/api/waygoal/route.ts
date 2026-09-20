@@ -1,3 +1,5 @@
+import { migrateLegacyOrigins } from "@/lib/waygoal/lineage-migration";
+import { recoverForkOperations } from "@/lib/waygoal/fork-service";
 import { NextResponse } from "next/server";
 import { allowFileRoot } from "@/lib/file-access";
 import { getRpcSessionInfos, getRunningRpcSessionIds } from "@/lib/rpc-manager";
@@ -18,6 +20,7 @@ export const dynamic = "force-dynamic";
 // canvas it is stopped on, and which canvas a session nobody placed is on.
 export async function GET(req: Request) {
   try {
+    recoverForkOperations();
     const url = new URL(req.url);
     const cwd = resolveWorkspaceCwd(url.searchParams.get("cwd"));
     allowFileRoot(cwd);
@@ -29,10 +32,11 @@ export async function GET(req: Request) {
       attachSessionProjectInfo(getRpcSessionInfos()),
     ]);
     const sessions = mergeSessionLists(persisted, runtime);
+    const migration = migrateLegacyOrigins(sessions, true);
     // Branch points and the active leaf come from each real session file; the
     // canvas record never stores them.
     const trees = await readTreeInfos(canvasSessions(scope, sessions).map(session => session.id));
-    const snapshot = buildSnapshot(scope, sessions, getRunningRpcSessionIds(), trees);
+    const snapshot = buildSnapshot(scope, sessions, getRunningRpcSessionIds(), trees, migration);
     // Tickets come straight from the workspace's files on every read, so a file
     // created or edited outside Waygoal shows up on the next refresh.
     const workspace = readWorkspaceRecord(cwd);

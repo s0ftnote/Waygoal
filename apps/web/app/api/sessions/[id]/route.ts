@@ -1,3 +1,4 @@
+import { renameSession } from "@/lib/session-access";
 import { NextResponse } from "next/server";
 import { existsSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
@@ -123,9 +124,7 @@ export async function PATCH(
     if (!filePath) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
-    const sm = SessionManager.open(filePath);
-    sm.appendSessionInfo(name.trim());
-    invalidateSessionListCache();
+    if (!await renameSession(id, name)) return NextResponse.json({ error: "Session not found" }, { status: 404 });
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });

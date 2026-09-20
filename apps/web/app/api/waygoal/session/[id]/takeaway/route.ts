@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAgentSessionFromServices, createAgentSessionServices, getAgentDir, SessionManager, type AgentSession } from "@earendil-works/pi-coding-agent";
-import { readTurns } from "@/lib/waygoal/turn-reader";
+import { readFullTurn } from "@/lib/waygoal/turn-reader";
 import { generateTakeaway } from "@/lib/waygoal/generate-takeaway";
 import { getRpcSession } from "@/lib/rpc-manager";
 import { resolveSessionPath } from "@/lib/session-reader";
@@ -12,7 +12,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const { id } = await params;
     const { turnId } = await req.json();
     if (typeof turnId !== "string") return NextResponse.json({ error: "请选择一轮讨论。" }, { status: 400 });
-    const turn = (await readTurns(id))?.turns.find(item => item.id === turnId);
+    const turn = await readFullTurn(id, turnId);
     if (!turn) return NextResponse.json({ error: "这轮讨论已不可读取。" }, { status: 404 });
     if (!turn.answer.trim()) return NextResponse.json({ error: "这轮还没有回答，可以先自己记下问题。" }, { status: 409 });
     const file = await resolveSessionPath(id);

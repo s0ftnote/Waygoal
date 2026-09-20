@@ -2,8 +2,6 @@ import { evidenceDirectory } from "./waygoal-artifacts.mjs";
 // Continuous-chat acceptance against an isolated, real Pi SDK host and a
 // controlled model. Source identities and ancestry are checked in Pi files.
 import assert from "node:assert/strict";
-import { createJiti } from "jiti";
-const { writeOrigin } = await createJiti(import.meta.url).import("../lib/waygoal/lineage.ts");
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -17,11 +15,11 @@ import { modelsJson, startFakeModel } from "./fake-model.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 assert.ok(!existsSync(join(root, ".next/dev/lock")), "Use a checkout without an active dev server");
-const evidence = evidenceDirectory("sibling-forks");
+const evidence = evidenceDirectory("rename-lineage");
 mkdirSync(evidence, { recursive: true });
 const artifacts = join(root, "test-results/e2e");
 mkdirSync(artifacts, { recursive: true });
-const serverLog = createWriteStream(join(artifacts, "waygoal-sibling-forks-server.log"));
+const serverLog = createWriteStream(join(artifacts, "waygoal-rename-lineage-server.log"));
 
 const agentDir = mkdtempSync(join(tmpdir(), "waygoal-sibling-e2e-"));
 const workspace = join(agentDir, "workspace");
@@ -78,10 +76,10 @@ async function startServer() {
   child.stdout.pipe(serverLog, { end: false }); child.stderr.pipe(serverLog, { end: false });
   const deadline = Date.now() + 120_000;
   for (;;) {
-    assert.equal(child.exitCode, null, "Server exited before readiness; see waygoal-sibling-forks-server.log");
+    assert.equal(child.exitCode, null, "Server exited before readiness; see waygoal-rename-lineage-server.log");
     const response = await fetch(`${base}/api/waygoal?cwd=${encodeURIComponent(workspace)}&force=1`, { signal: AbortSignal.timeout(5000) }).catch(() => null);
     if (response?.ok) return child;
-    assert.ok(Date.now() < deadline, "Server readiness timed out; see waygoal-sibling-forks-server.log");
+    assert.ok(Date.now() < deadline, "Server readiness timed out; see waygoal-rename-lineage-server.log");
     await delay(250);
   }
 }
@@ -103,43 +101,55 @@ function sessionEntries(id) {
   return readFileSync(join(agentDir, "sessions", String(file)), "utf8").trim().split("\n").map((line) => JSON.parse(line));
 }
 
+// The fixed source boundary is a name entry, not a visible message.
+records.push({type:'session_info',id:'name0000',parentId:records.at(-1).id,timestamp,name:'Original'});
+writeFileSync(join(fixtureDirectory, `fixture_${fixtureId}.jsonl`),records.map(r=>JSON.stringify(r)).join('\n')+'\n');
+rmSync(join(fixtureDirectory, `fixture_${siblingId}.jsonl`));
 try {
   server = await startServer();
   const patch = async value => { const response = await fetch(`${base}/api/waygoal`, {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({cwd:workspace,canvas:'main',...value})}); assert.ok(response.ok); };
-  // Known durable provenance remains valid when the parent is no longer available.
-  // Unverifiable legacy pointers are covered separately by the migration suite.
-  for (const id of [fixtureId,siblingId]) writeOrigin({version:1,childSessionId:id,parentSessionId:'absent-source',selectedEntryId:records.at(-1).id,mode:'after',inheritedThroughEntryId:records.at(-1).id,operationId:`fixture:${id}`,createdAt:timestamp},agentDir);
-  await patch({expandedSessions:[fixtureId,siblingId],positions:{[fixtureId]:{x:0,y:0},[siblingId]:{x:350,y:260}},view:{x:50,y:90,scale:1}});
-  browser = await chromium.launch().catch(() => chromium.launch({channel:'chrome'}));
-  const page = await browser.newPage({viewport:{width:1440,height:1000}});page.setDefaultTimeout(20000);
-  const errors=[];page.on('pageerror',error=>errors.push(error.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
+  const fork = async operationId => {
+    const response=await fetch(`${base}/api/agent/${fixtureId}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'fork_branch',entryId:'name0000',operationId,waygoal:{cwd:workspace,canvasId:'main'}})});
+    const body=await response.json();assert.ok(response.ok,JSON.stringify(body));return body.data.newSessionId;
+  };
+  const left=await fork('rename-left'), right=await fork('rename-right');
+  check('HTTP retry returns the same committed child',await fork('rename-left')===left);
+  await patch({expandedSessions:[fixtureId,left,right],positions:{[fixtureId]:{x:0,y:0},[left]:{x:324,y:312},[right]:{x:648,y:312}},view:{x:50,y:90,scale:1}});
+  browser=await chromium.launch().catch(()=>chromium.launch({channel:'chrome'}));
+  const context=await browser.newContext({viewport:{width:1440,height:1000}});
+  let page=await context.newPage();page.setDefaultTimeout(20000);
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(canvasUrl);
-  await waitFor(async()=>await page.locator('[data-turn]').count()===2,'one shared prefix');
-  check('siblings retain one shared history without importing the absent source',await page.locator('[data-node]').count()===2);
-  check('fresh sibling links to the exact last shared turn',await page.locator('.waygoal-turn-lines path.fork').count()===1);
-  await page.locator(`[data-node="${siblingId}"]`).click();
-  const composer=page.locator('.waygoal-panel textarea').first(); await composer.waitFor();await composer.fill('原分支的草稿');
-  const original=sessionEntries(siblingId).filter(e=>e.type==='message');
-  await page.getByRole('button',{name:'当前轮次',exact:true}).click();
-  await page.locator('.waygoal-turn-card.active .waygoal-turn-content').click();
-  await page.getByRole('group',{name:'所选卡片操作'}).getByRole('button',{name:'从这里分叉',exact:true}).click();
-  const forkId=await waitFor(async()=> (await snapshot()).nodes.find(n=>![fixtureId,siblingId].includes(n.id))?.id,'new fork from the shared turn');
-  await page.locator(`.waygoal-panel[data-session-id="${forkId}"][aria-busy="false"] textarea`).waitFor();
-  const copied=sessionEntries(forkId).filter(e=>e.type==='message');
-  check('card fork includes the chosen answer with no later history',JSON.stringify(copied.map(e=>e.id))===JSON.stringify(records.slice(1).map(e=>e.id)));
-  check('the actual source session remains intact',JSON.stringify(original)===JSON.stringify(sessionEntries(siblingId).filter(e=>e.type==='message')));
-  check('the new branch records the chosen member and message', (await snapshot()).nodes.find(n=>n.id===forkId).origin.sessionId===siblingId && (await snapshot()).nodes.find(n=>n.id===forkId).origin.entryId===records.at(-1).id);
-  await waitFor(async()=>await page.locator('.waygoal-turn-lines path.fork').count()===2,'empty fork endpoint');
-  await page.screenshot({path:join(evidence,'shared-history-and-fork.png')});
-  // User-message and assistant-message fork buttons have the same inclusive
-  // boundary. Editing is a separate action and must not prefill this fork.
-  const sourceMessage=page.locator(`.waygoal-panel [data-entry-id="${records[3].id}"]`).first();
-  await sourceMessage.getByText(texts[2],{exact:true}).hover();
-  await sourceMessage.getByRole('button',{name:'从这里分叉',exact:true}).click();
-  const userForkId=await waitFor(async()=> (await snapshot()).nodes.find(n=>![fixtureId,siblingId,forkId].includes(n.id))?.id,'user-message fork');
-  await page.locator(`.waygoal-panel[data-session-id="${userForkId}"][aria-busy="false"] textarea`).waitFor();
-  check('user-message fork includes that message and excludes its later answer',JSON.stringify(sessionEntries(userForkId).filter(e=>e.type==='message').map(e=>e.id))===JSON.stringify(records.slice(1,4).map(e=>e.id)));
-  check('forking does not resend or prefill the source question',model.requests.length===0&&await composer.inputValue()==='');
+  await waitFor(async()=>await page.locator('[data-turn]').count()===2,'shared cards');
+  await page.locator(`[data-node="${fixtureId}"]`).click();
+  await page.locator('.waygoal-panel textarea').first().fill('未发送的草稿');
+  const world=()=>page.locator('[data-turn-key]').evaluateAll(elements=>elements.map(el=>({key:el.dataset.turnKey,x:el.style.left,y:el.style.top})).sort((a,b)=>a.key.localeCompare(b.key)));
+  const before=await world();
+  const facts=(value)=>value.nodes.map(n=>({id:n.id,origin:n.origin&&{sessionId:n.origin.sessionId,entryId:n.origin.entryId},position:n.position})).sort((a,b)=>a.id.localeCompare(b.id));
+  const saved=facts(await snapshot());
+  const original=sessionEntries(fixtureId).filter(e=>e.type==='message');
+  for(let i=0;i<20;i++) {
+    if(!await page.locator('.waygoal-chat-settings').evaluate(e=>e.open)) await page.locator('.waygoal-chat-settings > summary').click();
+    await page.locator('[data-rename]').click();
+    await page.locator('[data-rename-input]').fill(`新名字 ${i}`);
+    await page.locator('[data-rename-save]').click();
+    await waitFor(async()=>(await snapshot()).nodes.find(n=>n.id===fixtureId)?.title===`新名字 ${i}`,'renamed title');
+  }
+  await page.waitForResponse(r=>r.url().includes(`/session/${fixtureId}/turns`)&&(r.ok()||r.status()===304));
+  check('20 real UI renames keep all card world positions',JSON.stringify(await world())===JSON.stringify(before));
+  check('20 renames keep origins and saved positions',JSON.stringify(facts(await snapshot()))===JSON.stringify(saved));
+  check('two empty branches remain attached to the original source',await page.locator('.waygoal-turn-lines path.fork').count()===2);
+  check('renaming preserves content history and the draft',JSON.stringify(sessionEntries(fixtureId).filter(e=>e.type==='message'))===JSON.stringify(original)&&await page.locator('.waygoal-panel textarea').first().inputValue()==='未发送的草稿');
+  await page.waitForResponse(r=>r.url().includes(`/session/${fixtureId}/turns`)&&r.status()===304);
+  check('idle history polling reuses the existing cards',JSON.stringify(await world())===JSON.stringify(before));
+  await page.reload();await waitFor(async()=>await page.locator('[data-turn]').count()===2,'reload');
+  check('reload preserves world coordinates',JSON.stringify(await world())===JSON.stringify(before));
+  await page.screenshot({path:join(evidence,'rename-stable.png')});
+  await page.close();
+  await stopServer(server);server=await startServer();
+  page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
+  await page.goto(canvasUrl);await waitFor(async()=>await page.locator('[data-turn]').count()===2,'restart');
+  check('server restart preserves lineage and coordinates',JSON.stringify(await world())===JSON.stringify(before)&&JSON.stringify(facts(await snapshot()))===JSON.stringify(saved));
   check('no runtime errors',errors.length===0,errors.join('\n'));
   writeFileSync(join(evidence,'checks.json'),JSON.stringify(checks,null,2));
 } catch (error) {

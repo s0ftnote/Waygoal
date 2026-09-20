@@ -1,3 +1,4 @@
+import { createRecordedFork, type ForkCanvas } from "./waygoal/fork-service";
 import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { createWaygoalExtension } from "./waygoal/extension";
 import { createAgentSessionFromServices, createAgentSessionServices, getAgentDir, initTheme, SessionManager, SettingsManager, Theme } from "@earendil-works/pi-coding-agent";
@@ -6,7 +7,6 @@ import { randomUUID } from "crypto";
 import { existsSync, realpathSync, writeFileSync } from "fs";
 import { resolve } from "path";
 import { validateAgentImages } from "./image-attachments";
-import { writePrivateFileAtomicSync } from "./atomic-file";
 import { invalidateModelsCache } from "./models-cache";
 import { resolveVisibleModels, selectInitialModelScope } from "./model-scope";
 import {
@@ -45,14 +45,6 @@ import { isBuiltInSubagentsEnabled } from "./subagent-settings";
 import { resolveShellTools } from "./powershell-settings";
 import { CHAT_ONLY_RESOURCE_LOADER_OPTIONS, contextFilesSystemPrompt } from "./chat-only";
 
-/** Pi defers files with no assistant message. A fork is already an explicit
- * user action, so materialize its header/path before handing its ID to the UI. */
-function persistForkFile(manager: SessionManager, filePath: string): void {
-  if (existsSync(filePath)) return;
-  const header = manager.getHeader();
-  if (!header) throw new Error("Forked session is missing its header");
-  writePrivateFileAtomicSync(filePath, [header, ...manager.getEntries()].map(entry => JSON.stringify(entry)).join("\n") + "\n");
-}
 import {
   appendSessionToolSelection,
   readSessionToolSelection,
@@ -744,39 +736,11 @@ export class AgentSessionWrapper {
         if (this.isSessionRunningForReplacement()) {
           throw new Error("Cannot fork while the session is running");
         }
+        if (!this.inner.sessionManager.isPersisted()) return { cancelled: true };
         return this.withSessionReplacement("fork", async () => {
-          const entryId = command.entryId as string;
-          const sessionManager = this.inner.sessionManager;
-          const currentSessionFile = this.inner.sessionFile;
-
-          if (!sessionManager.isPersisted()) return { cancelled: true };
-          if (!currentSessionFile) throw new Error("Persisted session is missing a session file");
-
-          const entry = sessionManager.getEntry(entryId);
-          if (!entry) throw new Error("Invalid entry ID for forking");
-
-          const sessionDir = sessionManager.getSessionDir();
-          let newSessionFile: string;
-          let forkManager: SessionManager;
-
-          if (!entry.parentId) {
-            // Fork before the first message: create an empty session linked to this one
-            const newManager = SessionManager.create(sessionManager.getCwd(), sessionDir);
-            newManager.newSession({ parentSession: currentSessionFile });
-            newSessionFile = newManager.getSessionFile() as string;
-            forkManager = newManager;
-          } else {
-            // Fork after some history: copy path up to (but not including) the fork point
-            const sourceManager = SessionManager.open(currentSessionFile, sessionDir);
-            const forkedPath = sourceManager.createBranchedSession(entry.parentId);
-            if (!forkedPath) throw new Error("Failed to create forked session");
-            newSessionFile = forkedPath;
-            forkManager = sourceManager;
-          }
-
-          persistForkFile(forkManager, newSessionFile);
-          const newSessionId = forkManager.getSessionId();
-          cacheSessionPath(newSessionId, newSessionFile);
+          const result = createRecordedFork(this.inner.sessionManager, { selectedEntryId: command.entryId as string, mode: "before", operationId: command.operationId as string | undefined, canvas: command.waygoal as ForkCanvas | undefined });
+          const newSessionId = result.newSessionId;
+          cacheSessionPath(newSessionId, result.file);
           invalidateSessionListCache();
           await this.shutdownAfterSessionReplacement("fork");
           return { cancelled: false, newSessionId };
@@ -787,21 +751,10 @@ export class AgentSessionWrapper {
         if (this.isSessionRunningForReplacement()) {
           throw new Error("Cannot fork while the session is running");
         }
-        const entryId = command.entryId as string;
-        const sessionManager = this.inner.sessionManager;
-        const currentSessionFile = this.inner.sessionFile;
-        if (!sessionManager.isPersisted()) return { cancelled: true };
-        if (!currentSessionFile) throw new Error("Persisted session is missing a session file");
-        if (!sessionManager.getEntry(entryId)) throw new Error("Invalid entry ID for forking");
-
-        const sessionDir = sessionManager.getSessionDir();
-        const sourceManager = SessionManager.open(currentSessionFile, sessionDir);
-        const forkedPath = sourceManager.createBranchedSession(entryId);
-        if (!forkedPath) throw new Error("Failed to create forked session");
-        persistForkFile(sourceManager, forkedPath);
-
-        const newSessionId = SessionManager.open(forkedPath, sessionDir).getSessionId();
-        cacheSessionPath(newSessionId, forkedPath);
+        if (!this.inner.sessionManager.isPersisted()) return { cancelled: true };
+        const result = createRecordedFork(this.inner.sessionManager, { selectedEntryId: command.entryId as string, mode: "after", operationId: command.operationId as string | undefined, canvas: command.waygoal as ForkCanvas | undefined });
+        const newSessionId = result.newSessionId;
+        cacheSessionPath(newSessionId, result.file);
         invalidateSessionListCache();
         return { cancelled: false, newSessionId };
       }
@@ -1952,6 +1905,15 @@ export function getCompletionNotificationSuppressedRpcSessionIds(): string[] {
  * thinking pin, and SDK scopedModels share one settings snapshot.
  * Pass options.toolNames to pre-configure active tools (empty = all disabled).
  */
+/** Run a synchronous read/write against the one lifecycle-owned manager. */
+export function accessSessionManager<T>(id: string, file: string | null, access: (manager: SessionManager, live: AgentSessionWrapper | undefined) => T): Promise<T | null> {
+  const starting = getLocks().get(id);
+  if (starting) return starting.then(() => accessSessionManager(id, file, access));
+  const live = getRegistry().get(id);
+  if (live?.isAlive()) return Promise.resolve(access(live.inner.sessionManager, live));
+  return Promise.resolve(file ? access(SessionManager.open(file), undefined) : null);
+}
+
 export async function startRpcSession(
   sessionId: string,
   sessionFile: string,

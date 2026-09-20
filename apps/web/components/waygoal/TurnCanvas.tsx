@@ -8,7 +8,9 @@ import { expandedTurns, type SessionSize } from "@/lib/waygoal/session-expansion
 import type { WaygoalView, WaygoalPoint, WaygoalTurnLayout } from "@/lib/waygoal/types";
 import type { WaygoalTurns, WaygoalTurn } from "@/lib/waygoal/turns";
 import { MATERIAL_SCOPES, type MaterialScope, type MaterialSnapshot } from "@/lib/waygoal/materials";
+import { findEntryTurn } from "@/lib/waygoal/entry-index";
 import { projectTurnBoard, turnKey, TURN_WIDTH as WIDTH, TURN_HEIGHT as HEIGHT, TURN_GAP as GAP, type BoardCard, type BoardEdge, type BoardSession } from "@/lib/waygoal/turn-board";
+import { sessionsToLoad } from "@/lib/waygoal/turn-loading";
 import "./TurnSelection.css";
 
 interface Props {
@@ -110,7 +112,8 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
   const gesture = useRef<{ id?: string; start: Point; origin: Point; moved: boolean; pointerId: number } | null>(null);
   const layoutRef = useRef(layout); layoutRef.current = layout;
   const positions = useRef<Record<string, Point>>({});
-  const sessionIds = JSON.stringify(sessions.map(session => session.id).sort());
+  const sessionIds = JSON.stringify(sessionsToLoad(sessions, [...expanded, sessionId, ...(locateMaterial ? [locateMaterial.sessionId] : [])]));
+  const turnEtags = useRef(new Map<string, string>());
   useLayoutEffect(() => {
     cancelCapture();
     return () => captureRequest.current?.abort();
@@ -128,23 +131,34 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     const ids = JSON.parse(sessionIds) as string[];
+    const wanted = new Set(ids);
+    for (const id of turnEtags.current.keys()) if (!wanted.has(id)) turnEtags.current.delete(id);
+    setData(current => Object.keys(current).some(id => !wanted.has(id))
+      ? Object.fromEntries(Object.entries(current).filter(([id]) => wanted.has(id))) : current);
     const refresh = async () => {
       const loaded: Record<string, WaygoalTurns> = {};
       const failed: Record<string, string> = {};
+      const receivedEtags = new Map<string, string>();
       // Bound concurrent reads and pause background polling. No AgentSession is
       // created by these endpoints; failed sources remain visibly marked stale.
       for (let offset = 0; offset < ids.length && !controller.signal.aborted; offset += 4) {
         await Promise.all(ids.slice(offset, offset + 4).map(async id => {
           try {
-            const response = await fetch(`/api/waygoal/session/${encodeURIComponent(id)}/turns`, { signal: controller.signal, cache: "no-store" });
+            const etag = turnEtags.current.get(id);
+            const response = await fetch(`/api/waygoal/session/${encodeURIComponent(id)}/turns`, { signal: controller.signal, cache: "no-store", headers: etag ? { "If-None-Match": etag } : {} });
+            if (response.status === 304) return;
             const body = await response.json();
             if (!response.ok) throw new Error(body.error);
             loaded[id] = body;
+            const nextEtag = response.headers.get("etag");
+            if (nextEtag) receivedEtags.set(id, nextEtag);
           } catch (error) { failed[id] = error instanceof Error ? error.message : String(error); }
         }));
       }
       if (!controller.signal.aborted) {
-        setData(current => ({ ...current, ...loaded })); setReadErrors(failed);
+        for (const [id, etag] of receivedEtags) turnEtags.current.set(id, etag);
+        if (Object.keys(loaded).length) setData(current => ({ ...current, ...loaded }));
+        setReadErrors(current => JSON.stringify(current) === JSON.stringify(failed) ? current : failed);
         timer = setTimeout(tick, 2000);
       }
     };
@@ -197,12 +211,12 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
   const lastLocate = useRef<number | null>(null);
   useEffect(() => {
     if (!locateEntry || lastLocate.current === locateEntry.serial) return;
-    const original = graph.cards.find(card => card.members.some(member => member.sessionId === sessionId && member.turn.entryIds.includes(locateEntry.entryId)));
+    const original = graph.cards.find(card => card.members.some(member => member.sessionId === sessionId && member.turn.id === findEntryTurn(data[member.sessionId], locateEntry.entryId)?.id));
     if (original && !projection.owners.has(original.key)) { onExpand(original.sessionId); return; }
-    const card = cards.find(card => card.members.some(member => member.sessionId === sessionId && member.turn.entryIds.includes(locateEntry.entryId)));
+    const card = cards.find(card => card.members.some(member => member.sessionId === sessionId && member.turn.id === findEntryTurn(data[member.sessionId], locateEntry.entryId)?.id));
     if (!card) return;
     lastLocate.current = locateEntry.serial; setInspected(null); focusCard(card.key, true);
-  }, [locateEntry, cards, focusCard, sessionId, expanded, onExpand, graph.cards, projection.owners]);
+  }, [locateEntry, cards, focusCard, sessionId, expanded, onExpand, graph.cards, projection.owners, data]);
   const lastInspect = useRef<number | null>(null);
   const lastMaterialLocate = useRef<string | null>(null);
   useEffect(() => {
@@ -219,7 +233,7 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
   }, [locateMaterial, graph.cards, projection.owners, byKey, viewportSize.width, onExpand, focusCard]);
   useEffect(() => {
     if (!inspectEntry || lastInspect.current === inspectEntry.serial) return;
-    const turn = data[sessionId]?.turns.find(turn => turn.entryIds.includes(inspectEntry.entryId));
+    const turn = findEntryTurn(data[sessionId], inspectEntry.entryId);
     const edge = turn && graph.edges.find(edge => edge.kind === "reference" && edge.to === graph.aliases.get(turnKey(sessionId, turn.id)));
     if (!edge) return;
     lastInspect.current = inspectEntry.serial; setInspected(edge);
@@ -379,7 +393,7 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
       onPointerUp={event => { if (gesture.current?.pointerId !== event.pointerId) return; if (gesture.current?.id && gesture.current.moved) persistLayout(layoutRef.current); requestAnimationFrame(() => { gesture.current = null; }); }} onPointerCancel={event => { if (gesture.current?.pointerId === event.pointerId) gesture.current = null; }}>
       {worldHost && createPortal(<div className="waygoal-turn-world" data-zoom-tier={tier} data-mode={mode} data-selecting={selecting || undefined} style={{ "--turn-scale": camera.scale } as CSSProperties}>
         <svg className="waygoal-turn-lines" width="1" height="1">
-          {graph.edges.map(edge => { const a = byKey.get(edge.from), b = byKey.get(edge.to); if (edge.kind === "history" && (!a || !b) || edge.kind === "fork" && !a && !b) return null; const from = a?.position ?? sessions.find(session => session.id === edge.fromSession)?.position, to = b?.position ?? sessions.find(session => session.id === edge.toSession)?.position; if (!from || !to) return null; const path = edgePath(from, to, edge.kind === "reference" || edge.kind === "association", !!a, !!b); return <g key={edge.key} data-spatial-edge={edge.key} data-fork-target={edge.kind === "fork" ? edge.toSession : undefined} data-spatial-from={a ? `turn:${a.key}` : `node:${edge.fromSession}`} data-spatial-to={b ? `turn:${b.key}` : `node:${edge.toSession}`}><path d={path} className={edge.kind} /><path d={path} className="edge-hit" role="button" tabIndex={0} aria-label={`${edge.kind === "reference" ? "引用材料" : edge.kind === "fork" ? "分叉来源" : edge.kind === "association" ? "手动关联" : "连续历史"}：${title(edge.fromSession)} → ${title(edge.toSession)}`} onClick={() => inspect(edge)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); inspect(edge); } }} /></g>; })}
+          {graph.edges.map(edge => { const a = byKey.get(edge.from), b = byKey.get(edge.to); if (edge.kind === "history" && (!a || !b) || edge.kind === "fork" && !a && !b && !edge.status) return null; const from = a?.position ?? sessions.find(session => session.id === edge.fromSession)?.position, to = b?.position ?? sessions.find(session => session.id === edge.toSession)?.position; if (!from || !to) return null; const path = edgePath(from, to, edge.kind === "reference" || edge.kind === "association", !!a, !!b); return <g key={edge.key} data-spatial-edge={edge.key} data-origin-status={edge.status ?? "resolved"} data-fork-target={edge.kind === "fork" ? edge.toSession : undefined} data-spatial-from={a ? `turn:${a.key}` : `node:${edge.fromSession}`} data-spatial-to={b ? `turn:${b.key}` : `node:${edge.toSession}`}><path d={path} className={edge.kind} /><path d={path} className="edge-hit" role="button" tabIndex={0} aria-label={`${edge.kind === "reference" ? "引用材料" : edge.kind === "fork" ? "分叉来源" : edge.kind === "association" ? "手动关联" : "连续历史"}：${title(edge.fromSession)} → ${title(edge.toSession)}`} onClick={() => inspect(edge)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); inspect(edge); } }} /></g>; })}
           {tier === "detail" && materials.map(material => { const key = graph.aliases.get(turnKey(material.sessionId, material.turnId)), card = key && byKey.get(key); return card ? <path key={`${material.sessionId}:${material.turnId}`} className="reference pending" data-spatial-from={`turn:${card.key}`} data-spatial-to="pending" d={edgePath(card.position, next, true)} /> : null; })}
           {tier === "detail" && from && mode === "reference" && byKey.has(from) && <path className="reference pending" d={edgePath(byKey.get(from)!.position, next, true)} />}
         </svg>

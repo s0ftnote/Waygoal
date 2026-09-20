@@ -7,8 +7,8 @@ import { cardBounds, cardCenter, thumbnail, viewCenteredOn, worldPoint, type Way
 import type { SessionInfo, UserMessage } from "@/lib/types";
 import type { WaygoalBranchChoice, WaygoalBranchPoint, WaygoalSessionTreeResponse } from "@/lib/waygoal/branches";
 import { mapKind, ticketKind } from "@/lib/waygoal/labels";
-import { placeExpandedSessions, SESSION_HEADER, type SessionSize } from "@/lib/waygoal/session-expansion";
-import { TURN_WIDTH, TURN_HEIGHT, TURN_GAP, type BoardCard, type BoardEdge } from "@/lib/waygoal/turn-board";
+import { placeNewFork, placeExpandedSessions, SESSION_HEADER, type SessionSize } from "@/lib/waygoal/session-expansion";
+import { TURN_WIDTH, TURN_HEIGHT, type BoardCard, type BoardEdge } from "@/lib/waygoal/turn-board";
 import { arrangeCards } from "@/lib/waygoal/layout";
 import { NODE_HEIGHT, NODE_WIDTH, canOpen, needsCheck, ticketCardHeight, ticketChipTop, type WaygoalCanvasPatch, type WaygoalNode, type WaygoalReference, type WaygoalPoint, type WaygoalSnapshotResponse, type WaygoalTicketCard, type WaygoalView } from "@/lib/waygoal/types";
 import { getUserMessageText, getUserMessageDraftImages, type ChatInputHandle } from "../ChatInput";
@@ -261,34 +261,49 @@ export function WaygoalCanvas() {
     } catch (e) { setError(`没能重新取得：${e instanceof Error ? e.message : String(e)}`); }
   }, [snapshot?.cwd]);
 
+  const refreshGeneration = useRef(0);
+  const lastSnapshotRead = useRef<{ scope: string; text: string; value: WaygoalSnapshotResponse } | null>(null);
   const refresh = useCallback(async (force = false, allowed: () => boolean = () => true) => {
     const epoch = canvasEpoch.current;
     const current = () => epoch === canvasEpoch.current && readScopeRef.current === readScope && allowed();
     if (!current()) return;
+    const generation = ++refreshGeneration.current;
     try {
       const params = new URLSearchParams();
       if (cwd) params.set("cwd", cwd);
       if (canvasId) params.set("canvas", canvasId);
       if (force) params.set("force", "1");
       const res = await fetch(`/api/waygoal${params.size ? `?${params}` : ""}`, { cache: "no-store" });
-      const next = await res.json();
+      const text = await res.text();
       if (!current()) return;
+      const cached = lastSnapshotRead.current;
+      const next = cached?.scope === readScope && cached.text === text ? cached.value : JSON.parse(text);
       if (!res.ok) throw new Error(next.error);
+      lastSnapshotRead.current = { scope: readScope, text, value: next };
+      if (generation !== refreshGeneration.current) return next as WaygoalSnapshotResponse;
       setSnapshot(next as WaygoalSnapshotResponse);
       // Only what reading the canvas reported is taken back by reading it
       // again; something the user was told about their own last action stays
       // on screen until they close it.
       if (readError.current) { readError.current = false; setError(""); }
       return next as WaygoalSnapshotResponse;
-    } catch (e) { if (current()) { readError.current = true; setError(e instanceof Error ? e.message : String(e)); } }
+    } catch (e) { if (current() && generation === refreshGeneration.current) { readError.current = true; setError(e instanceof Error ? e.message : String(e)); } }
   }, [canvasId, cwd, readScope]);
 
   useEffect(() => {
-    void refresh(true);
-    const timer = setInterval(() => { if (document.visibilityState === "visible") void refresh(); }, 2500);
-    const onVisible = () => { if (document.visibilityState === "visible") void refresh(); };
+    let stopped = false, reading = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async (force = false) => {
+      if (stopped || reading) return;
+      clearTimeout(timer);
+      reading = true;
+      try { if (document.visibilityState === "visible") await refresh(force); }
+      finally { reading = false; if (!stopped) timer = setTimeout(() => void poll(), 2500); }
+    };
+    void poll(true);
+    const onVisible = () => { if (document.visibilityState === "visible") void poll(); };
     document.addEventListener("visibilitychange", onVisible);
-    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
+    return () => { stopped = true; clearTimeout(timer); document.removeEventListener("visibilitychange", onVisible); };
   }, [refresh]);
 
   // Keep the URL on the real workspace and canvas so a reload lands in the
@@ -772,12 +787,8 @@ export function WaygoalCanvas() {
     // carries it over with the origin, and without one it is said outright, so
     // a fork Pi can only trace back to the session does not leave the ticket.
     const ticket = ticketOfSession.get(originSessionId);
-    const sourceCard = originEntryId && turnGeometry.cards.find(card => card.members.some(member => member.sessionId === originSessionId && member.turn.entryIds.includes(originEntryId)));
-    const registered = await patch({
-      ...(sourceCard ? { positions: { [newSessionId]: { x: Math.round(sourceCard.position.x + TURN_WIDTH + TURN_GAP), y: Math.round(sourceCard.position.y + TURN_HEIGHT + TURN_GAP - SESSION_HEADER) } } } : {}),
-      registerSession: newSessionId,
-      ...(originEntryId ? { origin: { sessionId: newSessionId, originSessionId, originEntryId } }
-        : ticket ? { ticketSession: { sessionId: newSessionId, ticket } } : {}),
+    const registered = await patch({ registerSession: newSessionId,
+      ...(ticket ? { ticketSession: { sessionId: newSessionId, ticket } } : {}),
     }, current);
     if (!registered) throw new Error("新会话已创建，但画布记录未保存；重试会继续使用这个会话。");
     if (!current()) return false;
@@ -802,7 +813,7 @@ export function WaygoalCanvas() {
       ? "已分出一段新会话。原来的讨论还在画布上，连线指向它分出的那条消息。"
       : "已分出一段新会话。这次没有记下具体消息位置，画布只显示来源会话。");
     return true;
-  }, [leavePanel, patch, refresh, ticketOfSession, setSessionExpanded, turnGeometry.cards, worldHost, boardFeedback]);
+  }, [leavePanel, patch, refresh, ticketOfSession, setSessionExpanded, worldHost, boardFeedback]);
 
   /** The real Pi fork, from a message in the read-only view. */
   const forkFrom = useCallback(async (sessionId: string, entryId: string, after = false, editedMessage?: UserMessage, prompt?: string) => {
@@ -812,13 +823,35 @@ export function WaygoalCanvas() {
     const current = () => continuationEpoch.current === epoch;
     const key = JSON.stringify([snapshot?.cwd, snapshot?.workspace.canvasId, sessionId, entryId, after]);
     let newSessionId = pendingForks.current.get(key);
+    const operationKey = `waygoal-fork:${key}`;
+    const storedOperation = sessionStorage.getItem(operationKey);
+    const sourceCard = turnGeometry.cards.find(card => card.members.some(member => member.sessionId === sessionId && (member.turn.endId === entryId || member.turn.entryIds.includes(entryId))));
+    const family = new Set([sessionId]);
+    let familySize = 0;
+    while (familySize !== family.size) {
+      familySize = family.size;
+      for (const node of snapshot?.nodes ?? []) if (node.origin && (family.has(node.id) || family.has(node.origin.sessionId))) { family.add(node.id); family.add(node.origin.sessionId); }
+    }
+    const branchPosition = sourceCard ? placeNewFork(sourceCard.position, [
+      ...turnGeometry.cards.filter(card => card.members.some(member => family.has(member.sessionId))).map(card => ({ position: card.position, width: TURN_WIDTH, height: TURN_HEIGHT })),
+      ...nodes.filter(node => family.has(node.id)).map(node => ({ position: node.position, width: TURN_WIDTH, height: SESSION_HEADER })),
+    ]) : undefined;
+    const freshOperation = { operationId: crypto.randomUUID(),
+      waygoal: snapshot ? { cwd: snapshot.cwd, canvasId: snapshot.workspace.canvasId,
+        position: branchPosition } : undefined };
+    let operation = freshOperation;
+    if (storedOperation) {
+      try { operation = JSON.parse(storedOperation); }
+      catch { operation = { ...freshOperation, operationId: storedOperation }; }
+    }
+    sessionStorage.setItem(operationKey, JSON.stringify(operation));
     const allowed = feedbackIntent(worldHost);
     setForkingEntryId(entryId);
     try {
       if (!newSessionId) {
         const res = await fetch(`/api/agent/${encodeURIComponent(sessionId)}`, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: after ? "fork_branch" : "fork", entryId }),
+          body: JSON.stringify({ type: after ? "fork_branch" : "fork", entryId, ...operation }),
         });
         const body = await res.json();
         if (!res.ok) throw new Error(body.error);
@@ -832,7 +865,7 @@ export function WaygoalCanvas() {
         if (prompt) recoverForkPrompt(newSessionId, prompt);
         return;
       }
-      pendingForks.current.delete(key);
+      pendingForks.current.delete(key); sessionStorage.removeItem(operationKey);
       // Only the explicit send in the selection composer authorizes this
       // prompt. The newly mounted host performs its usual send/retry flow.
       if (prompt) {
@@ -846,7 +879,7 @@ export function WaygoalCanvas() {
         if (prompt) throw e;
       }
     } finally { forkInFlight.current = false; setForkingEntryId(null); }
-  }, [landOnFork, worldHost, snapshot?.cwd, snapshot?.workspace.canvasId, recoverForkPrompt]);
+  }, [landOnFork, worldHost, snapshot, turnGeometry.cards, nodes, recoverForkPrompt]);
 
   /** The one action that moves the agent: continue this session in one path. */
   const continueAt = useCallback(async (sessionId: string, entryId: string, editedMessage?: UserMessage): Promise<boolean> => {

@@ -34,7 +34,7 @@ Waygoal 直接复用宿主的聊天组件、会话读取和运行能力。目录
 | `npm run setup` | 按应用锁文件安装依赖，运行依赖与宿主的安装脚本 |
 | `npm run dev` | 在 `127.0.0.1:30142/waygoal` 启动开发服务 |
 | `npm run check` | 顺序运行 lint、类型检查及全部单元测试 |
-| `npm run test:e2e` | 顺序执行全部 14 组 Waygoal 浏览器检查 |
+| `npm run test:e2e` | 顺序执行全部 15 组 Waygoal 浏览器检查 |
 | `npm run build` / `npm start` | 构建并启动生产宿主，使用同一 Waygoal 入口 |
 | `npm run prototype:canvas` | 在 30145 端口查看独立静态交互原型 |
 
@@ -77,3 +77,19 @@ CI 使用同一套根目录命令，执行静态检查、单元测试、生产�
 探索与综合检查使用 `npm --prefix apps/web run test:waygoal-exploration`，覆盖选文分叉、取消与发送失败恢复、材料托盘只读回源、多选批量材料、失败和迟到响应隔离，以及真实 Pi 发送后的来源快照。桌面与窄屏截图、`checks.json` 位于 `exploration/`。同样要求没有活动开发服务；可在独立副本中验证，避免中断用户工作。
 
 探索竞态回归使用 `npm --prefix apps/web run test:waygoal-review`，对真实读取／分叉结果注入延迟或落地失败，验证回源不覆盖新导航、材料不抢输入焦点、离开画布后不自动跳回或发送、提前打开新分叉时合并恢复问题，以及重试不重复分叉。`WAYGOAL_REVIEW_CASE=locate|focus|fork-leave|fork-retry|fork-open` 可单独选一案；证据写入 `review-<案名>/`。
+
+分叉来源回归使用 `npm --prefix apps/web run test:waygoal-rename-lineage`，覆盖真实 HTTP 分叉重试、名称元数据挂接、20 次 UI 改名、草稿和内容历史不变，以及刷新／服务重启后的世界坐标恢复。证据位于 `rename-lineage/`。
+
+### 分叉来源与恢复
+
+真实来源保存在 Pi agent 目录下的 `waygoal/lineage/`，不随会话移入其他画布而改变。`fork-service` 使用固定操作 ID、独立暂存目录和阶段记录；来源保存后才发布子会话，重试返回同一会话，读取画布时恢复未完成操作。Pi JSONL 格式与会话 ID 保持不变。
+
+旧画布来源通过 `lineage-migration` 核对真实父链及复制内容；可验证记录先备份到 `waygoal/lineage-backup-v1/` 再迁移，不改旧坐标。不能验证或相互冲突的来源保持旧记录，不猜测精确边界。`migrateLegacyOrigins(sessions, false)` 提供只读预检。
+
+`entry-index` 负责完整 entry 到卡片的定位；显示轮次按固定分叉边界切分，名字元数据不创造内容分叉。材料读取使用相同切分边界。命名通过 `session-access` 使用当前会话实例，自动名称应用前检查名称版本。
+
+### 长会话性能
+
+轮次读取只加载展开的会话、当前聊天和它们的分叉家族。条件请求在历史未变时返回 304，保留已有前端对象；离开的会话数据会释放。画布卡片只传有限长度的预览，引用材料和提炼所得仍读取完整原文。
+
+总览缓存分支数与当前叶节点，不缓存全部历史树。完整树和卡片投影各自有条目数及容量上限；画布轮询等待上次读取完成后再继续，隐藏页面暂停轮询。对应回归见 `tree.test.mjs`、`turn-reader.test.mjs`、`turn-loading.test.mjs`。

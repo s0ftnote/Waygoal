@@ -1,8 +1,9 @@
+import { nameVersion, renameSession } from "@/lib/session-access";
 import { NextResponse } from "next/server";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { generateSessionTitle } from "@/lib/session-title";
 import { getRpcSession, startRpcSession } from "@/lib/rpc-manager";
-import { invalidateSessionListCache, resolveSessionPath } from "@/lib/session-reader";
+import { resolveSessionPath } from "@/lib/session-reader";
 
 export async function POST(
   _req: Request,
@@ -24,6 +25,7 @@ export async function POST(
     // globalThis keeps wrappers alive across dev hot reloads; older instances
     // may predate waitUntilReady(), but those have already completed startup.
     await session.waitUntilReady?.();
+    const version = nameVersion(session.inner.sessionManager);
     const result = await generateSessionTitle(session.inner as unknown as AgentSession);
 
     if (!session.isAlive()) {
@@ -33,8 +35,7 @@ export async function POST(
       );
     }
 
-    session.inner.setSessionName(result.title);
-    invalidateSessionListCache();
+    await renameSession(id, result.title, version);
     return NextResponse.json({ title: result.title, usage: result.usage ?? null });
   } catch (error) {
     return NextResponse.json(

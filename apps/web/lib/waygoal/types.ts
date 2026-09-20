@@ -75,6 +75,10 @@ export interface WaygoalOriginRecord extends WaygoalPlace {
 /** Where a node was forked from. `entryId` is null when only Pi's header knows
  *  the source session — the position is reported as unrecorded, never guessed. */
 export interface WaygoalNodeOrigin extends WaygoalPlace {
+  mode?: "before" | "after";
+  selectedEntryId?: string;
+  verified?: boolean;
+  status?: "conflict" | "origin-unrecorded";
   inWorkspace: boolean;
   title: string | null;
 }
