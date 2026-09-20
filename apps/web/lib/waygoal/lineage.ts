@@ -1,3 +1,4 @@
+import { forkFamily } from "./fork-family";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -52,11 +53,7 @@ export function listOrigins(agentDir?: string): ForkOrigin[] {
 }
 
 export function forkBoundaries(sessionId: string, agentDir?: string): Set<string> {
-  const origins = listOrigins(agentDir), family = new Set([sessionId]);
-  let size = 0;
-  while (size !== family.size) {
-    size = family.size;
-    for (const origin of origins) if (family.has(origin.childSessionId) || family.has(origin.parentSessionId)) { family.add(origin.childSessionId); family.add(origin.parentSessionId); }
-  }
+  const origins = listOrigins(agentDir);
+  const family = forkFamily(origins.map(origin => [origin.childSessionId, origin.parentSessionId] as const), [sessionId]);
   return new Set(origins.flatMap(origin => family.has(origin.parentSessionId) && origin.inheritedThroughEntryId ? [origin.inheritedThroughEntryId] : []));
 }

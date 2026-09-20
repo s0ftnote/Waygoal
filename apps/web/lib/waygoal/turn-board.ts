@@ -7,7 +7,7 @@ export const TURN_WIDTH = 278, TURN_HEIGHT = 150, TURN_GAP = 46;
 export const turnKey = (sessionId: string, turnId: string) => JSON.stringify([sessionId, turnId]);
 export interface BoardSession { id: string; title: string; origin: WaygoalNodeOrigin | null; running?: boolean }
 export interface TurnMember { sessionId: string; turn: WaygoalTurn }
-export interface BoardCard extends TurnMember { key: string; members: TurnMember[]; position: WaygoalPoint }
+export interface BoardCard extends TurnMember { key: string; ownerSessionId: string; members: TurnMember[]; position: WaygoalPoint }
 export interface BoardEdge {
   key: string;
   kind: "history" | "fork" | "reference" | "association";
@@ -98,7 +98,7 @@ export function projectTurnBoard(sessions: BoardSession[], data: Record<string, 
       }
       let key = turnKey(ownerId, turn.id);
       // Conflicting copied payloads must never share a visual identity.
-      if (byKey.has(key) && byKey.get(key)!.turn.fingerprint !== turn.fingerprint) key = memberKey;
+      if (byKey.has(key) && byKey.get(key)!.turn.fingerprint !== turn.fingerprint) { key = memberKey; ownerId = session.id; }
       const member: TurnMember = { sessionId: session.id, turn };
       const shared = sources.flatMap(source => {
         const original = source.turns.get(turn.id);
@@ -117,7 +117,7 @@ export function projectTurnBoard(sessions: BoardSession[], data: Record<string, 
       // when its source leaves the canvas. Its old origin then belongs to a
       // different set of cards and must not offset the newly revealed history.
       if (first && !layout.positions[key] && !previous[key] && !layout.positions[memberKey] && !previous[memberKey]) newStarts.add(session.id);
-      const card: BoardCard = { key, ...member, members: [member], position };
+      const card: BoardCard = { key, ownerSessionId: ownerId, ...member, members: [member], position };
       aliases.set(memberKey, key); byKey.set(key, card); cards.push(card);
       if (first) anchors[session.id] = position;
       first = false;
