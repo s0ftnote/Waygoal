@@ -34,6 +34,7 @@
     "test:waygoal-tickets": "node tests/e2e/waygoal-tickets.mjs",
     "test:waygoal-dependencies": "node tests/e2e/waygoal-dependencies.mjs",
     "test:waygoal-find": "node tests/e2e/waygoal-find.mjs",
+    "test:waygoal-navigation": "node tests/e2e/waygoal-navigation.mjs",
     "test:waygoal-workspaces": "node tests/e2e/waygoal-workspaces.mjs",
     "test:waygoal-ticket-talks": "node tests/e2e/waygoal-ticket-talks.mjs",
     "test:waygoal-map": "node tests/e2e/waygoal-map.mjs",

@@ -5,6 +5,7 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useId, useMemo, useR
 import { useIsMobile } from "@/shared/hooks/useIsMobile";
 import { rekeyDraft, getDraft, setDraft, clearDraft, restoreDraftSubmission } from "@/features/chat/draft-store";
 import { cardBounds, cardCenter, viewCenteredOn, type WaygoalCard } from "@/features/canvas/locate";
+import { DEFAULT_VIEW, useCanvasFit } from "./useCanvasFit";
 import type { SessionInfo, UserMessage } from "@/shared/types";
 import type { WaygoalBranchChoice, WaygoalBranchPoint, WaygoalSessionTreeResponse } from "@/features/sessions/branches";
 import { mapKind, ticketKind } from "@/features/tickets/labels";
@@ -37,7 +38,6 @@ import { stateClass, WaygoalTicketPanel } from "../tickets/TicketPanel";
 
 const NODE_W = NODE_WIDTH;
 const NODE_H = NODE_HEIGHT;
-const DEFAULT_VIEW: WaygoalView = { x: 48, y: 96, scale: 1 };
 const MIN_SCALE = 0.2;
 const MAX_SCALE = 1.8;
 /** The composer a ticket opens is a new-session composer, and the host clears a
@@ -1045,15 +1045,11 @@ export function WaygoalCanvas() {
     });
   }, [sceneCards, viewportSize, setView, setViewDirect]);
 
-  /** 回到全景 means the whole canvas: session cards and ticket cards alike, and
-   *  a ticket takes as much room as the discussions shown under it. */
+  const { fit: fitOverview, cancel: cancelOverview } = useCanvasFit(sceneCards, viewportSize, view, setView);
   const fitAll = useCallback(() => {
     viewDirty.current = true;
-    const box = cardBounds(sceneCards);
-    if (!box || viewportSize.width === 0) { setView(DEFAULT_VIEW); return; }
-    const scale = Math.min(1, Math.max(.001, Math.min((viewportSize.width - 96) / box.width, (viewportSize.height - 200) / box.height)));
-    setView(viewCenteredOn({ x: box.x + box.width / 2, y: box.y + box.height / 2 }, { ...DEFAULT_VIEW, scale }, viewportSize));
-  }, [sceneCards, viewportSize, setView]);
+    fitOverview();
+  }, [fitOverview]);
 
   /** Move the view so a place on the canvas sits in the middle. Locating is
    *  only that: no session is opened, nothing is sent, and which path a
@@ -1271,7 +1267,9 @@ export function WaygoalCanvas() {
   const panelOrigin = selectedNode?.origin ?? null;
 
   return <main ref={motion.app} className="waygoal-app waygoal-spatial"
-    onPointerDownCapture={() => motion.input("pointer")} onKeyDownCapture={() => motion.input("keyboard")}
+    onPointerDownCapture={() => { cancelOverview(); motion.input("pointer"); }}
+    onKeyDownCapture={() => { cancelOverview(); motion.input("keyboard"); }}
+    onWheelCapture={cancelOverview}
     onClickCapture={event => { if (event.detail === 0) motion.input("keyboard"); }}
     data-panel-open={panelOpen || undefined} data-empty-entry={emptyEntry || undefined}
     data-files-visible={fileWorkspace.visible || undefined} data-files-expanded={fileWorkspace.expanded || undefined}>

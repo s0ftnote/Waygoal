@@ -92,6 +92,8 @@ WAYGOAL_EVIDENCE_DIR="$PWD/docs/research/prototype-evidence" npm run test:e2e
 
 同源分支检查使用 `npm run test:waygoal-sibling-forks`，覆盖来源不在画布时共享历史、无新轮次的分叉落点，以及卡片与消息按钮包含所选消息的分叉边界。证据位于 `sibling-forks/`。
 
+画布定位检查使用 `npm run test:waygoal-navigation`，以固定 Pi 历史验证缩略图跟手、Map 字体随缩放重排后一次全景定位即可稳定，以及手动导航中断定位。导航不发送消息、不改历史；证据位于 `navigation/`。全景定位的测量收敛由 `src/features/canvas/useCanvasFit.ts` 管理，完成后不持续追踪内容变化。
+
 分支和所得套件还通过 `waygoal-feedback.mjs` 记录浏览器实际执行的 Web Animations，核对反馈出现在引用、真实分叉和人工确认成功之后；同时检查键盘收拢、减少动态效果、退出残影清理、保存失败与历史恢复不误播。记录仅用于测试，不进入产品页面。
 
 探索与综合检查使用 `npm run test:waygoal-exploration`，覆盖选文分叉、取消与发送失败恢复、材料托盘只读回源、多选批量材料、失败和迟到响应隔离，以及真实 Pi 发送后的来源快照。桌面与窄屏截图、`checks.json` 位于 `exploration/`。同样要求没有活动开发服务；可在独立副本中验证，避免中断用户工作。
