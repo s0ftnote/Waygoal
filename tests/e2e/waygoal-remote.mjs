@@ -397,7 +397,7 @@ try {
   const beforeMove=await box(family[2]);
   const bounds=await card(family[2]).boundingBox();
   const scale=await page.locator('.waygoal-world').evaluate(el=>new DOMMatrix(getComputedStyle(el).transform).a);
-  const savedMove=page.waitForResponse(r=>r.url().includes('/api/waygoal') && r.request().method()==='PATCH');
+  const savedMove=page.waitForResponse(r=>r.url().includes('/api/waygoal') && r.request().method()==='PATCH' && Boolean(r.request().postDataJSON()?.positions?.[family[2]]));
   await page.mouse.move(bounds.x+bounds.width/2,bounds.y+bounds.height/2);
   await page.mouse.down();await page.mouse.move(bounds.x+bounds.width/2+32,bounds.y+bounds.height/2,{steps:8});await page.mouse.up();
   await savedMove;
