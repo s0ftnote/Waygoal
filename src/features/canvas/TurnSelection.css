@@ -78,3 +78,32 @@
 .waygoal-link-guide .waygoal-link-source { color: var(--wg-ink); font-weight: 600; max-height: 4.5em; overflow: auto; }
 .waygoal-link-endpoints { margin: 12px 0; padding-left: 20px; overflow-wrap: anywhere; }
 .waygoal-link-endpoints li + li { margin-top: 8px; }
+
+/* Start at the discussion itself; don't move or open its chat to make a link. */
+.waygoal-turn-card .waygoal-card-relate, .waygoal-card-link-hint {
+  position: absolute; top: 5px; right: 7px; display: inline-flex; align-items: center; gap: 4px;
+  min-height: 28px; padding: 4px 7px; border-radius: 6px; font-size: 11px; line-height: 1.3;
+  color: var(--wg-ink); background: var(--wg-surface);
+}
+.waygoal-card-relate svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.waygoal-card-link-hint { pointer-events: none; color: var(--wg-muted); }
+[data-link-source] .waygoal-card-link-hint { background: var(--wg-ink); color: var(--wg-surface); }
+.waygoal-related-description { display: block; margin-top: 4px; font-size: 11px; font-weight: 400; color: var(--wg-muted); }
+@media (hover: hover) and (pointer: fine) {
+  .waygoal-card-relate { opacity: 0; pointer-events: none; }
+  .waygoal-turn-card:is(:hover, :focus-within, .selected, .active) .waygoal-card-relate { opacity: 1; pointer-events: auto; }
+  .waygoal-card-relate:hover { background: var(--wg-accent-soft); }
+  .waygoal-turn-world[data-mode="link"] .waygoal-turn-card:not([data-link-source]):hover .waygoal-card-link-hint { background: var(--wg-ink); color: var(--wg-surface); }
+}
+@media (pointer: coarse) {
+  .waygoal-turn-card .waygoal-card-relate { top: 0; right: 0; min-height: 44px; }
+  .waygoal-turn-world[data-zoom-tier="detail"] .waygoal-turn-card .waygoal-turn-content strong { margin-top: 10px; }
+}
+
+.waygoal-turn-world[data-zoom-tier="map"] :is(.waygoal-card-relate, .waygoal-card-link-hint) { top: -32px; min-height: 28px; font-size: 16px; }
+@media (prefers-reduced-motion: no-preference) {
+  .waygoal-app[data-input="pointer"] .waygoal-card-relate { transition: transform var(--wg-motion-press) var(--wg-ease-out); }
+  .waygoal-app[data-input="pointer"] .waygoal-card-relate:active { transform: scale(.97); }
+}
+
+@media (pointer: coarse) { .waygoal-turn-world[data-zoom-tier="map"] .waygoal-card-relate { top: -46px; min-height: 44px; } }

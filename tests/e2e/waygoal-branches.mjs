@@ -382,7 +382,7 @@ try {
   await page.getByLabel("关系来源").waitFor();
   check("the right-hand original opens its exact sent reference", await page.getByLabel("关系来源").locator("pre").textContent() === crossTurn.sources[0].snapshot);
   await page.getByRole("button", { name: "关闭关系预览" }).click();
-  await tool("标记相关");
+  await tool("关联讨论");
   await page.getByRole("button", { name: "全景", exact: true }).focus(); await page.keyboard.press("Enter");
   await page.locator(`[data-turn="${sibling.id}"] .waygoal-turn-content`).click();
   await page.locator(`[data-turn="${forkOwn.id}"] .waygoal-turn-content`).click();

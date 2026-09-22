@@ -333,6 +333,11 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
       if (captureRequest.current === controller) { captureRequest.current = null; captureSources.current = []; setCapturing(false); }
     }
   };
+  useEffect(() => {
+    if (!linkSaved) return;
+    const timer = window.setTimeout(() => setLinkSaved(false), 4000);
+    return () => window.clearTimeout(timer);
+  }, [linkSaved]);
   const beginLink = (key: string | null = null) => {
     exitSelection(); setMode("link"); setFrom(key); setActionKey(null);
     setInspected(null); setLinkSaved(false); setLinkError(""); setTreeOpen(false);
@@ -399,7 +404,7 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
       }}>{sessions.map(session => <option key={session.id} value={session.id}>{session.title}</option>)}</select>
       <button type="button" aria-expanded={treeOpen} onClick={() => { exitSelection(); setTreeOpen(!treeOpen); if (toolsMenu.current) toolsMenu.current.open = false; }}>选择继续路径</button>
       <button type="button" aria-pressed={mode === "reference"} onClick={() => { exitSelection(); setMode(mode === "reference" ? "read" : "reference"); setFrom(null); }}>引用连线</button>
-      <button type="button" aria-pressed={mode === "link"} onClick={() => beginLink()}>标记相关</button>
+      <button type="button" aria-label="关联讨论" aria-pressed={mode === "link"} onClick={() => beginLink()}>关联讨论<span className="waygoal-related-description">把相关想法连起来，方便一起回看</span></button>
       <details className="waygoal-turn-legend-wrap"><summary>连线说明</summary><div className="waygoal-turn-legend"><span>— 连续历史</span><span>━ 分叉来源</span><span>┄ 引用材料</span><span>┈ 手动标记相关</span></div></details>
         </div>
       </details>
@@ -420,16 +425,16 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
       <span>将来源连到当前对话的「下一轮」。文字范围不含图片、思考与工具参数。</span>
       {scope === "excerpt" && <textarea aria-label="回答摘录" value={excerpt} onChange={event => setExcerpt(event.target.value)} placeholder="粘贴回答中的原文摘录" />}
     </div>}
-    {mode === "link" && <div className="waygoal-turn-selection waygoal-link-guide" role="group" aria-label="标记相关" aria-busy={linkSaving}>
-      <div className="waygoal-turn-selection-head"><strong role="status">{linkSaving ? "正在保存关联…" : from ? "再点一张相关的卡片" : "先点选一张卡片"}</strong>
+    {mode === "link" && <div className="waygoal-turn-selection waygoal-link-guide" role="group" aria-label="关联讨论" aria-busy={linkSaving}>
+      <div className="waygoal-turn-selection-head"><strong role="status">{linkSaving ? "正在保存关联…" : from ? "点另一轮，和这轮一起回看" : "选两轮想一起回看的讨论"}</strong>
         <button type="button" disabled={linkSaving} onClick={() => { setMode("read"); setFrom(null); setLinkError(""); }}>取消关联</button></div>
-      {from && <p className="waygoal-link-source">已选：{byKey.get(from)?.turn.question || "这轮讨论"}</p>}
-      <p>把讨论同一问题的两轮连起来，方便回看对照。只在画布上标记，不会把内容发给 Agent。</p>
+      {from && <p className="waygoal-link-source">关联起点：{byKey.get(from)?.turn.question || "这轮讨论"}</p>}
+      <p>关联只帮你回看。需要把内容带给 Agent，请用「引用回答」。</p>
       {linkError && <p role="alert">{linkError}</p>}
     </div>}
     {linkSaved && mode !== "link" && <div className="waygoal-turn-selection waygoal-link-guide" role="status">
-      <div className="waygoal-turn-selection-head"><strong>已标记相关</strong><button type="button" onClick={() => setLinkSaved(false)}>关闭提示</button></div>
-      <p>点两张卡片之间的连线，可以回看或移除关联。</p>
+      <div className="waygoal-turn-selection-head"><strong>已关联，可一起回看</strong><button type="button" onClick={() => setLinkSaved(false)}>关闭提示</button></div>
+      <p>点连线查看两轮讨论，或移除关联。</p>
     </div>}
     {treeOpen && <nav className="waygoal-turn-tree" aria-label="Tree 路径选择">
       <strong>{title(sourceId)}</strong>
@@ -465,6 +470,12 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
             <p>{card.turn.answer || (activeKey === card.key && busy ? "正在回复…" : "…")}</p>
             {takeaway && <span className="waygoal-turn-takeaway">{tier === "detail" && <span>{takeaway.text}</span>}<small className="waygoal-takeaway-status">{changed ? "原文已变化" : confirmed ? "✓ 已确认" : "待确认"}</small></span>}
           </button>
+          {mode === "read" && !selecting && tier !== "overview" && <button type="button" className="waygoal-card-relate"
+            aria-label={`关联讨论：${card.turn.question || "这轮讨论"}`} title="把相关想法连起来，方便一起回看；不会带入 Agent 上下文"
+            onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); beginLink(card.key); }}>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 10 4-4M5 8 3.5 9.5a2.1 2.1 0 0 0 3 3L8 11M8 5l1.5-1.5a2.1 2.1 0 0 1 3 3L11 8" /></svg>关联讨论
+          </button>}
+          {mode === "link" && tier !== "overview" && <span className="waygoal-card-link-hint" aria-hidden="true">{from === card.key ? "关联起点" : from ? "关联到这里" : "选择这轮"}</span>}
           {mode === "reference" && <button type="button" className={`waygoal-turn-port${from === card.key ? " selected" : ""}`} aria-label={`从 ${index + 1} 连线`} draggable
             onDragStart={event => { event.dataTransfer.setData("text/plain", card.key); setFrom(card.key); }}
             onClick={() => setFrom(card.key)}>●</button>}
@@ -483,7 +494,7 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
           {!actionMember.turn.active && <button type="button" disabled={busy} onClick={() => { setActionKey(null); onContinue(actionMember.sessionId, actionMember.turn.endId); }}>切换到这条分支</button>}
         </>}
         <button type="button" onClick={() => { onDismissPreview(); setEditingTakeaway(actionCard); setActionKey(null); }}>所得</button>
-        <button type="button" title="连接相关的两轮讨论，方便回看对照" onClick={() => beginLink(actionCard.key)}>标记相关</button>
+        <button type="button" title="把相关想法连起来，方便一起回看；不会带入 Agent 上下文" onClick={() => beginLink(actionCard.key)}>关联讨论</button>
       </div>}
     </div>
     {editingTakeaway && <TakeawayEditor key={editingTakeaway.key} card={editingTakeaway} initial={layout.takeaways?.[editingTakeaway.key]}
