@@ -190,7 +190,8 @@ try {
   await panel.getByLabel("会话历史", { exact: true }).waitFor();
   check("branch history uses the right panel and preserves the parked composer", await composer.inputValue() === "B 路径草稿" && await page.evaluate(() => window.keptInput === document.querySelector(".waygoal-panel textarea")));
   check("history has an explicit branch switch and prevents typing into the wrong path", !await composer.isVisible() && await panel.getByRole("button", { name: "切换到这条分支", exact: true }).isVisible());
-  await panel.locator(".waygoal-readonly-body").getByText("回复: 继续第一轮", { exact: true }).waitFor();
+  // The first historical context read cold-compiles a route in the dev host.
+  await panel.locator(".waygoal-readonly-body").getByText("回复: 继续第一轮", { exact: true }).waitFor({ timeout: 60_000 });
   await page.screenshot({ path: join(evidence, "navigation-history-desktop.png") });
   await page.setViewportSize({ width: 390, height: 844 });
   check("branch history fits mobile without horizontal overflow", await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -495,8 +496,11 @@ try {
   await page.locator(`[data-collapse-session="${longId}"]`).focus();
   await page.locator(`[data-collapse-session="${longId}"]`).press("Enter");
   await browseSession(id);
-  await page.locator(`[data-turn="${firstTurn.id}"]`).waitFor();
+  // Distant history is now virtualized; move the camera before waiting for
+  // that card's DOM. The session header confirms its expansion independently.
+  await page.locator(`[data-collapse-session="${id}"]`).waitFor({ state: "attached" });
   await page.getByRole("button", { name: "全景", exact: true }).focus(); await page.keyboard.press("Enter");
+  await page.locator(`[data-turn="${firstTurn.id}"]`).waitFor();
   await page.locator(`[data-turn="${sibling.id}"] .waygoal-turn-content`).click();
   // A non-current branch opens read-only history in the right panel; its
   // user-message action still forks before that message and restores the text.
