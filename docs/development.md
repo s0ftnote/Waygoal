@@ -121,3 +121,5 @@ WAYGOAL_EVIDENCE_DIR="$PWD/docs/research/prototype-evidence" npm run test:e2e
 轮次读取只加载展开的会话、当前聊天和它们的分叉家族。条件请求在历史未变时返回 304，保留已有前端对象；离开的会话数据会释放。画布卡片只传有限长度的预览，引用材料和提炼所得仍读取完整原文。
 
 总览缓存分支数与当前叶节点，不缓存全部历史树。完整树和卡片投影各自有条目数及容量上限；画布轮询等待上次读取完成后再继续，隐藏页面暂停轮询。对应回归见 `tree.test.mjs`、`turn-reader.test.mjs`、`turn-loading.test.mjs`。
+
+导航套件同时调用 `waygoal-microinteractions.mjs`，检查聊天框实时调节、第二个指针隔离、Escape／窗口失焦回退、提交尺寸，以及鼠标按压、键盘与减少动态效果。面板边界套件通过全景定位屏幕外轮次，检查聊天框边界与关联流程。

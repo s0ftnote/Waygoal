@@ -1,3 +1,4 @@
+import { verifyMicrointeractions } from "./waygoal-microinteractions.mjs";
 import { evidenceDirectory, openOverview } from "./waygoal-artifacts.mjs";
 // Isolated regression for zoom-dependent Map headers: one overview action
 // must settle at the same position as subsequent overview actions. Seed real
@@ -131,10 +132,28 @@ try {
     await page.locator(`[data-node="${id}"]`).click();
     await page.locator("[data-turn]").first().waitFor();
   }
+  await verifyMicrointeractions(page, check);
   // The thumbnail represents the current scene; navigation only moves the view.
   await closePanel();
   await page.getByRole("button", { name: "回到全景" }).click();
   await delay(600);
+  const clusterToggle = page.locator('[data-cluster-toggle]').first();
+  const arrowBefore = await clusterToggle.locator('path').getAttribute('d');
+  await clusterToggle.locator('svg').evaluate(el => { el.dataset.originalArrow = 'true'; });
+  await clusterToggle.click();
+  await page.waitForFunction(() => document.querySelector('[data-cluster-toggle]')?.getAttribute('aria-expanded') === 'false');
+  await delay(150);
+  check('Map disclosure keeps one arrow and rotates it to show the folded state',
+    await clusterToggle.locator('path').getAttribute('d') === arrowBefore
+    && await clusterToggle.locator('svg').getAttribute('data-original-arrow') === 'true'
+    && await clusterToggle.locator('svg').evaluate(el => getComputedStyle(el).transform === 'none' && getComputedStyle(el).transitionDuration === '0.12s'));
+  await clusterToggle.focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => document.querySelector('[data-cluster-toggle]')?.getAttribute('aria-expanded') === 'true');
+  check('keyboard Map disclosure rotates immediately without a transition', await clusterToggle.locator('svg').evaluate(el =>
+    getComputedStyle(el).transitionDuration === '0s' && Math.abs(new DOMMatrixReadOnly(getComputedStyle(el).transform).b - 1) < .001));
+  await page.getByRole('button', { name: '回到全景', exact: true }).click();
+  await delay(300);
   const cardCount = (await snapshot()).nodes.length + (await snapshot()).tickets.maps.reduce((n, m) => n + 1 + m.tickets.length, 0)
     + await page.locator("[data-turn]").count();
   check("the thumbnail starts folded to leave room for canvas controls", !(await page.locator("[data-thumb]").isVisible()));

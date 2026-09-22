@@ -1415,7 +1415,7 @@ export function WaygoalCanvas() {
                 <button type="button" className="waygoal-ticket-cluster-toggle" data-cluster-toggle={frame.id}
                   disabled={clusterSaving || movingCluster} aria-expanded={!frame.collapsed} aria-label={`${frame.collapsed ? "展开" : "收起"}票据集群：${frame.title}`}
                   onPointerDown={event => event.stopPropagation()} onClick={() => void toggleCluster(frame.id, !frame.collapsed)}>
-                  <svg viewBox="0 0 16 16" aria-hidden="true"><path d={frame.collapsed ? "m6 3 5 5-5 5" : "m3 6 5 5 5-5"} /></svg>
+                  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5" /></svg>
                 </button>
                 </div>
                 {!frame.collapsed && <>

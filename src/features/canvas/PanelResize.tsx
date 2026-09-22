@@ -1,5 +1,5 @@
 "use client";
-import { useLayoutEffect, useRef, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffectEvent, useLayoutEffect, useRef, type KeyboardEvent, type PointerEvent } from "react";
 
 const STORAGE_KEY = "waygoal.chat-panel-size";
 type Size = { width?: number; height?: number };
@@ -9,7 +9,7 @@ type Axis = "width" | "height" | "both";
 export function WaygoalPanelResize() {
   const anchor = useRef<HTMLDivElement>(null);
   const preferred = useRef<Size>({});
-  const drag = useRef<{ x: number; y: number; width: number; height: number; axis: Axis; before: Size } | null>(null);
+  const drag = useRef<{ x: number; y: number; width: number; height: number; axis: Axis; before: Size; pointerId: number; handle: HTMLButtonElement } | null>(null);
 
   function apply(size: Size) {
     preferred.current = size;
@@ -25,17 +25,6 @@ export function WaygoalPanelResize() {
   }
   function reset() { apply({}); save(); }
 
-  useLayoutEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
-      const size: Size = {};
-      for (const axis of ["width", "height"] as const) {
-        if (typeof saved?.[axis] === "number" && Number.isFinite(saved[axis]) && saved[axis] > 0) size[axis] = saved[axis];
-      }
-      apply(size);
-    } catch { /* Ignore invalid preferences. */ }
-  }, []);
-
   function change(width: number, height: number, axis: Axis) {
     const stage = anchor.current?.closest(".waygoal-stage")?.getBoundingClientRect();
     if (!stage) return;
@@ -47,26 +36,48 @@ export function WaygoalPanelResize() {
     });
   }
   function start(event: PointerEvent<HTMLButtonElement>, axis: Axis) {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || drag.current) return;
     const panel = anchor.current?.closest(".waygoal-panel")?.getBoundingClientRect();
     if (!panel) return;
     event.preventDefault();
     event.currentTarget.focus({ preventScroll: true });
     event.currentTarget.setPointerCapture(event.pointerId);
-    drag.current = { x: event.clientX, y: event.clientY, width: panel.width, height: panel.height, axis, before: { ...preferred.current } };
+    drag.current = { x: event.clientX, y: event.clientY, width: panel.width, height: panel.height, axis, before: { ...preferred.current }, pointerId: event.pointerId, handle: event.currentTarget };
+    event.currentTarget.dataset.resizing = "true";
   }
   function move(event: PointerEvent<HTMLButtonElement>) {
     const origin = drag.current;
-    if (origin) change(origin.width + origin.x - event.clientX, origin.height + origin.y - event.clientY, origin.axis);
+    if (origin?.pointerId === event.pointerId) change(origin.width + origin.x - event.clientX, origin.height + origin.y - event.clientY, origin.axis);
   }
-  function finish(event: PointerEvent<HTMLButtonElement>, cancelled = false) {
-    if (!drag.current) return;
-    if (cancelled) apply(drag.current.before);
+  function finish(pointerId: number, cancelled = false) {
+    const origin = drag.current;
+    if (!origin || origin.pointerId !== pointerId) return;
     drag.current = null;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    origin.handle.removeAttribute("data-resizing");
+    if (cancelled) apply(origin.before);
+    if (origin.handle.hasPointerCapture(pointerId)) origin.handle.releasePointerCapture(pointerId);
     save();
   }
+  const cancelResize = useEffectEvent(() => { if (drag.current) finish(drag.current.pointerId, true); });
+
+  useLayoutEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
+      const size: Size = {};
+      for (const axis of ["width", "height"] as const) {
+        if (typeof saved?.[axis] === "number" && Number.isFinite(saved[axis]) && saved[axis] > 0) size[axis] = saved[axis];
+      }
+      apply(size);
+    } catch { /* Ignore invalid preferences. */ }
+    const cancel = () => cancelResize();
+    window.addEventListener("blur", cancel);
+    return () => { window.removeEventListener("blur", cancel); cancel(); };
+  }, []);
+
   function keyboard(event: KeyboardEvent<HTMLButtonElement>, axis: Axis) {
+    if (drag.current && event.key === "Escape") {
+      event.preventDefault(); event.stopPropagation(); finish(drag.current.pointerId, true); return;
+    }
     if (event.key === "Home") { event.preventDefault(); reset(); return; }
     const horizontal = axis !== "height" && ["ArrowLeft", "ArrowRight"].includes(event.key);
     const vertical = axis !== "width" && ["ArrowUp", "ArrowDown"].includes(event.key);
@@ -82,9 +93,9 @@ export function WaygoalPanelResize() {
   return <div ref={anchor} className="waygoal-panel-resize">
     {([ ["width", "调节聊天框宽度"], ["height", "调节聊天框高度"], ["both", "调节聊天框大小"] ] as const).map(([axis, label]) =>
       <button key={axis} type="button" className={`waygoal-resize-handle waygoal-resize-${axis}`} aria-label={label}
-        title={`${label} · 拖动或方向键调节，双击或 Home 恢复默认`}
+        title={`${label} · 拖动或方向键调节，双击或 Home 恢复默认，Escape 取消拖动`}
         onPointerDown={event => start(event, axis)} onPointerMove={move}
-        onPointerUp={event => finish(event)} onPointerCancel={event => finish(event, true)} onLostPointerCapture={event => finish(event)}
+        onPointerUp={event => finish(event.pointerId)} onPointerCancel={event => finish(event.pointerId, true)} onLostPointerCapture={event => finish(event.pointerId, true)}
         onDoubleClick={reset} onKeyDown={event => keyboard(event, axis)} />)}
   </div>;
 }

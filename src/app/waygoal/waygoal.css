@@ -55,7 +55,8 @@
 .waygoal-app :where(button) { cursor: pointer; border: 0; background: none; }
 .waygoal-app button:disabled { opacity: .45; cursor: default; }
 .waygoal-app button:focus-visible, .waygoal-app input:focus-visible, .waygoal-app a:focus-visible, .waygoal-viewport:focus-visible { outline: 2px solid var(--wg-ink); outline-offset: 3px; }
-.waygoal-app button:active:not(:disabled) { translate: 0 1px; }
+/* Press feedback is opt-in below. Buttons can also be drag surfaces: moving
+   those on press would detach the pointer from their real geometry. */
 
 .waygoal-top { height: 72px; display: flex; align-items: center; padding: 0 30px; gap: 28px; border-bottom: 1px solid var(--wg-border); flex-shrink: 0; background: var(--wg-canvas); }
 .waygoal-brand { font-weight: 850; font-size: 25px; letter-spacing: -1.3px; }
@@ -494,7 +495,15 @@
 .waygoal-resize-width::after { content: ""; position: absolute; left: 3px; top: calc(50% - 18px); height: 36px; width: 3px; border-radius: 3px; background: var(--wg-border); }
 .waygoal-resize-height::after { content: ""; position: absolute; top: 3px; left: calc(50% - 18px); width: 36px; height: 3px; border-radius: 3px; background: var(--wg-border); }
 .waygoal-resize-both::after { content: ""; position: absolute; top: 9px; left: 9px; width: 9px; height: 9px; border-top: 2px solid var(--wg-border); border-left: 2px solid var(--wg-border); border-radius: 3px 0 0; }
-.waygoal-resize-handle:hover::after, .waygoal-resize-handle:focus-visible::after { background: var(--wg-accent-soft); border-color: var(--wg-muted); }
+.waygoal-resize-handle::after { transition: background-color var(--wg-motion-press) ease, border-color var(--wg-motion-press) ease; }
+@media (hover: hover) and (pointer: fine) {
+  .waygoal-resize-handle:hover::after { border-color: var(--wg-path); }
+  .waygoal-resize-handle:not(.waygoal-resize-both):hover::after { background: var(--wg-path); }
+}
+.waygoal-resize-handle:focus-visible::after,
+.waygoal-resize-handle[data-resizing]::after { border-color: var(--wg-ink); }
+.waygoal-resize-handle:not(.waygoal-resize-both):is(:focus-visible, [data-resizing])::after { background: var(--wg-ink); }
+.waygoal-panel:has(.waygoal-resize-handle[data-resizing]) { user-select: none; }
 .waygoal-app .waygoal-resize-handle:focus-visible { outline: none; }
 .waygoal-app .waygoal-resize-handle:focus-visible::after { outline: 2px solid var(--wg-ink); outline-offset: 3px; }
 .waygoal-spatial .waygoal-panel-head { min-height: 64px; padding: 10px 20px; gap: 8px; }
@@ -690,11 +699,11 @@
 @media (prefers-reduced-motion: reduce) { .waygoal-world { transition: none; } }
 
 /* Small feedback stays local: never scale a draggable card or reading surface. */
-.waygoal-app[data-input="pointer"] :is(.waygoal-button, .waygoal-icon, .waygoal-turn-toolbar > button, .waygoal-turn-actions button, .waygoal-zoom button, .waygoal-session-collapse) {
+.waygoal-app[data-input="pointer"] :is(.waygoal-button, .waygoal-icon, .waygoal-brand, .waygoal-surface-switch button, .waygoal-turn-toolbar > button, .waygoal-turn-actions button, .waygoal-zoom button, .waygoal-session-collapse, .waygoal-ticket-cluster-toggle, .waygoal-thumb-heading, .waygoal-turn-more > summary, .waygoal-chat-settings > summary, .waygoal-navigation-menu > summary) {
   transition: transform var(--wg-motion-press) var(--wg-ease-out), background-color var(--wg-motion-press) ease;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .waygoal-app[data-input="pointer"] :is(.waygoal-button, .waygoal-icon, .waygoal-turn-toolbar > button, .waygoal-turn-actions button, .waygoal-zoom button, .waygoal-session-collapse):active:not(:disabled) { transform: scale(.97); }
+  .waygoal-app[data-input="pointer"] :is(.waygoal-button, .waygoal-icon, .waygoal-brand, .waygoal-surface-switch button, .waygoal-turn-toolbar > button, .waygoal-turn-actions button, .waygoal-zoom button, .waygoal-session-collapse, .waygoal-ticket-cluster-toggle, .waygoal-thumb-heading, .waygoal-turn-more > summary, .waygoal-chat-settings > summary, .waygoal-navigation-menu > summary):active:not(:disabled) { transform: scale(.97); }
 }
 
 /* Context surfaces fade in without displacing the text the user is reading.
@@ -706,9 +715,27 @@
   .waygoal-app[data-input="pointer"] :is(.waygoal-turn-actions, .waygoal-edge-preview, .waygoal-takeaway-editor, .waygoal-panel) { opacity: 0; }
 }
 
+/* The small action surface grows from the selected card, even when it needs
+   to sit above it. Its geometry and the card itself never move. */
+@media (prefers-reduced-motion: no-preference) {
+  .waygoal-app[data-input="pointer"] .waygoal-turn-actions {
+    transform-origin: center top;
+    transition: opacity var(--wg-motion-press) var(--wg-ease-out), transform var(--wg-motion-press) var(--wg-ease-out);
+  }
+  .waygoal-app[data-input="pointer"] .waygoal-turn-actions[data-placement="above"] { transform-origin: center bottom; }
+  @starting-style {
+    .waygoal-app[data-input="pointer"] .waygoal-turn-actions { transform: scale(.97); }
+  }
+  .waygoal-app[data-input="pointer"] .waygoal-thumb-heading::after,
+  .waygoal-app[data-input="pointer"] .waygoal-ticket-cluster-toggle svg {
+    transition: transform var(--wg-motion-press) var(--wg-ease-out);
+  }
+}
+
 /* Keyboard-triggered feedback is immediate. Host loading indicators and
    independently verified ticket updates keep their own state semantics. */
-.waygoal-app[data-input="keyboard"] :is(.waygoal-world, .waygoal-button, .waygoal-icon, .waygoal-node, .waygoal-ticket-card, .waygoal-turn-toolbar > button, .waygoal-turn-actions, .waygoal-turn-actions button, .waygoal-zoom button, .waygoal-session-collapse, .waygoal-edge-preview, .waygoal-takeaway-editor, .waygoal-panel, .waygoal-message-actions) { transition: none !important; }
+.waygoal-app[data-input="keyboard"] :is(.waygoal-world, .waygoal-button, .waygoal-icon, .waygoal-brand, .waygoal-surface-switch button, .waygoal-node, .waygoal-ticket-card, .waygoal-turn-toolbar > button, .waygoal-turn-actions, .waygoal-turn-actions button, .waygoal-zoom button, .waygoal-session-collapse, .waygoal-edge-preview, .waygoal-takeaway-editor, .waygoal-panel, .waygoal-message-actions, .waygoal-ticket-cluster-toggle, .waygoal-ticket-cluster-toggle svg, .waygoal-thumb-heading, .waygoal-turn-more > summary, .waygoal-chat-settings > summary, .waygoal-navigation-menu > summary) { transition: none !important; }
+.waygoal-app[data-input="keyboard"] :is(.waygoal-thumb-heading, .waygoal-resize-handle)::after { transition: none !important; }
 
 /* Event-scoped feedback uses the shared durations through WAAPI. Visual exits
    are never focusable, draggable or included in the next prompt. */
@@ -821,6 +848,7 @@
 .waygoal-ticket-cluster-drag { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; height: 100%; text-align: left; cursor: grab; touch-action: none; }
 .waygoal-ticket-cluster-drag:active { cursor: grabbing; }
 .waygoal-ticket-cluster-toggle { display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; border-radius: 8px; }
+.waygoal-ticket-cluster-toggle[aria-expanded="true"] svg { transform: rotate(90deg); }
 .waygoal-ticket-cluster-toggle:hover { background: var(--wg-surface); }
 .waygoal-ticket-cluster-drag:focus-visible, .waygoal-ticket-cluster-toggle:focus-visible { outline: 2px solid var(--wg-ink); outline-offset: 2px; }
 

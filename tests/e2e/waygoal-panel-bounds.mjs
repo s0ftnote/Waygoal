@@ -114,11 +114,13 @@ try {
     return body.turns?.length ? body : null;
   }, 'turns ready');
   const target = data.turns[12].id;
-  await page.locator(`[data-turn="${target}"]`).waitFor();
   const panel = page.locator('.waygoal-panel');
   await panel.locator('textarea').waitFor();
   await panel.getByRole('button', { name: '关闭面板', exact: true }).click();
-  await page.getByRole('button', { name: '当前轮次', exact: true }).click();
+  // Offscreen turns are culled; navigate through the real overview first.
+  await page.getByRole('button', { name: '全景', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await page.locator(`[data-turn="${target}"]`).waitFor();
   await page.locator(`[data-turn="${target}"] .waygoal-turn-content`).click();
   await panel.locator(`[data-entry-id="${target}"]`).waitFor();
   const cameraBefore = await page.locator('.waygoal-world').evaluate(element => element.style.transform);

@@ -473,6 +473,7 @@ export function WaygoalTurnCanvas({ sessionId, targetVersion, board, layouts, on
           onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); const key = event.dataTransfer.getData("text/plain"); if (mode === "reference") void reference(key); }} onClick={() => from && void reference(from)}>下一轮{capturing ? " · 正在读取材料…" : materials.length ? ` · 带入 ${materials.length} 份材料` : " · 在右侧继续聊"}</button>}
       </div>, worldHost)}
       {!selecting && showActions && actionCard && actionMember && <div className="waygoal-turn-actions" role="group" aria-label="所选卡片操作"
+        data-placement={menuTop! < actionBounds!.top ? "above" : "below"}
         style={{ left: Math.max(8, Math.min((actionBounds!.left + actionBounds!.right - menuWidth) / 2, viewportSize.width - menuWidth - 8)), top: menuTop!, width: menuWidth }}>
         <span title={forkBlocked ? "等待当前操作或回复结束后，即可从这里分叉" : "从这轮对话开始一条新分支"}>
           <button type="button" disabled={forkBlocked} onClick={() => { setActionKey(null); onFork(actionMember.sessionId, actionMember.turn.endId); }}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 12V4m0 5c5 0 6-2 6-5M3 5l2-2 2 2m2 0 2-2 2 2" /></svg>从这里分叉</button>
