@@ -112,6 +112,12 @@ WAYGOAL_EVIDENCE_DIR="$PWD/docs/research/prototype-evidence" npm run test:e2e
 
 ### 长会话性能
 
+轮次卡片和历史连线只挂载视野附近的 DOM，拖动、键盘聚焦和操作中的卡片保持挂载。完整坐标和关系仍用于全景、缩略图和消息定位；移动视野不会裁掉会话数据。相机过渡期间覆盖经过的区域，到达后释放旧区域。
+
+内存回归先在独立 checkout 执行 `npm run build`，再运行 `npm run test:waygoal-memory`。脚本使用生产服务和临时 Pi 数据，默认创建 8 个各 200 轮、含长工具结果的会话，依次打开、关闭、收起和刷新；强制 GC 后记录浏览器 JS 堆、DOM、事件监听器及服务进程内存。它不使用真实历史、不发送模型请求，结果写到 `test-results/waygoal/memory/profile.json`。可通过 `WAYGOAL_MEMORY_SESSIONS`、`WAYGOAL_MEMORY_TURNS` 调整规模，`WAYGOAL_MEMORY_OUTPUT` 指定结果文件名。浏览器 JS 堆不等于 Chrome 标签页的总内存，开发编译器也不在这组指标内。
+
+视野裁剪的基线、结果与限制见 [内存复测记录](research/canvas-memory-profile.md)。
+
 轮次读取只加载展开的会话、当前聊天和它们的分叉家族。条件请求在历史未变时返回 304，保留已有前端对象；离开的会话数据会释放。画布卡片只传有限长度的预览，引用材料和提炼所得仍读取完整原文。
 
 总览缓存分支数与当前叶节点，不缓存全部历史树。完整树和卡片投影各自有条目数及容量上限；画布轮询等待上次读取完成后再继续，隐藏页面暂停轮询。对应回归见 `tree.test.mjs`、`turn-reader.test.mjs`、`turn-loading.test.mjs`。
