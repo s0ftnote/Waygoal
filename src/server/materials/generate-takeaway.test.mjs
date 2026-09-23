@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createAssistantMessageEventStream } from '@earendil-works/pi-ai';
+import { createAssistantMessageEventStream, getCurrentSystemPrompt, getCurrentTools } from '@earendil-works/pi-ai';
 import { createJiti } from 'jiti';
 const { generateTakeaway } = await createJiti(import.meta.url).import('./generate-takeaway.ts');
 
@@ -34,9 +34,10 @@ test('takeaway uses only the chosen turn with no tools and leaves the source age
   const tools = source.state.tools;
   assert.equal(await generateTakeaway(source, '设备为何离线？', '网关在线，消息链路仍需验证。'), '消息链路仍需验证');
   assert.equal(contexts.length, 1);
-  assert.equal(contexts[0].messages.length, 1);
-  assert.deepEqual(JSON.parse(contexts[0].messages[0].content[0].text), { question: '设备为何离线？', answer: '网关在线，消息链路仍需验证。' });
-  assert.equal(contexts[0].tools?.length ?? 0, 0);
+  assert.deepEqual(contexts[0].messages.map(message => message.role), ['system', 'user']);
+  assert.match(getCurrentSystemPrompt(contexts[0].messages), /你为思考画布提炼一轮讨论/);
+  assert.deepEqual(JSON.parse(contexts[0].messages[1].content[0].text), { question: '设备为何离线？', answer: '网关在线，消息链路仍需验证。' });
+  assert.equal(getCurrentTools(contexts[0].messages).length, 0);
   assert.doesNotMatch(JSON.stringify(contexts), /unrelated history|original private instructions/);
   assert.deepEqual(source.state.messages, messages);
   assert.equal(source.state.tools, tools);

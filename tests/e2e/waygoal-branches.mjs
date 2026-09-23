@@ -15,6 +15,8 @@ import { chromium } from "playwright";
 import { modelsJson, startFakeModel } from "./fake-model.mjs";
 
 const root = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
+const mode = process.env.E2E_SERVER_MODE || "dev";
+assert.ok(mode === "dev" || mode === "start", "E2E_SERVER_MODE must be dev or start");
 assert.ok(!existsSync(join(root, ".next/dev/lock")), "Use a checkout without an active dev server");
 const evidence = evidenceDirectory("turns");
 mkdirSync(evidence, { recursive: true });
@@ -54,7 +56,7 @@ const base = `http://127.0.0.1:${port}`;
 const canvasUrl = `${base}/waygoal?cwd=${encodeURIComponent(workspace)}`;
 
 async function startServer() {
-  const child = spawn(process.execPath, [join(root, "node_modules/next/dist/bin/next"), "dev", "-H", "127.0.0.1", "-p", String(port)], {
+  const child = spawn(process.execPath, [join(root, "node_modules/next/dist/bin/next"), mode, "-H", "127.0.0.1", "-p", String(port)], {
     cwd: root, stdio: ["ignore", "pipe", "pipe"],
     env: { ...process.env, WAYGOAL: "1", PI_CODING_AGENT_DIR: agentDir, PI_WEB_PASSWORD: "", NEXT_TELEMETRY_DISABLED: "1" },
   });
@@ -509,7 +511,8 @@ try {
   await preview.getByRole("button", { name: "从这里分叉", exact: true }).first().click();
   await waitFor(async () => await composer.inputValue() === "共同问题", "preview fork restores original user message");
   const emptyFork = await waitFor(async () => (await snapshot()).nodes.find(node => ![id, otherSessionId, forkId, longId].includes(node.id)), "fork before first answer");
-  check("a preview user-message fork retains source identity and original draft even before the first answer", emptyFork.origin.sessionId === id && emptyFork.origin.selectedEntryId === firstTurn.id && emptyFork.origin.mode === "before" && emptyFork.origin.entryId === sessionEntries(id).find(entry => entry.id === firstTurn.id).parentId && !sessionEntries(emptyFork.id).some(entry => entry.type === "message"));
+  // Pi 0.87 may retain the initial system transcript before the first user turn.
+  check("a preview user-message fork retains source identity and original draft even before the first answer", emptyFork.origin.sessionId === id && emptyFork.origin.selectedEntryId === firstTurn.id && emptyFork.origin.mode === "before" && emptyFork.origin.entryId === sessionEntries(id).find(entry => entry.id === firstTurn.id).parentId && !sessionEntries(emptyFork.id).some(entry => entry.type === "message" && entry.message.role !== "system"));
   await send("修改后从头探索");
   check("the fork before the first answer is a valid independent Pi session", sessionEntries(emptyFork.id).some(entry => entry.type === "message" && entry.message.role === "assistant"));
   check("no browser errors", errors.length === 0, errors.join("\n"));

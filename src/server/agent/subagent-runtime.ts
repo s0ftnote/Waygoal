@@ -28,6 +28,7 @@ import {
   type SubagentRunInfo,
 } from "./subagents";
 import type { SessionEntry } from "../../shared/types";
+import { createExactSystemPromptExtension } from "./exact-system-prompt";
 import { buildSubagentPromptPlan } from "./subagent-prompt";
 import { appendSubagentInputFiles, loadSubagentInputFiles } from "./subagent-input";
 import { projectTrustReloadOptions } from "../workspace/project-trust";
@@ -192,6 +193,7 @@ export function createSubagentController(
               }
             : {}),
           appendSystemPrompt,
+          ...(chatOnly ? { extensionFactories: [createExactSystemPromptExtension(() => profile.systemPrompt)] } : {}),
         },
         ...((profile.loadExtensions || profile.loadSkills)
           ? { resourceLoaderReloadOptions: projectTrustReloadOptions(parent.cwd, agentDir) }
@@ -293,18 +295,7 @@ export function createSubagentController(
       stored.completion = (async () => {
         let result: SubagentRunInfo;
         try {
-          await inner.prompt(delegatedTask, {
-            source: "rpc",
-            ...(chatOnly
-              ? {
-                  preflightResult: (success: boolean) => {
-                    if (success && inner.agent.state) {
-                      inner.agent.state.systemPrompt = profile.systemPrompt;
-                    }
-                  },
-                }
-              : {}),
-          });
+          await inner.prompt(delegatedTask, { source: "rpc" });
           const text = inner.getLastAssistantText()?.trim();
           const aborted = stored.abortRequested && !maxTurnsReached;
           result = {

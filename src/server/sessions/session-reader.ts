@@ -480,7 +480,8 @@ export function buildSessionContext(
 
 /**
  * Extract the ancestor chain from `leafId` back toward the root, capped at
- * `tail` entries (most-recent first after the final reverse). Iterative: a
+ * `tail` entries excluding system/usage/context-edit bookkeeping (oldest first
+ * after the final reverse). Iterative: a
  * linear session's chain length equals its entry count, so a recursive walk
  * would overflow the stack. The result is still a valid prefix of the active
  * branch — older history is loaded on demand via pagination.
@@ -502,8 +503,14 @@ export function sliceActiveBranch(
   if (!leaf) return [];
   const chain: SessionEntry[] = [];
   let current: SessionEntry | undefined = leaf;
-  while (current && chain.length < tail) {
+  let budgetUsed = 0;
+  const visited = new Set<string>();
+  while (current && budgetUsed < tail && !visited.has(current.id)) {
+    visited.add(current.id);
     chain.push(current);
+    // Pi's transcript bookkeeping is invisible and must not fill a history page.
+    if (current.type !== "usage" && current.type !== "context_edit"
+      && !(current.type === "message" && current.message.role === "system")) budgetUsed += 1;
     current = current.parentId ? byId.get(current.parentId) : undefined;
   }
   chain.reverse();
@@ -596,6 +603,9 @@ function entryToUiMessage(
   // normalizeToolCalls is a secondary guard (returns non-assistant messages as-is).
   switch (entry.type) {
     case "message": {
+      // Transcript system messages carry the prompt and tool loadout (Pi >= 0.86).
+      // They are provider input, not conversation, so they never render.
+      if (entry.message.role === "system") return null;
       let message = options.deferToolResultImages
         ? deferToolResultBase64Images(normalizeToolCalls(entry.message), options.sessionId, entry.id)
         : normalizeToolCalls(entry.message);

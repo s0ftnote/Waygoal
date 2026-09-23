@@ -76,6 +76,22 @@ Tool names are passed at session creation (`POST /api/agent/new` -> `toolNames[]
 
 The last preset explicitly selected by the user is stored in browser `localStorage` and initializes fresh-session composers only. Existing sessions never trust that preference; they use their live `get_tools` state or pi's default when no wrapper exists.
 
+### Pi 0.87 compatibility
+
+The four Pi packages are pinned together at **0.87.1**. Next.js and its ESLint config are pinned at **16.3.5**; the unused image optimizer is disabled. Installing the global `pi-web` CLI does not update this application's dependencies.
+
+- Exact prompts for Chat-only sessions and zero-tool subagents use the hidden inline extension in `src/server/agent/exact-system-prompt.ts`. Its `before_agent_start` handler resolves the prompt on every run, including after reload and session reopen. Never assign `agent.state.systemPrompt` or inject a legacy `context.systemPrompt` into the agent loop: Pi now derives it from the transcript. The wrapper's `get_state` returns the exact override for these sessions.
+- Transcript `system` messages contain prompt sections and tool declarations. Keep their original IDs and parent relationships, but omit them from chat history, SSE, branch previews and Waygoal turn cards. They do not consume the history page budget.
+- `usage` entries include billed cache warming in session totals. `context_edit` changes future model input through Pi's session manager while preserving the raw history shown to the user. Neither entry creates a canvas card or consumes the history page budget.
+- Session-list timestamp ties follow Pi's file order (newest mtime, then reverse filename). The local scanner uses existing stat fingerprints for this ordering.
+- Title generation and takeaway extraction still use a temporary `Agent`, which supplies normalized transcript context to the provider. Tests check the leading system message and ensure these requests leave the original conversation unchanged.
+
+`src/server/agent/pi-compatibility.test.mjs` exercises the real SDK against a local fake model with isolated Pi data: prompt reload, reopening, fork boundaries, context edits, zero-tool child creation and resume. Browser coverage additionally checks shared-history forks and continuous chat navigation.
+
+After `npm run build` in an isolated checkout, `E2E_SERVER_MODE=start npm run test:waygoal-branches` runs the continuous-chat suite against the production server; the default remains `dev`.
+
+Adapted from [pi-web #931](https://github.com/agegr/pi-web/pull/931), with Waygoal-specific turn projection and history pagination handling. The SDK boundary changes are documented in [Pi's changelog](https://github.com/earendil-works/pi/blob/v0.87.1/packages/coding-agent/CHANGELOG.md).
+
 ### Model defaults for new sessions
 `GET /api/models` returns `defaultModel` read from `~/.pi/agent/settings.json`. `ChatWindow` pre-selects this on mount for new sessions. Explicit browser model/thinking selections are applied atomically during AgentSession construction, then `src/server/agent/startup-preferences.ts` persists their effective values without replaying `set_model`/`set_thinking_level`; implicit `enabledModels` fallbacks and thinking pins are not persisted.
 

@@ -120,7 +120,9 @@ try {
   await page.locator(`[data-node="${siblingId}"]`).click();
   const composer=page.locator('.waygoal-panel textarea').first(); await composer.waitFor();await composer.fill('原分支的草稿');
   const original=sessionEntries(siblingId).filter(e=>e.type==='message');
-  await page.getByRole('button',{name:'当前轮次',exact:true}).click();
+  // The development indicator occupies this corner; use the keyboard path.
+  await page.getByRole('button',{name:'当前轮次',exact:true}).focus();
+  await page.keyboard.press('Enter');
   await page.locator('.waygoal-turn-card.active .waygoal-turn-content').click();
   await page.getByRole('group',{name:'所选卡片操作'}).getByRole('button',{name:'从这里分叉',exact:true}).click();
   const forkId=await waitFor(async()=> (await snapshot()).nodes.find(n=>![fixtureId,siblingId].includes(n.id))?.id,'new fork from the shared turn');

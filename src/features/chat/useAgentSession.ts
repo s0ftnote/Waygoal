@@ -15,6 +15,7 @@ import { isBlockingExtensionUiRequest } from "@/shared/browser-notifications";
 import { materialPrompt, type MaterialSnapshot } from "@/features/materials/materials";
 import { retainChatAncestors } from "@/features/chat/retained-chat-history";
 import { getUserMessageText, getUserMessageDraftImages } from "@/features/chat/ChatInput";
+import { isSystemMessageEvent } from "@/shared/agent-event-wire";
 import { normalizeToolCalls } from "@/shared/normalize";
 import { isPromptRejectedError, sendAgentCommand } from "@/features/chat/agent-client";
 import { clearDraft, rekeyDraft, restoreDraftSubmission, setDraft } from "@/features/chat/draft-store";
@@ -1169,6 +1170,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         // (e.g. SSE data buffered while the tab was frozen, flushed after
         // reconcile) — they would resurrect a ghost streaming bubble.
         if (!agentRunningRef.current) break;
+        // Transcript system messages (prompt and tool loadout) are filtered
+        // server-side; keep them out of the chat should one arrive.
+        if (isSystemMessageEvent(event)) break;
         if (event.type === "message_start") {
           const msg = event.message as AgentMessage | undefined;
           if (msg?.role === "user") break;
@@ -1200,6 +1204,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         break;
       }
       case "message_end": {
+        if (isSystemMessageEvent(event)) break;
         // Same late-event guard: after reconcile finished this run,
         // loadSession already loaded this message from the session file —
         // appending it again would duplicate it.

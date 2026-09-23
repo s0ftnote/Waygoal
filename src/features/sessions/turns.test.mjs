@@ -77,3 +77,22 @@ test("each sent reference can show its exact frozen block without rereading sour
   assert.equal(materialSources(legacy).sources[0].snapshot, "legacy captured body");
   assert.equal(materialSources(legacy).sources[0].sharedSnapshot, true);
 });
+
+test("transcript system messages and context edits preserve ancestry without creating cards", () => {
+  const entries = [
+    message("sys", null, "system", "private prompt"),
+    message("u", "sys", "user", "question"),
+    message("a", "u", "assistant", "original answer"),
+    { type: "usage", id: "warm", parentId: "a", kind: "cache_warm" },
+    message("sys2", "warm", "system", "new tool schemas"),
+    { type: "context_edit", id: "edit", parentId: "sys2", targetId: "a", replacement: null },
+    message("next", "edit", "user", "next question"),
+  ];
+  const result = projectTurns("s", entries, "next");
+  assert.deepEqual(result.turns.map(turn => turn.id), ["u", "next"]);
+  assert.deepEqual(result.turns[0].entryIds, ["u", "a"]);
+  assert.equal(result.turns[0].answer, "original answer");
+  assert.equal(result.turns[1].parentId, "u");
+  assert.equal(result.parentById.sys2, "warm");
+  assert.equal(result.entryToTurn.edit, "u");
+});

@@ -13,6 +13,8 @@ try {
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: configDir,
+  // Images are served directly; this app does not need the optimizer endpoint.
+  images: { unoptimized: true },
   serverExternalPackages: [
     "node-pty",
     "undici",

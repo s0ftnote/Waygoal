@@ -67,7 +67,7 @@ export function projectTurns(sessionId: string, entries: SessionEntry[], activeL
     const parent = entry.parentId ? owners.get(entry.parentId) : undefined;
     const isUser = entry.type === "message" && entry.message.role === "user";
     const kind = entry.type === "compaction" ? "compaction" : entry.type === "branch_summary" ? "summary" : isUser ? "turn" : "continuation";
-    const visible = entry.type === "message" || entry.type === "compaction" || entry.type === "branch_summary" || (entry.type === "custom_message" && entry.display);
+    const visible = (entry.type === "message" && entry.message.role !== "system") || entry.type === "compaction" || entry.type === "branch_summary" || (entry.type === "custom_message" && entry.display);
     const divergent = entry.type !== "session_info" && (firstChildren.get(contentParent(entry.parentId)) !== entry.id || Boolean(entry.parentId && divergentMetadata.has(entry.parentId)));
     const starts = isUser || kind === "compaction" || kind === "summary" || (visible && (!parent || divergent || crossesBoundary(entry.parentId)));
     if (!visible && divergent) divergentMetadata.add(entry.id);
